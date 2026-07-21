@@ -17,9 +17,9 @@
 		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
 			<a href="/" class="flex items-center gap-2.5 font-bold text-lg text-foreground hover:opacity-90 transition-opacity">
 				<div class="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-mono text-sm font-bold shadow-sm">
-					V
+					C
 				</div>
-				<span class="tracking-tight">UnivPass <span class="text-primary font-normal text-sm">Logbook & Map</span></span>
+				<span class="tracking-tight">Calapexis <span class="text-primary font-normal text-sm">Logbook & Map</span></span>
 			</a>
 
 			<nav class="flex items-center gap-1 sm:gap-2">
