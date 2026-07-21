@@ -1,5 +1,11 @@
 <script lang="ts">
 	import { MOCK_OFFICES } from '$lib/supabase';
+	import MapPinIcon from '@lucide/svelte/icons/map-pin';
+	import CompassIcon from '@lucide/svelte/icons/compass';
+	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
+	import BuildingIcon from '@lucide/svelte/icons/building';
+	import UserCheckIcon from '@lucide/svelte/icons/user-check';
+	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 </script>
 
 <div class="min-h-screen bg-background text-foreground flex flex-col font-sans">
@@ -8,35 +14,39 @@
 		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
 			<a href="/" class="flex items-center gap-2.5 font-bold text-lg text-foreground hover:opacity-90 transition-opacity">
 				<div class="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-mono text-sm font-bold shadow-xs">
-					V
+					C
 				</div>
-				<span class="tracking-tight">UnivPass <span class="text-primary font-normal text-sm">Logbook & Map</span></span>
+				<span class="tracking-tight">Calapexis <span class="text-primary font-normal text-sm">Visitor Portal</span></span>
 			</a>
 
 			<nav class="flex items-center gap-1 sm:gap-2">
 				<a
 					href="/checkin"
-					class="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+					class="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center gap-1.5"
 				>
-					Visitor Check-In
+					<UserCheckIcon class="size-3.5" />
+					<span>Visitor Check-In</span>
 				</a>
 				<a
 					href="/map"
-					class="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+					class="px-3 py-1.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex items-center gap-1.5"
 				>
-					Campus Map
+					<CompassIcon class="size-3.5" />
+					<span>Campus Map</span>
 				</a>
 				<a
 					href="/staff"
-					class="px-3 py-1.5 rounded-lg text-xs font-semibold text-primary hover:bg-primary/10 transition-colors"
+					class="px-3 py-1.5 rounded-lg text-xs font-semibold text-primary hover:bg-primary/10 transition-colors flex items-center gap-1.5"
 				>
-					Staff Desk
+					<BuildingIcon class="size-3.5" />
+					<span>Staff Desk</span>
 				</a>
 				<a
 					href="/admin"
-					class="ml-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs transition-colors"
+					class="ml-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs transition-colors flex items-center gap-1.5"
 				>
-					Admin Portal
+					<ShieldCheckIcon class="size-3.5" />
+					<span>Admin Portal</span>
 				</a>
 			</nav>
 		</div>
@@ -54,7 +64,7 @@
 				</span>
 				
 				<h1 class="text-3xl md:text-5xl font-extrabold tracking-tight leading-tight text-foreground">
-					Welcome to Campus Digital Visitor Portal
+					Welcome to Calapexis Visitor Portal
 				</h1>
 				
 				<p class="text-muted-foreground text-sm md:text-base leading-relaxed">
@@ -67,13 +77,14 @@
 						class="px-5 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-sm shadow-md transition-all flex items-center gap-2"
 					>
 						<span>Start Visitor Check-In</span>
-						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+						<ArrowRightIcon class="size-4" />
 					</a>
 
 					<a
 						href="/staff"
 						class="px-5 py-2.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-semibold text-sm transition-all flex items-center gap-2"
 					>
+						<BuildingIcon class="size-4" />
 						<span>Staff Desk Portal</span>
 					</a>
 					
@@ -81,8 +92,8 @@
 						href="/map"
 						class="px-5 py-2.5 rounded-lg bg-secondary hover:bg-secondary/80 text-secondary-foreground border border-border font-medium text-sm transition-all flex items-center gap-2"
 					>
+						<CompassIcon class="size-4" />
 						<span>Open Campus Map</span>
-						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
 					</a>
 				</div>
 			</div>
@@ -95,7 +106,10 @@
 					<h2 class="text-xl font-bold text-foreground">University Offices Directory</h2>
 					<p class="text-xs text-muted-foreground">Select an office to view location details & navigate on map.</p>
 				</div>
-				<a href="/map" class="text-xs font-semibold text-primary hover:underline">View All on Map →</a>
+				<a href="/map" class="text-xs font-semibold text-primary hover:underline flex items-center gap-1">
+					<span>View All on Map</span>
+					<ArrowRightIcon class="size-3.5" />
+				</a>
 			</div>
 
 			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -117,7 +131,7 @@
 								class="text-primary font-semibold hover:underline flex items-center gap-1"
 							>
 								<span>Locate Room</span>
-								<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/></svg>
+								<MapPinIcon class="size-3.5" />
 							</a>
 						</div>
 					</div>

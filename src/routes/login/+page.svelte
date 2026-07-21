@@ -16,9 +16,9 @@
 	<div class="bg-card p-6 rounded-2xl border border-border shadow-xl space-y-4">
 		<div class="text-center space-y-1">
 			<div class="w-12 h-12 mx-auto rounded-xl bg-primary text-primary-foreground flex items-center justify-center text-xl font-bold font-mono">
-				V
+				C
 			</div>
-			<h1 class="text-xl font-bold tracking-tight text-foreground">Admin Portal Login</h1>
+			<h1 class="text-xl font-bold tracking-tight text-foreground">Calapexis Admin Login</h1>
 			<p class="text-xs text-muted-foreground">Log in to manage university visitor logs and campus offices.</p>
 		</div>
 

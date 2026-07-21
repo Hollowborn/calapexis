@@ -2,6 +2,14 @@
 	import type { Visitor } from '$lib/types';
 	import { MOCK_OFFICES, MOCK_ROOMS, checkoutLocalVisitor } from '$lib/supabase';
 	import CheckInForm from '$lib/components/logbook/CheckInForm.svelte';
+	import { toast } from 'svelte-sonner';
+	import PrinterIcon from '@lucide/svelte/icons/printer';
+	import CheckCircleIcon from '@lucide/svelte/icons/check-circle-2';
+	import MapPinIcon from '@lucide/svelte/icons/map-pin';
+	import QrCodeIcon from '@lucide/svelte/icons/qr-code';
+	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
+	import BuildingIcon from '@lucide/svelte/icons/building';
+	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 
 	let activePass: Visitor | null = $state(null);
 	let isCheckedOut = $state(false);
@@ -9,12 +17,18 @@
 	function handleCheckInSuccess(visitor: Visitor) {
 		activePass = visitor;
 		isCheckedOut = false;
+		toast.success('Digital Visitor Pass generated successfully!', {
+			description: `Pass Code: ${visitor.passCode}`
+		});
 	}
 
 	function handleSelfCheckout() {
 		if (activePass) {
 			checkoutLocalVisitor(activePass.id);
 			isCheckedOut = true;
+			toast.info('You have checked out successfully.', {
+				description: 'Thank you for visiting our campus.'
+			});
 		}
 	}
 
@@ -30,15 +44,21 @@
 		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
 			<a href="/" class="flex items-center gap-2.5 font-bold text-lg text-foreground hover:opacity-90 transition-opacity">
 				<div class="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-mono text-sm font-bold shadow-xs">
-					V
+					C
 				</div>
-				<span class="tracking-tight">UnivPass <span class="text-primary font-normal text-sm">Visitor Check-In</span></span>
+				<span class="tracking-tight">Calapexis <span class="text-primary font-normal text-sm">Visitor Check-In</span></span>
 			</a>
 
 			<nav class="flex items-center gap-2">
 				<a href="/map" class="text-xs font-medium text-muted-foreground hover:text-foreground">Campus Map</a>
-				<a href="/staff" class="text-xs font-medium text-primary hover:underline ml-2">Staff Desk</a>
-				<a href="/admin" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground shadow-xs">Admin Portal</a>
+				<a href="/staff" class="text-xs font-semibold text-primary hover:underline ml-2 flex items-center gap-1">
+					<BuildingIcon class="size-3.5" />
+					<span>Staff Desk</span>
+				</a>
+				<a href="/admin" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground shadow-xs flex items-center gap-1">
+					<ShieldCheckIcon class="size-3.5" />
+					<span>Admin</span>
+				</a>
 			</nav>
 		</div>
 	</header>
@@ -50,11 +70,13 @@
 			<!-- Digital Visitor Pass Card -->
 			<div class="max-w-md mx-auto bg-card text-card-foreground p-6 rounded-2xl border border-primary/40 shadow-2xl space-y-6 text-center">
 				<div class="space-y-1">
-					<span class="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary font-bold text-xs">
+					<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary font-bold text-xs">
 						{#if isCheckedOut}
-							VISITOR CHECKED OUT
+							<CheckCircleIcon class="size-3.5" />
+							<span>VISITOR CHECKED OUT</span>
 						{:else}
-							OFFICIAL DIGITAL VISITOR PASS
+							<QrCodeIcon class="size-3.5" />
+							<span>OFFICIAL DIGITAL VISITOR PASS</span>
 						{/if}
 					</span>
 					<h2 class="text-2xl font-black tracking-tight text-foreground">{activePass.fullName}</h2>
@@ -99,10 +121,20 @@
 				<div class="space-y-2 pt-2">
 					<a
 						href="/map?office={activePass.officeId}"
-						class="block w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs shadow-md transition-colors"
+						class="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs shadow-md transition-colors flex items-center justify-center gap-2"
 					>
-						Interactive Map & Directions to {activePass.officeName} →
+						<span>Interactive Map & Directions to {activePass.officeName}</span>
+						<ArrowRightIcon class="size-4" />
 					</a>
+
+					<button
+						type="button"
+						onclick={() => window.print()}
+						class="w-full py-2 px-4 rounded-xl border border-border text-foreground hover:bg-muted font-semibold text-xs transition-colors flex items-center justify-center gap-2"
+					>
+						<PrinterIcon class="size-4" />
+						<span>Print Visitor Pass Receipt</span>
+					</button>
 
 					{#if !isCheckedOut}
 						<button
@@ -113,7 +145,10 @@
 							Self-Serve Check-Out Now
 						</button>
 					{:else}
-						<div class="text-xs text-primary font-semibold py-1">✓ You have checked out successfully.</div>
+						<div class="text-xs text-primary font-semibold py-1 flex items-center justify-center gap-1.5">
+							<CheckCircleIcon class="size-4" />
+							<span>You have checked out successfully.</span>
+						</div>
 					{/if}
 
 					<button

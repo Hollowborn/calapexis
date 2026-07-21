@@ -3,8 +3,11 @@
 	import { checkoutLocalVisitor, getLocalVisitors } from '$lib/supabase';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
-	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
+	import { toast } from 'svelte-sonner';
+	import SearchIcon from '@lucide/svelte/icons/search';
+	import CheckCircleIcon from '@lucide/svelte/icons/check-circle-2';
+	import LogOutIcon from '@lucide/svelte/icons/log-out';
 
 	interface Props {
 		activeOfficeId?: string;
@@ -39,6 +42,9 @@
 		const updated = checkoutLocalVisitor(id);
 		if (updated) {
 			lastCheckedOutVisitor = updated;
+			toast.info(`Visitor ${updated.fullName} checked out successfully.`, {
+				description: `Pass Code: ${updated.passCode}`
+			});
 			if (onUpdate) onUpdate();
 		}
 	}
@@ -60,25 +66,14 @@
 					bind:value={searchQuery}
 					class="w-full pl-9 pr-4 py-2 text-sm bg-background border-border"
 				/>
-				<svg
-					class="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground"
-					fill="none"
-					stroke="currentColor"
-					viewBox="0 0 24 24"
-				>
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-					/>
-				</svg>
+				<SearchIcon class="absolute left-3 top-2.5 size-4 text-muted-foreground" />
 			</div>
 
 			{#if lastCheckedOutVisitor}
 				<div class="p-3 rounded-lg bg-primary/10 border border-primary/30 flex items-center justify-between text-xs text-primary">
 					<div class="flex items-center gap-2">
-						<span class="font-bold">✓ Checked Out:</span>
+						<CheckCircleIcon class="size-4 text-primary" />
+						<span class="font-bold">Checked Out:</span>
 						<span>{lastCheckedOutVisitor.fullName} ({lastCheckedOutVisitor.passCode})</span>
 					</div>
 					<span class="font-mono text-[10px] text-muted-foreground">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -111,9 +106,10 @@
 									onclick={() => handlePerformCheckout(visitor.id)}
 									variant="destructive"
 									size="sm"
-									class="text-xs font-semibold px-3 py-1"
+									class="text-xs font-semibold px-3 py-1 gap-1.5"
 								>
-									Check Out
+									<LogOutIcon class="size-3.5" />
+									<span>Check Out</span>
 								</Button>
 							</div>
 						{/each}

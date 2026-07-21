@@ -5,6 +5,9 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
+	import { toast } from 'svelte-sonner';
+	import PrinterIcon from '@lucide/svelte/icons/printer';
+	import UserCheckIcon from '@lucide/svelte/icons/user-check';
 
 	interface Props {
 		offices: Office[];
@@ -60,6 +63,9 @@
 
 		generatedPass = visitor;
 		isSubmitting = false;
+		toast.success('Assisted visitor pass issued successfully!', {
+			description: `Pass Code: ${visitor.passCode}`
+		});
 		onSuccess(visitor);
 	}
 
@@ -172,9 +178,10 @@
 					<Button
 						type="submit"
 						disabled={isSubmitting}
-						class="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs py-2.5 rounded-lg shadow-md"
+						class="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs py-2.5 rounded-lg shadow-md flex items-center justify-center gap-2"
 					>
-						{isSubmitting ? 'Issuing Pass...' : 'Issue Visitor Pass & Register'}
+						<UserCheckIcon class="size-4" />
+						<span>{isSubmitting ? 'Issuing Pass...' : 'Issue Visitor Pass & Register'}</span>
 					</Button>
 				</div>
 			</form>
@@ -216,8 +223,9 @@
 		</Card.Content>
 
 		<Card.Footer class="flex flex-col gap-2 pt-0">
-			<Button onclick={() => window.print()} variant="outline" class="w-full text-xs font-semibold">
-				🖨️ Print Physical Visitor Slip
+			<Button onclick={() => window.print()} variant="outline" class="w-full text-xs font-semibold flex items-center justify-center gap-2">
+				<PrinterIcon class="size-4" />
+				<span>Print Physical Visitor Slip</span>
 			</Button>
 			<Button onclick={handleReset} class="w-full bg-primary text-primary-foreground text-xs font-semibold">
 				Register Another Walk-In Visitor

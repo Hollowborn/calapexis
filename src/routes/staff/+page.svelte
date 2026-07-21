@@ -7,6 +7,10 @@
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import { toast } from 'svelte-sonner';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+	import BuildingIcon from '@lucide/svelte/icons/building';
+	import UsersIcon from '@lucide/svelte/icons/users';
 
 	let activeOfficeId = $state('off-1'); // Default to Registrar Office
 	let activeTab = $state('checkin');
@@ -18,6 +22,11 @@
 
 	function loadData() {
 		visitors = getLocalVisitors();
+	}
+
+	function handleRefreshClick() {
+		loadData();
+		toast.info('Staff logbook data refreshed.');
 	}
 
 	let activeOffice = $derived(MOCK_OFFICES.find((o) => o.id === activeOfficeId));
@@ -32,9 +41,9 @@
 			<div class="flex items-center gap-3">
 				<a href="/staff" class="flex items-center gap-2 font-extrabold text-lg tracking-tight text-foreground">
 					<div class="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-mono text-sm font-bold shadow-xs">
-						S
+						C
 					</div>
-					<span>Staff Desk <span class="text-xs font-normal text-muted-foreground hidden sm:inline">| Assisted Visitor Portal</span></span>
+					<span>Calapexis Staff Desk <span class="text-xs font-normal text-muted-foreground hidden sm:inline">| Office Assisted Portal</span></span>
 				</a>
 			</div>
 
@@ -76,8 +85,9 @@
 			</div>
 
 			<div class="flex items-center gap-2 text-xs">
-				<Button onclick={loadData} variant="outline" size="sm" class="text-xs font-medium">
-					🔄 Refresh Data
+				<Button onclick={handleRefreshClick} variant="outline" size="sm" class="text-xs font-medium gap-1.5">
+					<RefreshCwIcon class="size-3.5" />
+					<span>Refresh Data</span>
 				</Button>
 			</div>
 		</div>
