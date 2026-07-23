@@ -5,11 +5,11 @@
 	import { toast } from 'svelte-sonner';
 	import PrinterIcon from '@lucide/svelte/icons/printer';
 	import CheckCircleIcon from '@lucide/svelte/icons/check-circle-2';
-	import MapPinIcon from '@lucide/svelte/icons/map-pin';
 	import QrCodeIcon from '@lucide/svelte/icons/qr-code';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import BuildingIcon from '@lucide/svelte/icons/building';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
+	import SmartphoneIcon from '@lucide/svelte/icons/smartphone';
 
 	let activePass: Visitor | null = $state(null);
 	let isCheckedOut = $state(false);
@@ -50,20 +50,36 @@
 			</a>
 
 			<nav class="flex items-center gap-2">
+				<a href="/v" class="text-xs font-semibold text-primary hover:underline flex items-center gap-1 bg-primary/10 px-2.5 py-1 rounded-full border border-primary/20">
+					<SmartphoneIcon class="size-3.5" />
+					<span>Mobile Gate QR View</span>
+				</a>
 				<a href="/map" class="text-xs font-medium text-muted-foreground hover:text-foreground">Campus Map</a>
 				<a href="/staff" class="text-xs font-semibold text-primary hover:underline ml-2 flex items-center gap-1">
 					<BuildingIcon class="size-3.5" />
 					<span>Staff Desk</span>
 				</a>
-				<a href="/admin" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground shadow-xs flex items-center gap-1">
-					<ShieldCheckIcon class="size-3.5" />
-					<span>Admin</span>
-				</a>
 			</nav>
 		</div>
 	</header>
 
-	<main class="flex-1 max-w-4xl w-full mx-auto px-4 py-6">
+	<main class="flex-1 max-w-4xl w-full mx-auto px-4 py-6 flex flex-col gap-6">
+		<a
+			href="/v"
+			class="p-4 rounded-xl bg-card border border-primary/40 shadow-sm flex items-center justify-between hover:bg-primary/5 transition-colors group"
+		>
+			<div class="flex items-center gap-3">
+				<div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+					<SmartphoneIcon class="size-5" />
+				</div>
+				<div>
+					<div class="font-bold text-sm text-foreground">Using a Mobile Phone / Scanned Campus Entry QR?</div>
+					<div class="text-xs text-muted-foreground">Launch mobile selfie snap, GPS compass navigation, & room QR camera check-in</div>
+				</div>
+			</div>
+			<ArrowRightIcon class="size-4 text-primary group-hover:translate-x-1 transition-transform" />
+		</a>
+
 		{#if !activePass}
 			<CheckInForm offices={MOCK_OFFICES} rooms={MOCK_ROOMS} onSuccess={handleCheckInSuccess} />
 		{:else}
