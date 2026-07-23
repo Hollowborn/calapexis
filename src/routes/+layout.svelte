@@ -12,7 +12,7 @@
 	<title>Calapexis | University Digital Visitor Logbook & Map</title>
 </svelte:head>
 
-<Toaster position="top-right" richColors />
+<Toaster position="top-right"  />
 
 <div class="min-h-screen bg-background text-foreground flex flex-col font-sans antialiased">
 	<main class="flex-1 w-full mx-auto">
