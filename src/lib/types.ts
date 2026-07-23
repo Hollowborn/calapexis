@@ -36,8 +36,10 @@ export interface Visitor {
 	roomId?: string;
 	roomNumber?: string;
 	hostPerson?: string;
+	photoUrl?: string; // Visitor face snapshot URL
 	checkInTime: string;
 	checkOutTime?: string | null;
+	roomCheckInTime?: string | null; // Confirmation time when scanning room door QR code
 	status: VisitorStatus;
 	passCode: string;
 }
@@ -54,7 +56,7 @@ export interface MapNode {
 export interface NavigationRoute {
 	fromNodeId: string;
 	toNodeId: string;
-	pathPoints: [number, number][]; // Leaflet lat/lng or x/y coordinates
+	pathPoints: [number, number][];
 	distanceMeters: number;
 	instructions: string[];
 }
