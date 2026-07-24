@@ -24,10 +24,14 @@ export interface Room {
 }
 
 export type VisitorStatus = 'checked_in' | 'checked_out' | 'expired';
+export type VerificationStatus = 'pending' | 'approved' | 'rejected';
 
 export interface Visitor {
 	id: string;
 	fullName: string;
+	firstName?: string;
+	middleName?: string;
+	lastName?: string;
 	email: string;
 	phone: string;
 	purpose: string;
@@ -41,6 +45,8 @@ export interface Visitor {
 	checkOutTime?: string | null;
 	roomCheckInTime?: string | null; // Confirmation time when scanning room door QR code
 	status: VisitorStatus;
+	verificationStatus: VerificationStatus;
+	rejectionReason?: string;
 	passCode: string;
 }
 

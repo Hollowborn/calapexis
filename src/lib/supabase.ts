@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import type { Office, Room, Visitor, MapNode } from "./types";
+import type { Office, Room, Visitor, MapNode, VerificationStatus } from "./types";
 
 // Read env variables (optional - will fall back to local store if unconfigured)
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
@@ -208,6 +208,8 @@ let localVisitorsStore: Visitor[] = [
   {
     id: "vis-1001",
     fullName: "Alex Morgan",
+    firstName: "Alex",
+    lastName: "Morgan",
     email: "alex.m@gmail.com",
     phone: "+63 917 123 4567",
     purpose: "Transcript of Records Request",
@@ -219,11 +221,14 @@ let localVisitorsStore: Visitor[] = [
     checkInTime: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
     checkOutTime: null,
     status: "checked_in",
+    verificationStatus: "approved",
     passCode: "VP-8921",
   },
   {
     id: "vis-1002",
     fullName: "Sarah Jenkins",
+    firstName: "Sarah",
+    lastName: "Jenkins",
     email: "sjenkins@outlook.com",
     phone: "+63 918 987 6543",
     purpose: "Tuition Payment Inquiry",
@@ -235,11 +240,14 @@ let localVisitorsStore: Visitor[] = [
     checkInTime: new Date(Date.now() - 90 * 60 * 1000).toISOString(),
     checkOutTime: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
     status: "checked_out",
+    verificationStatus: "approved",
     passCode: "VP-3412",
   },
   {
     id: "vis-1003",
     fullName: "Carlos Rodriguez",
+    firstName: "Carlos",
+    lastName: "Rodriguez",
     email: "carlos.rod@yahoo.com",
     phone: "+63 922 456 7890",
     purpose: "Faculty Research Consultation",
@@ -251,6 +259,7 @@ let localVisitorsStore: Visitor[] = [
     checkInTime: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
     checkOutTime: null,
     status: "checked_in",
+    verificationStatus: "approved",
     passCode: "VP-7561",
   },
 ];
@@ -261,7 +270,7 @@ export function getLocalVisitors(): Visitor[] {
 }
 
 export function addLocalVisitor(
-  visitor: Omit<Visitor, "id" | "passCode" | "checkInTime" | "status">,
+  visitor: Omit<Visitor, "id" | "passCode" | "checkInTime" | "status" | "verificationStatus"> & { verificationStatus?: VerificationStatus },
 ): Visitor {
   const newVisitor: Visitor = {
     ...visitor,
@@ -269,10 +278,50 @@ export function addLocalVisitor(
     checkInTime: new Date().toISOString(),
     checkOutTime: null,
     status: "checked_in",
+    verificationStatus: visitor.verificationStatus || "approved",
     passCode: "VP-" + Math.floor(1000 + Math.random() * 9000),
   };
   localVisitorsStore = [newVisitor, ...localVisitorsStore];
   return newVisitor;
+}
+
+export function verifyVisitor(
+  id: string,
+  status: VerificationStatus,
+  reason?: string
+): Visitor | null {
+  let target: Visitor | null = null;
+  localVisitorsStore = localVisitorsStore.map((v) => {
+    if (v.id === id) {
+      target = {
+        ...v,
+        verificationStatus: status,
+        rejectionReason: reason || undefined,
+        // If rejected, mark checked out / expired or handle registration prompt
+      };
+      return target;
+    }
+    return v;
+  });
+  return target;
+}
+
+export function updateOfficeCheckIn(
+  id: string,
+  checkIn: boolean
+): Visitor | null {
+  let target: Visitor | null = null;
+  localVisitorsStore = localVisitorsStore.map((v) => {
+    if (v.id === id) {
+      target = {
+        ...v,
+        roomCheckInTime: checkIn ? new Date().toISOString() : null,
+      };
+      return target;
+    }
+    return v;
+  });
+  return target;
 }
 
 export function checkoutLocalVisitor(idOrPassCode: string): Visitor | null {
@@ -286,6 +335,7 @@ export function checkoutLocalVisitor(idOrPassCode: string): Visitor | null {
         ...v,
         status: "checked_out",
         checkOutTime: new Date().toISOString(),
+        roomCheckInTime: null, // Clear office check-in upon full checkout
       };
       return target;
     }
