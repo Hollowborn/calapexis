@@ -5,6 +5,8 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
+	import * as Field from '$lib/components/ui/field';
+	import * as Select from '$lib/components/ui/select';
 	import { toast } from 'svelte-sonner';
 	import PrinterIcon from '@lucide/svelte/icons/printer';
 	import UserCheckIcon from '@lucide/svelte/icons/user-check';
@@ -39,8 +41,11 @@
 	);
 
 	let activeOffice = $derived(offices.find((o) => o.id === selectedOfficeId));
+	let selectedRoomName = $derived(
+		selectedRoomId ? rooms.find((r) => r.id === selectedRoomId)?.roomName : ''
+	);
 
-	function handleSubmit(e: SubmitEvent) {
+	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
 		if (!fullName || !selectedOfficeId || !purpose) return;
 
@@ -49,8 +54,17 @@
 		const targetOffice = offices.find((o) => o.id === selectedOfficeId);
 		const targetRoom = rooms.find((r) => r.id === selectedRoomId);
 
-		const visitor = addLocalVisitor({
+		// Determine first, middle, last name from fullName
+		const parts = fullName.trim().split(/\s+/);
+		const firstName = parts[0] || '';
+		const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
+		const middleName = parts.length > 2 ? parts.slice(1, parts.length - 1).join(' ') : '';
+
+		const visitor = await addLocalVisitor({
 			fullName,
+			firstName,
+			middleName,
+			lastName,
 			email: email || 'walkin@campus.visitor',
 			phone: phone || 'No Mobile Phone',
 			purpose,
@@ -58,7 +72,9 @@
 			officeName: targetOffice?.name,
 			roomId: selectedRoomId || undefined,
 			roomNumber: targetRoom?.roomNumber || undefined,
-			hostPerson: hostPerson || targetOffice?.headPerson
+			hostPerson: hostPerson || targetOffice?.headPerson,
+			photoUrl: undefined, // No photo for manual staff desk assisted walk-ins
+			verificationStatus: 'approved' // Staff entries are automatically verified
 		});
 
 		generatedPass = visitor;
@@ -76,6 +92,7 @@
 		phone = '';
 		purpose = '';
 		hostPerson = '';
+		selectedRoomId = '';
 	}
 </script>
 
@@ -89,90 +106,107 @@
 		</Card.Header>
 		<Card.Content>
 			<form onsubmit={handleSubmit} class="flex flex-col gap-4">
-				<div class="flex flex-col gap-1.5">
-					<label for="staff-fullName" class="text-xs font-semibold text-foreground">Visitor Full Name *</label>
-					<Input
-						id="staff-fullName"
-						type="text"
-						placeholder="e.g. Maria Clara"
-						bind:value={fullName}
-						required
-					/>
-				</div>
-
-				<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-					<div class="flex flex-col gap-1.5">
-						<label for="staff-phone" class="text-xs font-semibold text-foreground">Contact Phone (Optional)</label>
+				<Field.FieldGroup class="flex flex-col gap-4">
+					<Field.Field>
+						<Field.FieldLabel for="staff-fullName">Visitor Full Name *</Field.FieldLabel>
 						<Input
-							id="staff-phone"
-							type="tel"
-							placeholder="No phone or +63 900 000 0000"
-							bind:value={phone}
-						/>
-					</div>
-					<div class="flex flex-col gap-1.5">
-						<label for="staff-email" class="text-xs font-semibold text-foreground">Email Address (Optional)</label>
-						<Input
-							id="staff-email"
-							type="email"
-							placeholder="Optional email"
-							bind:value={email}
-						/>
-					</div>
-				</div>
-
-				<div class="flex flex-col gap-1.5">
-					<label for="staff-purpose" class="text-xs font-semibold text-foreground">Purpose of Visit *</label>
-					<Input
-						id="staff-purpose"
-						type="text"
-						placeholder="e.g. Inquiry, Document Submission, Consultation"
-						bind:value={purpose}
-						required
-					/>
-				</div>
-
-				<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-					<div class="flex flex-col gap-1.5">
-						<label for="staff-office" class="text-xs font-semibold text-foreground">Destination Office *</label>
-						<select
-							id="staff-office"
-							bind:value={selectedOfficeId}
+							id="staff-fullName"
+							type="text"
+							placeholder="e.g. Maria Clara"
+							bind:value={fullName}
 							required
-							class="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
-						>
-							{#each offices as office}
-								<option value={office.id}>{office.name} ({office.code})</option>
-							{/each}
-						</select>
+						/>
+					</Field.Field>
+
+					<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+						<Field.Field>
+							<Field.FieldLabel for="staff-phone">Contact Phone (Optional)</Field.FieldLabel>
+							<Input
+								id="staff-phone"
+								type="tel"
+								placeholder="No phone or +63 900 000 0000"
+								bind:value={phone}
+							/>
+						</Field.Field>
+						<Field.Field>
+							<Field.FieldLabel for="staff-email">Email Address (Optional)</Field.FieldLabel>
+							<Input
+								id="staff-email"
+								type="email"
+								placeholder="Optional email"
+								bind:value={email}
+							/>
+						</Field.Field>
 					</div>
 
-					{#if availableRooms.length > 0}
-						<div class="flex flex-col gap-1.5">
-							<label for="staff-room" class="text-xs font-semibold text-foreground">Specific Room</label>
-							<select
-								id="staff-room"
-								bind:value={selectedRoomId}
-								class="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs transition-colors focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
-							>
-								<option value="">Any / Reception Counter</option>
-								{#each availableRooms as room}
-									<option value={room.id}>{room.roomNumber} - {room.roomName}</option>
-								{/each}
-							</select>
-						</div>
-					{/if}
-				</div>
+					<Field.Field>
+						<Field.FieldLabel for="staff-purpose">Purpose of Visit *</Field.FieldLabel>
+						<Input
+							id="staff-purpose"
+							type="text"
+							placeholder="e.g. Inquiry, Document Submission, Consultation"
+							bind:value={purpose}
+							required
+						/>
+					</Field.Field>
 
-				<div class="flex flex-col gap-1.5">
-					<label for="staff-host" class="text-xs font-semibold text-foreground">Staff / Host Person to Visit</label>
-					<Input
-						id="staff-host"
-						type="text"
-						placeholder={activeOffice?.headPerson || 'Office Staff'}
-						bind:value={hostPerson}
-					/>
-				</div>
+					<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+						<Field.Field>
+							<Field.FieldLabel for="staff-office">Destination Office *</Field.FieldLabel>
+							<Select.Root type="single" bind:value={selectedOfficeId}>
+								<Select.Trigger id="staff-office" class="w-full h-10">
+									<span class="text-sm font-medium">
+										{activeOffice?.name || "Select an Office..."}
+									</span>
+								</Select.Trigger>
+								<Select.Content>
+									<Select.Group>
+										{#each offices as office}
+											<Select.Item value={office.id} label={office.name}>
+												{office.name} ({office.code})
+											</Select.Item>
+										{/each}
+									</Select.Group>
+								</Select.Content>
+							</Select.Root>
+						</Field.Field>
+
+						{#if availableRooms.length > 0}
+							<Field.Field>
+								<Field.FieldLabel for="staff-room">Specific Room</Field.FieldLabel>
+								<Select.Root type="single" bind:value={selectedRoomId}>
+									<Select.Trigger id="staff-room" class="w-full h-10">
+										<span class="text-sm font-medium">
+											{selectedRoomName || "Any / Reception Counter"}
+										</span>
+									</Select.Trigger>
+									<Select.Content>
+										<Select.Group>
+											<Select.Item value="" label="Any / Reception Counter">
+												Any / Reception Counter
+											</Select.Item>
+											{#each availableRooms as room}
+												<Select.Item value={room.id} label={`${room.roomNumber} - ${room.roomName}`}>
+													{room.roomNumber} - {room.roomName}
+												</Select.Item>
+											{/each}
+										</Select.Group>
+									</Select.Content>
+								</Select.Root>
+							</Field.Field>
+						{/if}
+					</div>
+
+					<Field.Field>
+						<Field.FieldLabel for="staff-host">Staff / Host Person to Visit</Field.FieldLabel>
+						<Input
+							id="staff-host"
+							type="text"
+							placeholder={activeOffice?.headPerson || 'Office Staff'}
+							bind:value={hostPerson}
+						/>
+					</Field.Field>
+				</Field.FieldGroup>
 
 				<div class="pt-2">
 					<Button
@@ -180,7 +214,7 @@
 						disabled={isSubmitting}
 						class="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs py-2.5 rounded-lg shadow-md flex items-center justify-center gap-2"
 					>
-						<UserCheckIcon class="size-4" />
+						<UserCheckIcon class="size-4 pointer-events-none" />
 						<span>{isSubmitting ? 'Issuing Pass...' : 'Issue Visitor Pass & Register'}</span>
 					</Button>
 				</div>
@@ -224,7 +258,7 @@
 
 		<Card.Footer class="flex flex-col gap-2 pt-0">
 			<Button onclick={() => window.print()} variant="outline" class="w-full text-xs font-semibold flex items-center justify-center gap-2">
-				<PrinterIcon class="size-4" />
+				<PrinterIcon class="size-4 pointer-events-none" />
 				<span>Print Physical Visitor Slip</span>
 			</Button>
 			<Button onclick={handleReset} class="w-full bg-primary text-primary-foreground text-xs font-semibold">

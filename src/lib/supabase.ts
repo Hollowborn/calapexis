@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import type { Office, Room, Visitor, MapNode, VerificationStatus } from "./types";
+import type { Office, Room, Visitor, MapNode, VerificationStatus, Profile } from "./types";
 
 // Read env variables (optional - will fall back to local store if unconfigured)
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
@@ -264,82 +264,303 @@ let localVisitorsStore: Visitor[] = [
   },
 ];
 
+// Mock Profiles Database Store for offline RBAC
+export let localProfilesStore: (Profile & { password?: string })[] = [
+	{ id: "usr-1", email: "admin", role: "admin", password: "admin123", createdAt: new Date().toISOString() },
+	{ id: "usr-2", email: "security", role: "security", password: "security123", createdAt: new Date().toISOString() },
+	{ id: "usr-3", email: "staff", role: "staff", password: "staff123", officeId: "off-1", createdAt: new Date().toISOString() }
+];
+
+// --- DB-to-Frontend Converter Mappers ---
+
+function mapDbOfficeToOffice(db: any): Office {
+	return {
+		id: db.id,
+		name: db.name,
+		code: db.code,
+		building: db.building,
+		floor: db.floor,
+		description: db.description || "",
+		headPerson: db.head_person,
+		contactEmail: db.contact_email,
+		xCoord: db.x_coord ? Number(db.x_coord) : undefined,
+		yCoord: db.y_coord ? Number(db.y_coord) : undefined
+	};
+}
+
+function mapDbRoomToRoom(db: any): Room {
+	return {
+		id: db.id,
+		officeId: db.office_id,
+		roomNumber: db.room_number,
+		roomName: db.room_name,
+		building: db.building,
+		floor: db.floor,
+		xCoord: Number(db.x_coord),
+		yCoord: Number(db.y_coord),
+		description: db.description || ""
+	};
+}
+
+function mapDbProfileToProfile(db: any): Profile {
+	return {
+		id: db.id,
+		email: db.email,
+		role: db.role,
+		officeId: db.office_id,
+		createdAt: db.created_at
+	};
+}
+
+function mapDbVisitorToVisitor(db: any): Visitor {
+	return {
+		id: db.id,
+		fullName: db.full_name,
+		firstName: db.first_name || "",
+		middleName: db.middle_name || "",
+		lastName: db.last_name || "",
+		email: db.email,
+		phone: db.phone,
+		purpose: db.purpose,
+		officeId: db.office_id,
+		officeName: db.office_name || "",
+		roomId: db.room_id || "",
+		roomNumber: db.room_number || "",
+		hostPerson: db.host_person || "",
+		photoUrl: db.photo_url || "",
+		checkInTime: db.check_in_time,
+		checkOutTime: db.check_out_time,
+		roomCheckInTime: db.room_check_in_time,
+		status: db.status,
+		verificationStatus: db.verification_status,
+		rejectionReason: db.rejection_reason || "",
+		passCode: db.pass_code
+	};
+}
+
+function mapVisitorToDbVisitor(v: any): any {
+	return {
+		id: v.id,
+		full_name: v.fullName,
+		first_name: v.firstName || null,
+		middle_name: v.middleName || null,
+		last_name: v.lastName || null,
+		email: v.email,
+		phone: v.phone,
+		purpose: v.purpose,
+		office_id: v.officeId || null,
+		office_name: v.officeName || null,
+		room_id: v.roomId || null,
+		room_number: v.roomNumber || null,
+		host_person: v.hostPerson || null,
+		photo_url: v.photoUrl || null,
+		check_in_time: v.checkInTime,
+		check_out_time: v.checkOutTime || null,
+		room_check_in_time: v.roomCheckInTime || null,
+		status: v.status,
+		verification_status: v.verificationStatus,
+		rejection_reason: v.rejectionReason || null,
+		pass_code: v.passCode
+	};
+}
+
 // Local Data Access Helper Functions
-export function getLocalVisitors(): Visitor[] {
-  return [...localVisitorsStore];
+export async function getLocalVisitors(): Promise<Visitor[]> {
+	if (isSupabaseConfigured && supabase) {
+		const { data, error } = await supabase
+			.from("visitors")
+			.select("*")
+			.order("check_in_time", { ascending: false });
+		if (!error && data) {
+			return data.map(mapDbVisitorToVisitor);
+		}
+		console.warn("Supabase fetch visitors error, using mock fallback:", error);
+	}
+	return [...localVisitorsStore];
 }
 
-export function addLocalVisitor(
-  visitor: Omit<Visitor, "id" | "passCode" | "checkInTime" | "status" | "verificationStatus"> & { verificationStatus?: VerificationStatus },
-): Visitor {
-  const newVisitor: Visitor = {
-    ...visitor,
-    id: "vis-" + Math.floor(100000 + Math.random() * 900000),
-    checkInTime: new Date().toISOString(),
-    checkOutTime: null,
-    status: "checked_in",
-    verificationStatus: visitor.verificationStatus || "approved",
-    passCode: "VP-" + Math.floor(1000 + Math.random() * 9000),
-  };
-  localVisitorsStore = [newVisitor, ...localVisitorsStore];
-  return newVisitor;
+export async function addLocalVisitor(
+	visitor: Omit<Visitor, "id" | "passCode" | "checkInTime" | "status" | "verificationStatus"> & { verificationStatus?: VerificationStatus },
+): Promise<Visitor> {
+	const newVisitor: Visitor = {
+		...visitor,
+		id: "vis-" + Math.floor(100000 + Math.random() * 900000),
+		checkInTime: new Date().toISOString(),
+		checkOutTime: null,
+		status: "checked_in",
+		verificationStatus: visitor.verificationStatus || "approved",
+		passCode: "VP-" + Math.floor(1000 + Math.random() * 9000),
+	};
+
+	if (isSupabaseConfigured && supabase) {
+		const dbRow = mapVisitorToDbVisitor(newVisitor);
+		const { data, error } = await supabase
+			.from("visitors")
+			.insert([dbRow])
+			.select()
+			.single();
+		if (!error && data) {
+			return mapDbVisitorToVisitor(data);
+		}
+		console.warn("Supabase insert visitor error, using mock fallback:", error);
+	}
+
+	localVisitorsStore = [newVisitor, ...localVisitorsStore];
+	return newVisitor;
 }
 
-export function verifyVisitor(
-  id: string,
-  status: VerificationStatus,
-  reason?: string
-): Visitor | null {
-  let target: Visitor | null = null;
-  localVisitorsStore = localVisitorsStore.map((v) => {
-    if (v.id === id) {
-      target = {
-        ...v,
-        verificationStatus: status,
-        rejectionReason: reason || undefined,
-        // If rejected, mark checked out / expired or handle registration prompt
-      };
-      return target;
-    }
-    return v;
-  });
-  return target;
+export async function verifyVisitor(
+	id: string,
+	status: VerificationStatus,
+	reason?: string
+): Promise<Visitor | null> {
+	if (isSupabaseConfigured && supabase) {
+		const { data, error } = await supabase
+			.from("visitors")
+			.update({
+				verification_status: status,
+				rejection_reason: reason || null
+			})
+			.eq("id", id)
+			.select()
+			.single();
+		if (!error && data) {
+			return mapDbVisitorToVisitor(data);
+		}
+		console.warn("Supabase verify visitor error, using mock fallback:", error);
+	}
+
+	let target: Visitor | null = null;
+	localVisitorsStore = localVisitorsStore.map((v) => {
+		if (v.id === id) {
+			target = {
+				...v,
+				verificationStatus: status,
+				rejectionReason: reason || undefined,
+			};
+			return target;
+		}
+		return v;
+	});
+	return target;
 }
 
-export function updateOfficeCheckIn(
-  id: string,
-  checkIn: boolean
-): Visitor | null {
-  let target: Visitor | null = null;
-  localVisitorsStore = localVisitorsStore.map((v) => {
-    if (v.id === id) {
-      target = {
-        ...v,
-        roomCheckInTime: checkIn ? new Date().toISOString() : null,
-      };
-      return target;
-    }
-    return v;
-  });
-  return target;
+export async function updateOfficeCheckIn(
+	id: string,
+	checkIn: boolean
+): Promise<Visitor | null> {
+	if (isSupabaseConfigured && supabase) {
+		const { data, error } = await supabase
+			.from("visitors")
+			.update({
+				room_check_in_time: checkIn ? new Date().toISOString() : null
+			})
+			.eq("id", id)
+			.select()
+			.single();
+		if (!error && data) {
+			return mapDbVisitorToVisitor(data);
+		}
+		console.warn("Supabase office check-in update error, using mock fallback:", error);
+	}
+
+	let target: Visitor | null = null;
+	localVisitorsStore = localVisitorsStore.map((v) => {
+		if (v.id === id) {
+			target = {
+				...v,
+				roomCheckInTime: checkIn ? new Date().toISOString() : null,
+			};
+			return target;
+		}
+		return v;
+	});
+	return target;
 }
 
-export function checkoutLocalVisitor(idOrPassCode: string): Visitor | null {
-  let target: Visitor | null = null;
-  localVisitorsStore = localVisitorsStore.map((v) => {
-    if (
-      (v.id === idOrPassCode || v.passCode === idOrPassCode) &&
-      v.status === "checked_in"
-    ) {
-      target = {
-        ...v,
-        status: "checked_out",
-        checkOutTime: new Date().toISOString(),
-        roomCheckInTime: null, // Clear office check-in upon full checkout
-      };
-      return target;
-    }
-    return v;
-  });
-  return target;
+export async function checkoutLocalVisitor(idOrPassCode: string): Promise<Visitor | null> {
+	if (isSupabaseConfigured && supabase) {
+		const { data, error } = await supabase
+			.from("visitors")
+			.update({
+				status: "checked_out",
+				check_out_time: new Date().toISOString(),
+				room_check_in_time: null
+			})
+			.or(`id.eq.${idOrPassCode},pass_code.eq.${idOrPassCode}`)
+			.select();
+		if (!error && data && data.length > 0) {
+			return mapDbVisitorToVisitor(data[0]);
+		}
+		console.warn("Supabase checkout visitor error, using mock fallback:", error);
+	}
+
+	let target: Visitor | null = null;
+	localVisitorsStore = localVisitorsStore.map((v) => {
+		if (
+			(v.id === idOrPassCode || v.passCode === idOrPassCode) &&
+			v.status === "checked_in"
+		) {
+			target = {
+				...v,
+				status: "checked_out",
+				checkOutTime: new Date().toISOString(),
+				roomCheckInTime: null,
+			};
+			return target;
+		}
+		return v;
+	});
+	return target;
+}
+
+export async function getLocalProfiles(): Promise<(Profile & { password?: string })[]> {
+	if (isSupabaseConfigured && supabase) {
+		const { data, error } = await supabase
+			.from("profiles")
+			.select("*")
+			.order("created_at", { ascending: true });
+		if (!error && data) {
+			return data.map(mapDbProfileToProfile);
+		}
+		console.warn("Supabase fetch profiles error, using mock fallback:", error);
+	}
+	return [...localProfilesStore];
+}
+
+export async function addLocalProfile(
+	email: string,
+	role: 'admin' | 'security' | 'staff',
+	password?: string,
+	officeId?: string
+): Promise<Profile> {
+	const newProfile: Profile & { password?: string } = {
+		id: "usr-" + Math.floor(1000 + Math.random() * 9000),
+		email,
+		role,
+		password,
+		officeId,
+		createdAt: new Date().toISOString()
+	};
+
+	if (isSupabaseConfigured && supabase) {
+		const dbRow = {
+			id: newProfile.id,
+			email,
+			role,
+			office_id: officeId || null
+		};
+		const { data, error } = await supabase
+			.from("profiles")
+			.insert([dbRow])
+			.select()
+			.single();
+		if (!error && data) {
+			return mapDbProfileToProfile(data);
+		}
+		console.warn("Supabase insert profile error, using mock fallback:", error);
+	}
+
+	localProfilesStore = [...localProfilesStore, newProfile];
+	return newProfile;
 }

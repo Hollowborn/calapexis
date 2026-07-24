@@ -4,47 +4,49 @@ This document preserves the architecture, directory changes, operational flows, 
 
 ---
 
-## 📁 Updated Directory & Route Map
+## 📁 Directory & Route Map
 
-The route structure inside `src/routes/` has been reorganized as follows:
-- **`/login`** ([login/](file:///C:/Users/Charles/Programming/GitHub/calapexis/src/routes/login)): The main portal entrance. Features the split card layout (formerly `login-04`) with SvelteKit server load handlers, secure cookies, and a premium static background.
-- **`/login-1`** ([login-1/](file:///C:/Users/Charles/Programming/GitHub/calapexis/src/routes/login-1)): The legacy simple credential input page (formerly `login`).
-- **`/admin`** ([admin/](file:///C:/Users/Charles/Programming/GitHub/calapexis/src/routes/admin)): The System Admin dashboard featuring traffic analytics, master logs, CSV exports, and office configurations.
-- **`/security`** ([security/](file:///C:/Users/Charles/Programming/GitHub/calapexis/src/routes/security)): The Security Guard desk with live active visitor grids, approval/rejection queues, scanner simulation inputs, and historical audits.
-- **`/staff`** ([staff/](file:///C:/Users/Charles/Programming/GitHub/calapexis/src/routes/staff)): The Office Staff portal for department-level assisted registration, printed office door QR generation, and quick occupancy checks.
-- **`/checkin`** & **`/v`**: Public visitor registration wizard steps (First/Middle/Last names and webcam selfies are required).
-- **`/map`**: Leaflet pixel map pathfinder guides.
+The route structure inside `src/routes/` is organized as follows:
+- **`/login`** ([login/](file:///C:/Users/Charles/Programming/GitHub/calapexis/src/routes/login)): The unified portal entrance. Uses SvelteKit server load handlers and forms with `toast.promise` notifications. Excludes selector tabs in production, with a collapsible Dev Quick Fill assistant in local development.
+- **`/login-1`** ([login-1/](file:///C:/Users/Charles/Programming/GitHub/calapexis/src/routes/login-1)): The legacy simple credential input page.
+- **`/admin`** ([admin/](file:///C:/Users/Charles/Programming/GitHub/calapexis/src/routes/admin)): The System Admin dashboard featuring traffic analytics, master logs, CSV exports, office configurations, and the **Accounts Provisioning Panel**.
+- **`/security`** ([security/](file:///C:/Users/Charles/Programming/GitHub/calapexis/src/routes/security)): The Security Guard desk with live active visitor grids, approval/rejection queues, scanner simulation inputs, and historical audits. Modals use the Svelte `Dialog` component.
+- **`/staff`** ([staff/](file:///C:/Users/Charles/Programming/GitHub/calapexis/src/routes/staff)): The Office Staff portal. Locked to the staff's assigned department if they have a bound `officeId`. Shows check-ins and check-outs for their specific department.
 
 ---
 
-## 🔑 Portals Access & Mock Credentials
+## 🔑 Portals Access & Secure Session Pipeline
 
-All privileged portals are guarded server-side by [hooks.server.ts](file:///C:/Users/Charles/Programming/GitHub/calapexis/src/hooks.server.ts). Access checks are based on the `session_role` cookie:
+All privileged portals are guarded server-side by [hooks.server.ts](file:///C:/Users/Charles/Programming/GitHub/calapexis/src/hooks.server.ts).
+- **Cookies**: Browser stores `session_role` and `session_office_id` in secure `httpOnly` state.
+- **event.locals.session**: Parsed once per request in hooks and cached for request-lifecycle validation in all `+page.server.ts` loaders.
 
-| Role Selector | Mock Username | Mock Password | Portal URL | Permitted Route Access |
+### Active Mock Accounts:
+| User / Username | Mock Password | Access Role | Bound Department / Office | Permitted Access |
 | :--- | :--- | :--- | :--- | :--- |
-| **Admin** | `admin` | `admin123` | `/admin` | `/admin`, `/security`, `/staff`, `/` |
-| **Security** | `security` | `security123` | `/security` | `/security`, `/staff`, `/` |
-| **Staff** | `staff` | `staff123` | `/staff` | `/staff`, `/` |
+| `admin` | `admin123` | `admin` | *Global* | All pages |
+| `security` | `security123` | `security` | *Global* | `/security`, `/staff` |
+| `staff` | `staff123` | `staff` | `off-1` (Registrar) | `/staff` (Locked to Registrar) |
 
 ---
 
-## 💾 Supabase Database Schema
+## 💾 Supabase Database Configuration & Live Queries
 
-The SQL migrations script resides at [supabase/schema.sql](file:///C:/Users/Charles/Programming/GitHub/calapexis/supabase/schema.sql) and contains definitions for:
-1. `profiles`: Ties auth users to roles (`admin`, `security`, `staff`).
-2. `offices` & `rooms`: Campus navigation targets.
-3. `visitors`: Structured names (`first_name`, `middle_name`, `last_name`), live snapshot photos, gate times, office check-in states, and verification fields.
-4. Row-Level Security (RLS) policies allowing public inserts but restricting list views to authenticated staff roles.
-5. Trigger function `public.handle_new_user()` to auto-create profile rows upon signups.
+The database integrations query a live Supabase server. Helper functions in [src/lib/supabase.ts](file:///C:/Users/Charles/Programming/GitHub/calapexis/src/lib/supabase.ts) are fully asynchronous and handle bidirectional field mappers between database `snake_case` fields and Svelte/TS `camelCase` parameters:
+- `getLocalVisitors()`: Queries `visitors` table ordered by `check_in_time`.
+- `addLocalVisitor(v)`: Inserts checking details and pass codes into `visitors`.
+- `verifyVisitor(id, status, reason)`: Performs updates on security pass verifications.
+- `updateOfficeCheckIn(id, checkIn)`: Modifies scanning arrival confirmations.
+- `checkoutLocalVisitor(code)`: Updates checked out visitor timestamps.
+- `getLocalProfiles()` & `addLocalProfile(...)`: Manages credential bindings on `profiles` table.
+
+A robust offline memory store fallback is integrated within these helpers to ensure the local development environment remains fully functional if Supabase URL env configurations are missing or offline.
 
 ---
 
 ## 🎨 UI Component Design Standards
 
-All files adhere strictly to `.agents/skills/shadcn-svelte/rules`:
-- **Form Layout**: Form inputs are wrapped in `Field.FieldGroup` + `Field.Field` with `flex flex-col gap-4` layouts instead of raw `space-y-*` or `grid` styles.
-- **Select Trigger**: `Select.Root` elements always declare `type="single"`. Trigger contents avoid `Select.Value` and render selections inside static `span` tags.
-- **Trigger Wrappers**: Popover and Select trigger wrappers do not use `asChild` or `let:builder`.
-- **Event Handling**: Native handlers (`onclick`, `onsubmit`, `onchange`) are utilized in place of `on:click`.
-- **Data Table Badges**: Theme-aware table cells leverage Svelte snippets with inline OKLCH color cycling styling calculated from string hashes.
+- **Dialog Modals**: Custom overlays are replaced with official `* as Dialog` modules from `$lib/components/ui/dialog` declaring `Dialog.Title` and `Dialog.Description` for accessibility.
+- **Form Layout**: Form inputs are wrapped in `Field.FieldGroup` + `Field.Field` with `flex flex-col gap-4`.
+- **Select Trigger**: `Select.Root` elements always declare `type="single"` and render selection values inside static `span` tags.
+- **Event Handling**: Native Svelte 5 handlers (`onclick`, `onsubmit`, `onchange`) are utilized in place of `on:click`.

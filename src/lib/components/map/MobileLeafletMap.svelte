@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { Office, Room } from '$lib/types';
-	import { MOCK_MAP_NODES } from '$lib/supabase';
+	import { MOCK_MAP_NODES, updateOfficeCheckIn } from '$lib/supabase';
 	import RoomQrScannerModal from '$lib/components/logbook/RoomQrScannerModal.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
+	import { toast } from 'svelte-sonner';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
 	import CompassIcon from '@lucide/svelte/icons/compass';
 	import QrCodeIcon from '@lucide/svelte/icons/qr-code';
@@ -19,6 +20,7 @@
 		selectedRoomId?: string;
 		visitorName?: string;
 		photoUrl?: string;
+		visitorId?: string;
 	}
 
 	let {
@@ -27,7 +29,8 @@
 		selectedOfficeId = '',
 		selectedRoomId = '',
 		visitorName = 'Visitor',
-		photoUrl = ''
+		photoUrl = '',
+		visitorId = ''
 	}: Props = $props();
 
 	let mapElement: HTMLDivElement | undefined = $state();
@@ -182,8 +185,17 @@
 		}
 	}
 
-	function handleRoomQrSuccess() {
-		isRoomCheckedIn = true;
+	async function handleRoomQrSuccess() {
+		const newStatus = !isRoomCheckedIn;
+		isRoomCheckedIn = newStatus;
+		if (visitorId) {
+			await updateOfficeCheckIn(visitorId, newStatus);
+		}
+		if (newStatus) {
+			toast.success(`Arrived & Checked In at ${selectedOffice?.name || 'Office'}!`);
+		} else {
+			toast.info(`Checked Out of ${selectedOffice?.name || 'Office'}.`);
+		}
 	}
 </script>
 

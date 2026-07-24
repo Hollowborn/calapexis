@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Card from '$lib/components/ui/card';
+import * as Dialog from '$lib/components/ui/dialog';
 	import { toast } from 'svelte-sonner';
 	import QrCodeIcon from '@lucide/svelte/icons/qr-code';
 	import CheckCircleIcon from '@lucide/svelte/icons/check-circle-2';
@@ -72,42 +73,36 @@
 	}
 </script>
 
-{#if isOpen}
-	<div class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-		<Card.Root class="w-full max-w-sm border-primary/40 shadow-2xl bg-card">
-			<Card.Header class="pb-3 flex flex-row items-center justify-between border-b border-border">
-				<div>
-					<Card.Title class="text-lg font-bold text-foreground">Scan Room Door QR Code</Card.Title>
-					<Card.Description class="text-xs text-muted-foreground">Confirm arrival at {targetOfficeName}</Card.Description>
-				</div>
-				<Button onclick={onClose} variant="ghost" size="sm" class="p-1 size-8 rounded-full">
-					<XIcon class="size-4" />
-				</Button>
-			</Card.Header>
+<Dialog.Root open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+	<Dialog.Content class="max-w-sm border-primary/40 shadow-2xl">
+		<Dialog.Header>
+			<Dialog.Title>Scan Room Door QR Code</Dialog.Title>
+			<Dialog.Description>Confirm arrival at {targetOfficeName}</Dialog.Description>
+		</Dialog.Header>
 
-			<Card.Content class="py-4 flex flex-col gap-4 items-center">
-				<div class="relative w-60 h-60 rounded-xl overflow-hidden border-2 border-primary bg-slate-950 flex items-center justify-center">
-					<video bind:this={videoElement} autoplay playsinline muted class="w-full h-full object-cover"></video>
+		<div class="py-4 flex flex-col gap-4 items-center">
+			<div class="relative w-60 h-60 rounded-xl overflow-hidden border-2 border-primary bg-slate-950 flex items-center justify-center">
+				<video bind:this={videoElement} autoplay playsinline muted class="w-full h-full object-cover"></video>
 
-					<!-- Animated Scanner Overlay Line -->
-					<div class="absolute inset-x-0 h-0.5 bg-primary shadow-[0_0_15px_var(--color-primary)] animate-bounce top-1/2"></div>
-					<div class="absolute inset-0 border-2 border-dashed border-primary/50 m-6 pointer-events-none"></div>
-				</div>
+				<!-- Animated Scanner Overlay Line -->
+				<div class="absolute inset-x-0 h-0.5 bg-primary shadow-[0_0_15px_var(--color-primary)] animate-bounce top-1/2"></div>
+				<div class="absolute inset-0 border-2 border-dashed border-primary/50 m-6 pointer-events-none"></div>
+			</div>
 
-				<div class="text-center space-y-1">
-					<Badge variant="outline" class="border-primary text-primary text-[10px]">ALIGN DOOR QR INSIDE FRAME</Badge>
-					<p class="text-[11px] text-muted-foreground">Or click below to simulate room door QR scan</p>
-				</div>
+			<div class="text-center space-y-1">
+				<Badge variant="outline" class="border-primary text-primary text-[10px]">ALIGN DOOR QR INSIDE FRAME</Badge>
+				<p class="text-[11px] text-muted-foreground">Or click below to simulate room door QR scan</p>
+			</div>
+		</div>
 
-				<!-- Quick Simulation Action for Demo/Testing -->
-				<Button
-					onclick={() => handleConfirmArrival(`ROOM-QR-${Math.floor(100 + Math.random() * 900)}`)}
-					class="w-full bg-primary text-primary-foreground font-bold text-xs py-2 rounded-lg gap-2 shadow-md"
-				>
-					<CheckCircleIcon class="size-4" />
-					<span>Simulate Room Door QR Scan</span>
-				</Button>
-			</Card.Content>
-		</Card.Root>
-	</div>
-{/if}
+		<Dialog.Footer>
+			<Button
+				onclick={() => handleConfirmArrival(`ROOM-QR-${Math.floor(100 + Math.random() * 900)}`)}
+				class="w-full bg-primary text-primary-foreground font-bold text-xs py-2 rounded-lg gap-2 shadow-md"
+			>
+				<CheckCircleIcon class="size-4" />
+				<span>Simulate Room Door QR Scan</span>
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>

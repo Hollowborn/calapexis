@@ -1,6 +1,9 @@
 <script lang="ts">
 	import type { Visitor } from '$lib/types';
 	import { checkoutLocalVisitor } from '$lib/supabase';
+	import { Button } from '$lib/components/ui/button';
+	import { Badge } from '$lib/components/ui/badge';
+	import LogOutIcon from '@lucide/svelte/icons/log-out';
 
 	interface Props {
 		visitors: Visitor[];
@@ -34,35 +37,37 @@
 <!-- Snippet for dynamically colored theme-aware badges using OKLCH -->
 {#snippet officeBadge(officeName: string)}
 	{@const colorVar = getColorVar(officeName)}
-	<span
-		class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border transition-colors shadow-xs"
+	<Badge
 		style="background-color: oklch(from var({colorVar}) l c h / 0.15); border-color: oklch(from var({colorVar}) l c h / 0.3); color: var({colorVar});"
+		variant="outline"
+		class="text-[11px] font-medium border transition-colors shadow-xs"
 	>
 		{officeName}
-	</span>
+	</Badge>
 {/snippet}
 
-{#snippet statusBadge(status: string)}
-	{#if status === 'checked_in'}
-		<span
-			class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border"
-			style="background-color: oklch(from var(--chart-2) l c h / 0.15); border-color: oklch(from var(--chart-2) l c h / 0.3); color: var(--chart-2);"
-		>
-			<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
-			Active Visitor
+{#snippet statusBadge(visitor: Visitor)}
+	{#if visitor.status === 'checked_out'}
+		<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted border border-border text-muted-foreground">
+			Checked Out
+		</span>
+	{:else if visitor.verificationStatus === 'rejected'}
+		<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 dark:bg-red-950/30 text-red-500 border border-red-200">
+			Declined
+		</span>
+	{:else if visitor.roomCheckInTime}
+		<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950/30 text-indigo-500 border border-indigo-200 animate-pulse">
+			In Office
 		</span>
 	{:else}
-		<span
-			class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border text-muted-foreground"
-			style="background-color: oklch(from var(--muted) l c h / 0.3); border-color: var(--border);"
-		>
-			Checked Out
+		<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/30 text-emerald-500 border border-emerald-200">
+			On Campus
 		</span>
 	{/if}
 {/snippet}
 
 <div class="w-full overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-	<table class="w-full text-left text-xs text-foreground">
+	<table class="w-full text-left text-xs text-foreground font-sans">
 		<thead class="bg-muted/50 text-muted-foreground uppercase text-[10px] tracking-wider font-semibold border-b border-border">
 			<tr>
 				<th class="px-4 py-3">Pass Code</th>
@@ -102,17 +107,20 @@
 						{visitor.checkOutTime ? formatTime(visitor.checkOutTime) : '-'}
 					</td>
 					<td class="px-4 py-3">
-						{@render statusBadge(visitor.status)}
+						{@render statusBadge(visitor)}
 					</td>
 					<td class="px-4 py-3 text-right">
 						{#if visitor.status === 'checked_in'}
-							<button
+							<Button
 								type="button"
+								variant="destructive"
+								size="sm"
 								onclick={() => handleCheckout(visitor.id)}
-								class="px-2.5 py-1 text-[11px] font-medium bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-md transition-colors shadow-xs"
+								class="h-7 text-[11px] font-bold rounded-md flex items-center gap-1.5 ml-auto"
 							>
-								Check Out
-							</button>
+								<LogOutIcon class="size-3.5 pointer-events-none" />
+								<span>Check Out</span>
+							</Button>
 						{:else}
 							<span class="text-[10px] text-muted-foreground italic">Completed</span>
 						{/if}

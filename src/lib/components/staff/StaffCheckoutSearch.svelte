@@ -19,7 +19,17 @@
 	let searchQuery = $state('');
 	let lastCheckedOutVisitor: Visitor | null = $state(null);
 
-	let allVisitors = $derived(getLocalVisitors());
+	let allVisitors = $state<Visitor[]>([]);
+
+	async function loadAll() {
+		allVisitors = await getLocalVisitors();
+	}
+
+	$effect(() => {
+		loadAll();
+		const interval = setInterval(loadAll, 2000);
+		return () => clearInterval(interval);
+	});
 
 	let filteredActiveVisitors = $derived(
 		allVisitors.filter((v) => {
@@ -38,13 +48,14 @@
 		})
 	);
 
-	function handlePerformCheckout(id: string) {
-		const updated = checkoutLocalVisitor(id);
+	async function handlePerformCheckout(id: string) {
+		const updated = await checkoutLocalVisitor(id);
 		if (updated) {
 			lastCheckedOutVisitor = updated;
 			toast.info(`Visitor ${updated.fullName} checked out successfully.`, {
 				description: `Pass Code: ${updated.passCode}`
 			});
+			await loadAll();
 			if (onUpdate) onUpdate();
 		}
 	}

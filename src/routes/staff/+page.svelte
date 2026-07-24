@@ -1,10 +1,12 @@
 <script lang="ts">
 	import { MOCK_OFFICES, getLocalVisitors } from '$lib/supabase';
+	import { enhance } from '$app/forms';
 	import type { Visitor } from '$lib/types';
 	import StaffCheckInForm from '$lib/components/staff/StaffCheckInForm.svelte';
 	import StaffCheckoutSearch from '$lib/components/staff/StaffCheckoutSearch.svelte';
 	import VisitorTable from '$lib/components/admin/VisitorTable.svelte';
 	import * as Tabs from '$lib/components/ui/tabs';
+	import * as Select from '$lib/components/ui/select';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { toast } from 'svelte-sonner';
@@ -12,7 +14,9 @@
 	import BuildingIcon from '@lucide/svelte/icons/building';
 	import UsersIcon from '@lucide/svelte/icons/users';
 
-	let activeOfficeId = $state('off-1'); // Default to Registrar Office
+	let { data } = $props();
+
+	let activeOfficeId = $state(data.assignedOfficeId || 'off-1'); // Locked if assigned, else default
 	let activeTab = $state('checkin');
 	let visitors: Visitor[] = $state([]);
 
@@ -20,12 +24,12 @@
 		loadData();
 	});
 
-	function loadData() {
-		visitors = getLocalVisitors();
+	async function loadData() {
+		visitors = await getLocalVisitors();
 	}
 
-	function handleRefreshClick() {
-		loadData();
+	async function handleRefreshClick() {
+		await loadData();
 		toast.info('Staff logbook data refreshed.');
 	}
 
@@ -51,23 +55,42 @@
 			<div class="flex items-center gap-3">
 				<div class="flex items-center gap-2">
 					<span class="text-xs font-medium text-muted-foreground hidden md:inline">Department:</span>
-					<select
-						bind:value={activeOfficeId}
-						class="h-9 rounded-lg border border-input bg-background px-3 py-1 text-xs font-semibold text-foreground shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
-					>
-						{#each MOCK_OFFICES as office}
-							<option value={office.id}>{office.name} ({office.code})</option>
-						{/each}
-					</select>
+					{#if data.assignedOfficeId}
+						<Badge class="bg-primary text-primary-foreground font-bold text-xs py-1.5 px-3 rounded-lg shadow-xs">
+							{MOCK_OFFICES.find(o => o.id === data.assignedOfficeId)?.name}
+						</Badge>
+					{:else}
+						<Select.Root type="single" bind:value={activeOfficeId}>
+							<Select.Trigger class="h-9 min-w-44">
+								<span class="text-xs font-semibold">
+									{MOCK_OFFICES.find(o => o.id === activeOfficeId)?.name || 'Select Department'}
+								</span>
+							</Select.Trigger>
+							<Select.Content>
+								<Select.Group>
+									{#each MOCK_OFFICES as office}
+										<Select.Item value={office.id} label={office.name}>
+											{office.name} ({office.code})
+										</Select.Item>
+									{/each}
+								</Select.Group>
+							</Select.Content>
+						</Select.Root>
+					{/if}
 				</div>
 
 				<Badge variant="outline" class="hidden lg:flex border-primary text-primary font-semibold text-xs">
 					{activeOfficeCount} Active Visitors
 				</Badge>
 
-				<a href="/" class="text-xs font-medium text-muted-foreground hover:text-foreground underline">
+				<a href="/" class="text-xs font-medium text-muted-foreground hover:text-foreground underline mr-2">
 					Public Site →
 				</a>
+				<form method="POST" action="/login?/logout" use:enhance>
+					<Button type="submit" variant="ghost" size="sm" class="text-xs font-semibold text-destructive hover:bg-destructive/10 h-8 rounded-lg">
+						Log Out
+					</Button>
+				</form>
 			</div>
 		</div>
 	</header>
