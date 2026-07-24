@@ -7,12 +7,12 @@
 </script>
 
 <svelte:head>
-	<link rel="icon" href={favicon} />
+	<link rel="icon" href={"favicon.png"} />
 	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 	<title>Calapexis | University Digital Visitor Logbook & Map</title>
 </svelte:head>
 
-<Toaster position="top-right"  />
+<Toaster position="bottom-left"  />
 
 <div class="min-h-screen bg-background text-foreground flex flex-col font-sans antialiased">
 	<main class="flex-1 w-full mx-auto">
