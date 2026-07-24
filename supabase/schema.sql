@@ -1,14 +1,6 @@
 -- Supabase SQL Schema for University Visitor Logbook & Map Navigation
 
--- 1. Profiles Table (RBAC roles)
-CREATE TABLE IF NOT EXISTS public.profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    email TEXT NOT NULL,
-    role TEXT NOT NULL CHECK (role IN ('admin', 'security', 'staff')),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
--- 2. Offices Table
+-- 1. Offices Table
 CREATE TABLE IF NOT EXISTS public.offices (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
@@ -23,7 +15,7 @@ CREATE TABLE IF NOT EXISTS public.offices (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 3. Rooms Table
+-- 2. Rooms Table
 CREATE TABLE IF NOT EXISTS public.rooms (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     office_id UUID REFERENCES offices(id) ON DELETE CASCADE,
@@ -34,6 +26,15 @@ CREATE TABLE IF NOT EXISTS public.rooms (
     x_coord NUMERIC NOT NULL,
     y_coord NUMERIC NOT NULL,
     description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 3. Profiles Table (RBAC roles & department binding)
+CREATE TABLE IF NOT EXISTS public.profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('admin', 'security', 'staff')),
+    office_id UUID REFERENCES public.offices(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

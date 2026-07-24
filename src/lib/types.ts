@@ -66,3 +66,11 @@ export interface NavigationRoute {
 	distanceMeters: number;
 	instructions: string[];
 }
+
+export interface Profile {
+	id: string;
+	email: string;
+	role: 'admin' | 'security' | 'staff';
+	officeId?: string;
+	createdAt?: string;
+}
