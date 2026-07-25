@@ -69,10 +69,18 @@ ALTER TABLE public.offices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.visitors ENABLE ROW LEVEL SECURITY;
 
+-- Security Definer Role Resolver (Bypasses RLS to avoid infinite recursion)
+CREATE OR REPLACE FUNCTION public.get_user_role(user_id UUID)
+RETURNS TEXT AS $$
+BEGIN
+    RETURN (SELECT role FROM public.profiles WHERE id = user_id);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Profiles Policies
 CREATE POLICY "Allow public select profiles" ON public.profiles FOR SELECT USING (true);
 CREATE POLICY "Allow admins all access to profiles" ON public.profiles FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    public.get_user_role(auth.uid()) = 'admin'
 );
 
 -- Offices Policies

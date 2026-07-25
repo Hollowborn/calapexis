@@ -8,9 +8,11 @@ import type {
   Profile,
 } from "./types";
 
+import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_PUBLISHABLE_KEY } from "$env/static/public";
+
 // Read env variables (optional - will fall back to local store if unconfigured)
-const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
+const supabaseUrl = PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
