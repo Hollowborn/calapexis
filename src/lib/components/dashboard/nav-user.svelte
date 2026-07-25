@@ -69,7 +69,7 @@
 				</DropdownMenu.Group>
 				<DropdownMenu.Separator />
 				<form method="POST" action="/login?/logout" use:enhance class="w-full">
-					<button type="submit" class="w-full text-start" onclick={() => toast.success("Logged out successfully!")}>
+					<button type="submit" class="w-full text-start">
 						<DropdownMenu.Item class="cursor-pointer w-full text-destructive hover:bg-destructive/15">
 							<LogOutIcon class="size-4 mr-2" />
 							Log out

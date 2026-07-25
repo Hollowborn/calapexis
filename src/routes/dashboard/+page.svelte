@@ -17,6 +17,7 @@
 	import type { Visitor, Office, Room, Profile } from '$lib/types';
 	import StaffCheckInForm from '$lib/components/staff/StaffCheckInForm.svelte';
 	import StaffCheckoutSearch from '$lib/components/staff/StaffCheckoutSearch.svelte';
+	import ThemeToggle from '$lib/components/theme-toggle.svelte';
 
 	// Database hooks
 	import { 
@@ -343,6 +344,9 @@
 					</Breadcrumb.Item>
 				</Breadcrumb.List>
 			</Breadcrumb.Root>
+			<div class="ms-auto flex items-center gap-2">
+				<ThemeToggle />
+			</div>
 		</header>
 
 		<!-- Main Workspace Content Area -->
@@ -497,6 +501,17 @@
 								<DownloadIcon class="size-3.5 pointer-events-none" />
 								<span>Export CSV</span>
 							</Button>
+
+							<Button onclick={() => window.print()} variant="outline" size="sm" class="h-9 text-xs font-semibold gap-1.5 rounded-xl border-border/80 bg-background hover:bg-muted/40 cursor-pointer">
+								<PrinterIcon class="size-3.5 pointer-events-none" />
+								<span>Print PDF</span>
+							</Button>
+						</div>
+
+						<!-- Print-Only Heading -->
+						<div class="hidden print:block text-center space-y-1 mb-6">
+							<h1 class="text-xl font-bold tracking-tight text-black">Calapexis Visitor Compliance Logbook</h1>
+							<p class="text-xs text-zinc-600">Generated on {new Date().toLocaleString()} • Classified Official Campus Document</p>
 						</div>
 
 						<!-- Table master logs -->

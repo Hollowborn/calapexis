@@ -6,6 +6,7 @@
 	import BuildingIcon from '@lucide/svelte/icons/building';
 	import UserCheckIcon from '@lucide/svelte/icons/user-check';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
+	import ThemeToggle from '$lib/components/theme-toggle.svelte';
 </script>
 
 <div class="min-h-screen bg-background text-foreground flex flex-col font-sans">
@@ -48,6 +49,9 @@
 					<ShieldCheckIcon class="size-3.5" />
 					<span>Admin Portal</span>
 				</a>
+				<div class="ml-1 sm:ml-2">
+					<ThemeToggle />
+				</div>
 			</nav>
 		</div>
 	</header>

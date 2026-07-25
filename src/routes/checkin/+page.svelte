@@ -10,6 +10,7 @@
 	import BuildingIcon from '@lucide/svelte/icons/building';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import SmartphoneIcon from '@lucide/svelte/icons/smartphone';
+	import ThemeToggle from '$lib/components/theme-toggle.svelte';
 
 	let activePass: Visitor | null = $state(null);
 	let isCheckedOut = $state(false);
@@ -59,6 +60,9 @@
 					<BuildingIcon class="size-3.5" />
 					<span>Staff Desk</span>
 				</a>
+				<div class="ml-1">
+					<ThemeToggle />
+				</div>
 			</nav>
 		</div>
 	</header>

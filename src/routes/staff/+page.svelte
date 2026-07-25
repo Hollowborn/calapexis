@@ -14,7 +14,7 @@
 	import BuildingIcon from '@lucide/svelte/icons/building';
 	import UsersIcon from '@lucide/svelte/icons/users';
 
-	let { data } = $props();
+	let { data }: { data: any } = $props();
 
 	let activeOfficeId = $state(data.assignedOfficeId || 'off-1'); // Locked if assigned, else default
 	let activeTab = $state('checkin');
