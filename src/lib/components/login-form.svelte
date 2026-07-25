@@ -147,7 +147,7 @@
 						Calapexis Portal
 					</div>
 					<div class="text-xs text-white/80 leading-relaxed font-medium">
-						University Digital Visitor Verification & Pathfinding Navigator.
+						this is a text, needing some changing. Or changing it needs.
 					</div>
 				</div>
 			</div>
