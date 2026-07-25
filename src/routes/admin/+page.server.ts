@@ -2,20 +2,14 @@ import { redirect, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { getLocalProfiles, addLocalProfile } from '$lib/supabase';
 
-export const load: PageServerLoad = async ({ cookies, url }) => {
+export const load: PageServerLoad = async ({ cookies }) => {
 	const sessionRole = cookies.get('session_role');
-	const path = url.pathname;
 
 	if (sessionRole !== 'admin') {
-		throw redirect(303, `/login?error=unauthorized_admin&redirect=${encodeURIComponent(path)}`);
+		throw redirect(303, `/login?error=unauthorized_admin&redirect=%2Fdashboard`);
 	}
 
-	// Fetch all user profiles to render in accounts manager
-	const profiles = (await getLocalProfiles()).map(({ password, ...profile }) => profile); // Exclude raw passwords from load payload
-
-	return {
-		profiles
-	};
+	throw redirect(303, '/dashboard');
 };
 
 export const actions: Actions = {
