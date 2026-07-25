@@ -24,6 +24,17 @@
 	let routePolyline: any = $state(null);
 	let markersMap: Map<string, any> = new Map();
 
+	// MAP CONFIGURATION & CAMPUS BOUNDARIES SETUP
+	// Edit these coordinates or dimensions to match your campus map specifications.
+	// bounds coordinate format: [ [minY, minX], [maxY, maxX] ]
+	const MAP_WIDTH = 1920;
+	const MAP_HEIGHT = 1080;
+	const MAP_BOUNDS: [[number, number], [number, number]] = [[0, 0], [MAP_HEIGHT, MAP_WIDTH]];
+	const MAP_MIN_ZOOM = -1;
+	const MAP_MAX_ZOOM = 2;
+	const MAP_DEFAULT_ZOOM = 0;
+	const MAP_BOUNDS_VISCOSITY = 0.85;
+
 	onMount(async () => {
 		if (typeof window === 'undefined' || !mapElement) return;
 
@@ -31,26 +42,21 @@
 		const L = await import('leaflet');
 		await import('leaflet/dist/leaflet.css');
 
-		// Image bounds (adjust bounds according to campusMap dimensions)
-		const imageWidth = 1920;
-		const imageHeight = 1080;
-		const bounds: [ [number, number], [number, number] ] = [ [0, 0], [imageHeight, imageWidth] ];
-
 		// Create map with L.CRS.Simple coordinate system
 		const map = L.map(mapElement, {
 			crs: L.CRS.Simple,
-			minZoom: -1,
-			maxZoom: 2,
-			center: [imageHeight / 2, imageWidth / 2],
-			zoom: 0,
-			maxBounds: bounds,
-			maxBoundsViscosity: 0.8
+			minZoom: MAP_MIN_ZOOM,
+			maxZoom: MAP_MAX_ZOOM,
+			center: [MAP_HEIGHT / 2, MAP_WIDTH / 2],
+			zoom: MAP_DEFAULT_ZOOM,
+			maxBounds: MAP_BOUNDS,
+			maxBoundsViscosity: MAP_BOUNDS_VISCOSITY
 		});
 
 		// Overlay the campus map image from /static/campusMap-adjusted.png
 		const imageUrl = '/campusMap-adjusted.png';
-		L.imageOverlay(imageUrl, bounds).addTo(map);
-		map.fitBounds(bounds);
+		L.imageOverlay(imageUrl, MAP_BOUNDS).addTo(map);
+		map.fitBounds(MAP_BOUNDS);
 
 		mapInstance = map;
 
@@ -137,7 +143,7 @@
 
 		// Draw polyline route using primary theme color
 		routePolyline = L.polyline(pathLatLngs, {
-			color: '#d97706',
+			color: 'var(--color-primary)',
 			weight: 5,
 			opacity: 0.9,
 			dashArray: '10, 10',
