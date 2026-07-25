@@ -226,3 +226,44 @@
 
   --radius-4xl: calc(var(--radius) * 2.6);
 }
+
+@media print {
+  /* Hide interface controls and sidebars */
+  [data-sidebar=sidebar],
+  header,
+  .flex-col.sm\:flex-row.sm\:items-center.sm\:justify-between,
+  .flex-col.sm\:flex-row.gap-3.items-center.bg-card.p-4 {
+    display: none !important;
+  }
+  
+  /* Reset container parameters for standard printing */
+  html, body, main, .flex-grow {
+    background: white !important;
+    color: black !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Expand table overflows and remove button columns */
+  .overflow-x-auto {
+    overflow: visible !important;
+  }
+  
+  th:last-child, td:last-child {
+    display: none !important;
+  }
+  
+  table {
+    font-size: 10pt !important;
+    width: 100% !important;
+  }
+  
+  tr {
+    page-break-inside: avoid !important;
+  }
+}
+
