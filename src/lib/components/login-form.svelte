@@ -134,7 +134,7 @@
 			<!-- Right Illustration Banner -->
 			<div class="relative hidden md:block min-h-[420px] bg-slate-950 overflow-hidden">
 				<img
-					src="/login_campus_mockup.jpg"
+					src="/mark_placeholder.jpg"
 					alt="Campus illustration"
 					class="absolute inset-0 h-full w-full object-cover opacity-90 dark:opacity-60 transition-transform duration-10000 hover:scale-105"
 				/>
