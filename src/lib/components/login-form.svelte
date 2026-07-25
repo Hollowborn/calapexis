@@ -62,6 +62,9 @@
 			const reason = data.error.replace('unauthorized_', '');
 			toast.error(`Unauthorized: Log in as a verified ${reason} to view that portal.`);
 		}
+		if (data?.logout) {
+			toast.success('Logged out successfully!');
+		}
 	});
 </script>
 
