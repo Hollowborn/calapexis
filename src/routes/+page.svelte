@@ -12,59 +12,25 @@
 	import AuroraText from '$lib/components/magic/aurora-text/aurora-text.svelte';
 	import { AnimatedThemeToggler } from "$lib/components/magic/animated-theme-toggler";
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
 	import { Kbd } from '$lib/components/ui/kbd/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
-	import { fade, slide } from 'svelte/transition';
+	import * as Command from '$lib/components/ui/command/index.js';
 
+	let isCommandOpen = $state(false);
 	let searchQuery = $state('');
-	let isFocused = $state(false);
-	let inputRef = $state<HTMLInputElement | null>(null);
-
-	// Filter offices matching query
-	let filteredOffices = $derived(
-		searchQuery.trim() === '' 
-			? [] 
-			: MOCK_OFFICES.filter(o => 
-				o.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-				o.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				o.building.toLowerCase().includes(searchQuery.toLowerCase())
-			)
-	);
-
-	// Quick suggestion locations for command spotlight
-	const popularOffices = [
-		{ id: 'off-1', name: "Registrar & Admissions Office", code: "REG", building: "Administration Building", floor: "1st Floor" },
-		{ id: 'off-2', name: "Cashier & Finance Office", code: "CASH", building: "Administration Building", floor: "1st Floor" },
-		{ id: 'off-3', name: "College of Computer Studies", code: "CCS", building: "Technology Complex", floor: "2nd Floor" }
-	];
 
 	// Keyboard Shortcut handler for Ctrl + K (or Meta + K)
 	function handleKeydown(event: KeyboardEvent) {
 		if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
 			event.preventDefault();
-			inputRef?.focus();
-		}
-		if (event.key === 'Escape') {
-			inputRef?.blur();
-			isFocused = false;
-		}
-	}
-
-	// Watch clicks outside to close search dropdown
-	function handleOutsideClick(event: MouseEvent) {
-		const target = event.target as HTMLElement;
-		if (isFocused && !target.closest('.search-container')) {
-			isFocused = false;
+			isCommandOpen = !isCommandOpen;
 		}
 	}
 
 	$effect(() => {
 		window.addEventListener('keydown', handleKeydown);
-		window.addEventListener('click', handleOutsideClick);
 		return () => {
 			window.removeEventListener('keydown', handleKeydown);
-			window.removeEventListener('click', handleOutsideClick);
 		};
 	});
 </script>
@@ -91,7 +57,7 @@
 		<!-- Hero copy text with extra premium typography -->
 		<div class="text-center space-y-4">
 			<Badge variant="outline" class="font-extrabold tracking-widest border-primary/20 bg-primary/5 text-primary rounded-full px-3.5 py-1 text-[10px] gap-1.5 uppercase font-mono mx-auto">
-				<SparklesIcon class="size-3 text-primary animate-spin" style="animation-duration: 3s" />
+				<SparklesIcon class="size-3 text-primary animate-spin animate-duration-3000" />
 				<span>Digital Pass & Navigation System</span>
 			</Badge>
 			
@@ -105,85 +71,20 @@
 			</p>
 		</div>
 
-		<!-- Interactive Spotlight Search command block -->
-		<div class="space-y-3 relative search-container">
-			<div 
-				class="relative w-full shadow-2xl rounded-2xl overflow-hidden border transition-all duration-300 bg-card/65 backdrop-blur-xl {isFocused ? 'border-primary ring-2 ring-primary/15' : 'border-border'}"
+		<!-- Interactive Command Search Trigger Block -->
+		<div class="space-y-3 relative">
+			<button 
+				onclick={() => (isCommandOpen = true)}
+				class="w-full h-14 rounded-2xl border border-border bg-card/65 backdrop-blur-xl hover:border-primary/50 shadow-2xl flex items-center justify-between px-4 text-sm text-muted-foreground/60 transition-all select-none cursor-pointer"
 			>
-				<SearchIcon class="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-				
-				<Input 
-					bind:ref={inputRef}
-					type="text" 
-					placeholder="Search department, building, or room..." 
-					bind:value={searchQuery}
-					onfocus={() => (isFocused = true)}
-					class="pl-12 pr-16 h-14 w-full bg-transparent border-0 focus-visible:ring-0 text-sm font-semibold placeholder:text-muted-foreground/60 rounded-none"
-				/>
-
-				<div class="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1">
-					<Kbd class="h-6 px-1.5 border border-border shadow-xs bg-muted text-[10px] font-bold">
-						Ctrl K
-					</Kbd>
+				<div class="flex items-center gap-3">
+					<SearchIcon class="size-5 text-muted-foreground pointer-events-none" />
+					<span class="font-semibold text-xs sm:text-sm">Search department, building, or room...</span>
 				</div>
-
-				<!-- Command Spotlight dropdown list -->
-				{#if isFocused}
-					<div transition:slide={{ duration: 200 }} class="border-t border-border/60 max-h-72 overflow-y-auto p-2 flex flex-col gap-1 bg-card">
-						
-						<!-- Search results found -->
-						{#if searchQuery.trim() !== ''}
-							<div class="px-3 py-1.5 text-[10px] font-extrabold uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
-								<CommandIcon class="size-3 text-muted-foreground" />
-								<span>Search Results</span>
-							</div>
-
-							{#each filteredOffices as office}
-								<a 
-									href="/map?office={office.id}"
-									class="flex items-center justify-between p-3 hover:bg-muted/60 rounded-xl transition-all text-xs font-semibold"
-								>
-									<div class="flex items-center gap-2.5">
-										<Badge variant="secondary" class="font-mono text-[9px] font-black">{office.code}</Badge>
-										<div class="flex flex-col">
-											<span class="text-foreground">{office.name}</span>
-											<span class="text-[10px] text-muted-foreground font-medium">{office.building} ({office.floor})</span>
-										</div>
-									</div>
-									<MapPinIcon class="size-4 text-muted-foreground shrink-0 pointer-events-none" />
-								</a>
-							{:else}
-								<div class="py-8 text-center text-xs text-muted-foreground font-semibold">
-									No matching campus offices found.
-								</div>
-							{/each}
-
-						<!-- Default recent/popular suggestion links -->
-						{:else}
-							<div class="px-3 py-1.5 text-[10px] font-extrabold uppercase text-muted-foreground tracking-widest flex items-center gap-1.5">
-								<CommandIcon class="size-3 text-muted-foreground" />
-								<span>Frequent Destinations</span>
-							</div>
-
-							{#each popularOffices as office}
-								<a 
-									href="/map?office={office.id}"
-									class="flex items-center justify-between p-3 hover:bg-muted/60 rounded-xl transition-all text-xs font-semibold"
-								>
-									<div class="flex items-center gap-2.5">
-										<Badge variant="secondary" class="font-mono text-[9px] font-black">{office.code}</Badge>
-										<div class="flex flex-col">
-											<span class="text-foreground">{office.name}</span>
-											<span class="text-[10px] text-muted-foreground font-medium">{office.building} ({office.floor})</span>
-										</div>
-									</div>
-									<MapPinIcon class="size-4 text-muted-foreground shrink-0 pointer-events-none" />
-								</a>
-							{/each}
-						{/if}
-					</div>
-				{/if}
-			</div>
+				<Kbd class="h-6 px-1.5 border border-border shadow-xs bg-muted text-[10px] font-bold">
+					Ctrl K
+				</Kbd>
+			</button>
 		</div>
 
 		<!-- Action Portals Pills layout with premium highlight hover tags -->
@@ -213,3 +114,51 @@
 		</div>
 	</main>
 </div>
+
+<!-- Command Palette Dialog -->
+<Command.Dialog 
+	bind:open={isCommandOpen} 
+	title="Campus Portal Guide" 
+	description="Search for rooms, departments, or access console gateways."
+	class="border border-border/80 shadow-2xl overflow-hidden "
+>
+	<Command.Input placeholder="Search department, building, or room..." bind:value={searchQuery} />
+	<Command.List class="p-2">
+		<Command.Empty class="py-6 text-center text-xs text-muted-foreground">No results found.</Command.Empty>
+		
+		<Command.Group heading="Access Gateways" class="px-2 font-bold text-[10px] uppercase tracking-wider text-muted-foreground">
+			<Command.LinkItem href="/checkin" class="rounded-xl flex items-center gap-2 px-3 py-2 cursor-pointer">
+				<UserCheckIcon class="size-4 text-primary pointer-events-none" />
+				<span class="font-semibold text-xs text-foreground">Visitor Check-In</span>
+				<Command.Shortcut class="text-[9px] font-bold">Check-In</Command.Shortcut>
+			</Command.LinkItem>
+			
+			<Command.LinkItem href="/map" class="rounded-xl flex items-center gap-2 px-3 py-2 cursor-pointer">
+				<CompassIcon class="size-4 text-blue-500 pointer-events-none" />
+				<span class="font-semibold text-xs text-foreground">Campus Map</span>
+				<Command.Shortcut class="text-[9px] font-bold">Map</Command.Shortcut>
+			</Command.LinkItem>
+			
+			<Command.LinkItem href="/login" class="rounded-xl flex items-center gap-2 px-3 py-2 cursor-pointer">
+				<ShieldCheckIcon class="size-4 text-emerald-500 pointer-events-none" />
+				<span class="font-semibold text-xs text-foreground">Console Gateways</span>
+				<Command.Shortcut class="text-[9px] font-bold">Desk</Command.Shortcut>
+			</Command.LinkItem>
+		</Command.Group>
+		
+		<Command.Separator class="my-2 bg-border/60" />
+		
+		<Command.Group heading="Campus Offices & Departments" class="px-2 font-bold text-[10px] uppercase tracking-wider text-muted-foreground">
+			{#each MOCK_OFFICES as office}
+				<Command.LinkItem href="/map?office={office.id}" class="rounded-xl flex items-center gap-2.5 px-3 py-2.5 cursor-pointer">
+					<MapPinIcon class="size-4 text-primary pointer-events-none" />
+					<div class="flex flex-col gap-0.5">
+						<span class="font-bold text-xs text-foreground leading-tight">{office.name}</span>
+						<span class="text-[10px] text-muted-foreground font-semibold leading-relaxed">{office.building} ({office.floor})</span>
+					</div>
+					<Command.Shortcut class="font-mono text-[9px] font-bold">{office.code}</Command.Shortcut>
+				</Command.LinkItem>
+			{/each}
+		</Command.Group>
+	</Command.List>
+</Command.Dialog>
