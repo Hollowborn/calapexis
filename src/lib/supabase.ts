@@ -8,7 +8,10 @@ import type {
   Profile,
 } from "./types";
 
-import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_PUBLISHABLE_KEY } from "$env/static/public";
+import {
+  PUBLIC_SUPABASE_URL,
+  PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+} from "$env/static/public";
 
 // Read env variables (optional - will fall back to local store if unconfigured)
 const supabaseUrl = PUBLIC_SUPABASE_URL || "";
@@ -593,22 +596,26 @@ export async function addLocalProfile(
       auth: {
         persistSession: false,
         autoRefreshToken: false,
-      }
+      },
     });
 
-    const { data: authData, error: authError } = await tempSupabase.auth.signUp({
-      email,
-      password: password || "Default123456!",
-    });
+    const { data: authData, error: authError } = await tempSupabase.auth.signUp(
+      {
+        email,
+        password: password || "Default123456!",
+      },
+    );
 
     if (authError || !authData.user) {
-      throw new Error(authError?.message || "Failed to create authentication user.");
+      throw new Error(
+        authError?.message || "Failed to create authentication user.",
+      );
     }
 
     const profile: Profile = {
       id: authData.user.id,
       email: authData.user.email || email,
-      role: 'staff', // Default trigger role
+      role: "staff", // Default trigger role
       officeId: undefined,
       createdAt: authData.user.created_at,
     };
@@ -638,7 +645,9 @@ export async function getLocalOffices(): Promise<Office[]> {
   return [...localOfficesStore];
 }
 
-export async function addLocalOffice(office: Omit<Office, "id">): Promise<Office> {
+export async function addLocalOffice(
+  office: Omit<Office, "id">,
+): Promise<Office> {
   const newOffice: Office = {
     ...office,
     id: "off-" + Math.floor(1000 + Math.random() * 9000),
@@ -656,7 +665,7 @@ export async function addLocalOffice(office: Omit<Office, "id">): Promise<Office
       x_coord: office.xCoord || null,
       y_coord: office.yCoord || null,
       color: office.color || null,
-      image_url: office.imageUrl || null
+      image_url: office.imageUrl || null,
     };
 
     const { data, error } = await supabase
@@ -677,10 +686,7 @@ export async function addLocalOffice(office: Omit<Office, "id">): Promise<Office
 
 export async function deleteLocalOffice(id: string): Promise<boolean> {
   if (isSupabaseConfigured && supabase) {
-    const { error } = await supabase
-      .from("offices")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from("offices").delete().eq("id", id);
     if (!error) {
       return true;
     }
@@ -722,7 +728,7 @@ export async function addLocalRoom(room: Omit<Room, "id">): Promise<Room> {
       x_coord: room.xCoord || 0,
       y_coord: room.yCoord || 0,
       description: room.description || null,
-      image_url: room.imageUrl || null
+      image_url: room.imageUrl || null,
     };
 
     const { data, error } = await supabase
@@ -743,10 +749,7 @@ export async function addLocalRoom(room: Omit<Room, "id">): Promise<Room> {
 
 export async function deleteLocalRoom(id: string): Promise<boolean> {
   if (isSupabaseConfigured && supabase) {
-    const { error } = await supabase
-      .from("rooms")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from("rooms").delete().eq("id", id);
     if (!error) {
       return true;
     }
