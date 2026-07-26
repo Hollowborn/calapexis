@@ -7,6 +7,7 @@
 	import NavUser from "./nav-user.svelte";
 	import { useSidebar } from "$lib/components/ui/sidebar/context.svelte.js";
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
+	import { Separator } from "$lib/components/ui/separator/index.js";
 	import type { ComponentProps } from "svelte";
 
 	let { ref = $bindable(null), activeView = $bindable(), role = 'staff', email = '', ...restProps }: ComponentProps<typeof Sidebar.Root> & {
@@ -121,6 +122,7 @@
 									<span>{group.title}</span>
 								</Sidebar.MenuButton>
 							</Sidebar.MenuItem>
+
 						{/each}
 					</Sidebar.Menu>
 				</Sidebar.GroupContent>
@@ -151,14 +153,16 @@
 								onclick={() => {
 									activeView = item.id;
 								}}
-								class="text-start flex flex-col items-start gap-1 p-3.5 text-xs leading-tight transition-all rounded-xl cursor-pointer border-l-2 {activeView === item.id ? 'bg-sidebar-accent text-sidebar-accent-foreground font-bold border-primary shadow-xs' : 'border-transparent text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
+								class="text-start flex flex-col items-start gap-1 p-3.5 text-xs leading-tight transition-all  cursor-pointer border-l-2 {activeView === item.id ? 'bg-sidebar-accent text-sidebar-accent-foreground font-bold  shadow-xs' : 'border-transparent text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
 							>
 								<span class="font-bold text-foreground">{item.title}</span>
 								<span class="text-[10px] text-muted-foreground line-clamp-2">
 									{item.description}
 								</span>
 							</button>
+							<Separator />
 						{/each}
+				
 					</div>
 				</Sidebar.GroupContent>
 			</Sidebar.Group>
