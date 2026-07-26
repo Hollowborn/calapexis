@@ -1,18 +1,26 @@
 import { redirect } from "@sveltejs/kit";
 import type { PageServerLoad } from "./$types";
 
-export const load: PageServerLoad = async ({ locals, url }) => {
+export const load: PageServerLoad = async ({ locals }) => {
 	const session = locals.session;
-	const path = url.pathname;
 
-	// Enforce session check on dashboard
-	if (!session || !["admin", "security", "staff"].includes(session.role)) {
-		throw redirect(303, `/login?error=unauthorized_dashboard&redirect=${encodeURIComponent(path)}`);
+	// Session check is already validated at layout level, but verify role redirections
+	if (session) {
+		if (session.role === "security") {
+			throw redirect(303, "/dashboard/security");
+		}
+		if (session.role === "staff") {
+			throw redirect(303, "/dashboard/staff");
+		}
+		if (session.role !== "admin") {
+			throw redirect(303, "/login?error=unauthorized_dashboard");
+		}
+	} else {
+		throw redirect(303, "/login");
 	}
 
 	return {
-		role: session.role,
-		email: locals.sessionRole === "admin" ? "admin@university.edu" : (locals.sessionRole === "security" ? "security@university.edu" : "staff@university.edu"), // Simulated email representation
-		assignedOfficeId: session.officeId || null
+		role: session.role
 	};
 };
+

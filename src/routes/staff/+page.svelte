@@ -16,8 +16,14 @@
 
 	let { data }: { data: any } = $props();
 
-	let activeOfficeId = $state(data.assignedOfficeId || 'off-1'); // Locked if assigned, else default
+	let activeOfficeId = $state('off-1'); // Locked if assigned, else default
 	let activeTab = $state('checkin');
+
+	$effect(() => {
+		if (data.assignedOfficeId) {
+			activeOfficeId = data.assignedOfficeId;
+		}
+	});
 	let visitors: Visitor[] = $state([]);
 
 	$effect(() => {
