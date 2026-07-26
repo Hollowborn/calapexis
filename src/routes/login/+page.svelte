@@ -76,7 +76,7 @@
 		<!-- Text Header -->
 		<div class="relative z-10 text-center mb-8 flex flex-col items-center">
 			<h1 class="text-3xl font-black tracking-tight text-foreground mb-2">
-				BISU Calape - Campus Guide
+				Calapexis - Campus Visitor Guide
 			</h1>
 			<p class="text-muted-foreground text-xs font-semibold max-w-sm leading-relaxed">
 				Manage live visitors, verify IDs, and track campus hotspots in real-time.
