@@ -313,6 +313,8 @@ function mapDbOfficeToOffice(db: any): Office {
     contactEmail: db.contact_email,
     xCoord: db.x_coord ? Number(db.x_coord) : undefined,
     yCoord: db.y_coord ? Number(db.y_coord) : undefined,
+    color: db.color || undefined,
+    imageUrl: db.image_url || undefined,
   };
 }
 
@@ -327,6 +329,7 @@ function mapDbRoomToRoom(db: any): Room {
     xCoord: Number(db.x_coord),
     yCoord: Number(db.y_coord),
     description: db.description || "",
+    imageUrl: db.image_url || undefined,
   };
 }
 
@@ -615,4 +618,142 @@ export async function addLocalProfile(
 
   localProfilesStore = [...localProfilesStore, newProfile];
   return newProfile;
+}
+
+// Offices local store fallback
+let localOfficesStore = [...MOCK_OFFICES];
+let localRoomsStore = [...MOCK_ROOMS];
+
+export async function getLocalOffices(): Promise<Office[]> {
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase
+      .from("offices")
+      .select("*")
+      .order("name", { ascending: true });
+    if (!error && data) {
+      return data.map(mapDbOfficeToOffice);
+    }
+    console.warn("Supabase fetch offices error, using mock fallback:", error);
+  }
+  return [...localOfficesStore];
+}
+
+export async function addLocalOffice(office: Omit<Office, "id">): Promise<Office> {
+  const newOffice: Office = {
+    ...office,
+    id: "off-" + Math.floor(1000 + Math.random() * 9000),
+  };
+
+  if (isSupabaseConfigured && supabase) {
+    const dbRow = {
+      name: office.name,
+      code: office.code,
+      building: office.building,
+      floor: office.floor,
+      description: office.description,
+      head_person: office.headPerson || null,
+      contact_email: office.contactEmail || null,
+      x_coord: office.xCoord || null,
+      y_coord: office.yCoord || null,
+      color: office.color || null,
+      image_url: office.imageUrl || null
+    };
+
+    const { data, error } = await supabase
+      .from("offices")
+      .insert([dbRow])
+      .select()
+      .single();
+
+    if (!error && data) {
+      return mapDbOfficeToOffice(data);
+    }
+    console.warn("Supabase insert office error, using mock fallback:", error);
+  }
+
+  localOfficesStore = [...localOfficesStore, newOffice];
+  return newOffice;
+}
+
+export async function deleteLocalOffice(id: string): Promise<boolean> {
+  if (isSupabaseConfigured && supabase) {
+    const { error } = await supabase
+      .from("offices")
+      .delete()
+      .eq("id", id);
+    if (!error) {
+      return true;
+    }
+    console.warn("Supabase delete office error, using mock fallback:", error);
+  }
+
+  const initialLength = localOfficesStore.length;
+  localOfficesStore = localOfficesStore.filter((o) => o.id !== id);
+  return localOfficesStore.length < initialLength;
+}
+
+export async function getLocalRooms(): Promise<Room[]> {
+  if (isSupabaseConfigured && supabase) {
+    const { data, error } = await supabase
+      .from("rooms")
+      .select("*")
+      .order("room_number", { ascending: true });
+    if (!error && data) {
+      return data.map(mapDbRoomToRoom);
+    }
+    console.warn("Supabase fetch rooms error, using mock fallback:", error);
+  }
+  return [...localRoomsStore];
+}
+
+export async function addLocalRoom(room: Omit<Room, "id">): Promise<Room> {
+  const newRoom: Room = {
+    ...room,
+    id: "rm-" + Math.floor(1000 + Math.random() * 9000),
+  };
+
+  if (isSupabaseConfigured && supabase) {
+    const dbRow = {
+      office_id: room.officeId,
+      room_number: room.roomNumber,
+      room_name: room.roomName,
+      building: room.building,
+      floor: room.floor,
+      x_coord: room.xCoord || 0,
+      y_coord: room.yCoord || 0,
+      description: room.description || null,
+      image_url: room.imageUrl || null
+    };
+
+    const { data, error } = await supabase
+      .from("rooms")
+      .insert([dbRow])
+      .select()
+      .single();
+
+    if (!error && data) {
+      return mapDbRoomToRoom(data);
+    }
+    console.warn("Supabase insert room error, using mock fallback:", error);
+  }
+
+  localRoomsStore = [...localRoomsStore, newRoom];
+  return newRoom;
+}
+
+export async function deleteLocalRoom(id: string): Promise<boolean> {
+  if (isSupabaseConfigured && supabase) {
+    const { error } = await supabase
+      .from("rooms")
+      .delete()
+      .eq("id", id);
+    if (!error) {
+      return true;
+    }
+    console.warn("Supabase delete room error, using mock fallback:", error);
+  }
+
+  const initialLength = localRoomsStore.length;
+  localRoomsStore = localRoomsStore.filter((r) => r.id !== id);
+  return localRoomsStore.length < initialLength;
 }

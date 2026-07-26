@@ -9,6 +9,8 @@ export interface Office {
 	contactEmail?: string;
 	xCoord?: number;
 	yCoord?: number;
+	color?: string;
+	imageUrl?: string;
 }
 
 export interface Room {
@@ -21,6 +23,7 @@ export interface Room {
 	xCoord: number;
 	yCoord: number;
 	description?: string;
+	imageUrl?: string;
 }
 
 export type VisitorStatus = 'checked_in' | 'checked_out' | 'expired';
