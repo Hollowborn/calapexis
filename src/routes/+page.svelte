@@ -8,7 +8,7 @@
 	import SparklesIcon from '@lucide/svelte/icons/sparkles';
 	import CommandIcon from '@lucide/svelte/icons/command';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
-
+	import AnimatedShinyText from '$lib/components/magic/animated-shiny-text/animated-shiny-text.svelte';
 	import AuroraText from '$lib/components/magic/aurora-text/aurora-text.svelte';
 	import { AnimatedThemeToggler } from "$lib/components/magic/animated-theme-toggler";
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -57,8 +57,10 @@
 		<!-- Hero copy text with extra premium typography -->
 		<div class="text-center space-y-4">
 			<Badge variant="outline" class="font-extrabold tracking-widest border-primary/20 bg-primary/5 text-primary rounded-full px-3.5 py-1 text-[10px] gap-1.5 uppercase font-mono mx-auto">
-				<SparklesIcon class="size-3 text-primary animate-spin animate-duration-3000" />
+				<SparklesIcon class="size-3 text-primary  animate-duration-3000" />
+				<AnimatedShinyText class="text-[10px] font-extrabold tracking-widest uppercase text-primary">
 				<span>Digital Pass & Navigation System</span>
+				</AnimatedShinyText>
 			</Badge>
 			
 			<h1 class="text-4xl sm:text-6xl font-black tracking-tight leading-none text-foreground select-none">
@@ -116,6 +118,7 @@
 </div>
 
 <!-- Command Palette Dialog -->
+
 <Command.Dialog 
 	bind:open={isCommandOpen} 
 	title="Campus Portal Guide" 
