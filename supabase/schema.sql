@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS public.offices (
     contact_email TEXT,
     x_coord NUMERIC,
     y_coord NUMERIC,
+    color TEXT,
+    image_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -26,6 +28,7 @@ CREATE TABLE IF NOT EXISTS public.rooms (
     x_coord NUMERIC NOT NULL,
     y_coord NUMERIC NOT NULL,
     description TEXT,
+    image_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -63,11 +66,21 @@ CREATE TABLE IF NOT EXISTS public.visitors (
     pass_code TEXT UNIQUE NOT NULL
 );
 
+-- 5. Map Edges Table (Pathfinding network)
+CREATE TABLE IF NOT EXISTS public.map_edges (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    from_node TEXT NOT NULL,
+    to_node TEXT NOT NULL,
+    path JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.offices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.visitors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.map_edges ENABLE ROW LEVEL SECURITY;
 
 -- Security Definer Role Resolver (Bypasses RLS to avoid infinite recursion)
 CREATE OR REPLACE FUNCTION public.get_user_role(user_id UUID)
@@ -104,6 +117,12 @@ CREATE POLICY "Staff/Guard read all visitors" ON public.visitors FOR SELECT USIN
 );
 CREATE POLICY "Staff/Guard update visitor status" ON public.visitors FOR UPDATE USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'security', 'staff'))
+);
+
+-- Map Edges Policies
+CREATE POLICY "Public map_edges read access" ON public.map_edges FOR SELECT USING (true);
+CREATE POLICY "Admin write access to map_edges" ON public.map_edges FOR ALL USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
 -- Auto-profile creation trigger
