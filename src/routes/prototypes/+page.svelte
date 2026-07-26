@@ -8,18 +8,79 @@
 	import SplitSquareHorizontalIcon from '@lucide/svelte/icons/split-square-horizontal';
 	import MonitorIcon from '@lucide/svelte/icons/monitor';
 	import FolderTabsIcon from '@lucide/svelte/icons/folder-git';
+	import MapIcon from '@lucide/svelte/icons/map';
+	import LayoutIcon from '@lucide/svelte/icons/layout';
+	import SearchIcon from '@lucide/svelte/icons/search';
 </script>
 
 <div class="min-h-screen bg-slate-50 text-slate-900 py-12 px-6">
-	<div class="max-w-5xl mx-auto space-y-8">
-		<div class="text-center space-y-3">
-			<h1 class="text-4xl font-extrabold tracking-tight text-slate-950">Dashboard Layout Prototypes</h1>
-			<p class="text-sm text-slate-500 max-w-2xl mx-auto">
-				Explore 7 distinct structural layout options for the Calapexis campus portal. Each design features a unique navigation hierarchy, widget placement, and grid arrangement.
+	<div class="max-w-5xl mx-auto space-y-12">
+		<!-- New Landing Page Section -->
+		<div class="space-y-6">
+			<div class="text-center space-y-3">
+				<h2 class="text-xs font-black uppercase tracking-widest text-primary">New Landing Page Prototypes</h2>
+				<h1 class="text-4xl font-extrabold tracking-tight text-slate-950">Landing Page Layout Options</h1>
+				<p class="text-sm text-slate-500 max-w-2xl mx-auto font-medium">
+					Select one of our three responsive, modern landing page configurations to replace the root website landing view.
+				</p>
+			</div>
+
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+				<!-- Landing 1 -->
+				<Card.Root class="border-slate-200 shadow-xs hover:shadow-md transition-all">
+					<Card.Header class="pb-3">
+						<div class="size-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-2">
+							<LayoutIcon class="size-5" />
+						</div>
+						<Card.Title class="text-base font-bold">L1. Glassmorphic Grid</Card.Title>
+						<Card.Description class="text-xs">Dynamic glowing hero banner, stat widgets, and full-width search-focused directory cards.</Card.Description>
+					</Card.Header>
+					<Card.Footer>
+						<Button href="/prototypes/landing-1" class="w-full text-xs font-semibold">View Glassmorphic Grid</Button>
+					</Card.Footer>
+				</Card.Root>
+
+				<!-- Landing 2 -->
+				<Card.Root class="border-slate-200 shadow-xs hover:shadow-md transition-all">
+					<Card.Header class="pb-3">
+						<div class="size-10 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center mb-2">
+							<MapIcon class="size-5" />
+						</div>
+						<Card.Title class="text-base font-bold">L2. Map Split Screen</Card.Title>
+						<Card.Description class="text-xs">50/50 layout with a live map telemetry preview card on the left, and fast action portals on the right.</Card.Description>
+					</Card.Header>
+					<Card.Footer>
+						<Button href="/prototypes/landing-2" class="w-full text-xs font-semibold">View Map Split</Button>
+					</Card.Footer>
+				</Card.Root>
+
+				<!-- Landing 3 -->
+				<Card.Root class="border-slate-200 shadow-xs hover:shadow-md transition-all">
+					<Card.Header class="pb-3">
+						<div class="size-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center mb-2">
+							<SearchIcon class="size-5" />
+						</div>
+						<Card.Title class="text-base font-bold">L3. Spotlight Spotlight</Card.Title>
+						<Card.Description class="text-xs">Ultra-minimalist, centered command search console bar with fast link pills below.</Card.Description>
+					</Card.Header>
+					<Card.Footer>
+						<Button href="/prototypes/landing-3" class="w-full text-xs font-semibold">View Minimalist Spotlight</Button>
+					</Card.Footer>
+				</Card.Root>
+			</div>
+		</div>
+
+		<hr class="border-slate-200" />
+
+		<div class="text-center space-y-3 pt-4">
+			<h2 class="text-xs font-black uppercase tracking-widest text-slate-500">Dashboard Prototypes Reference</h2>
+			<h1 class="text-3xl font-extrabold tracking-tight text-slate-950">Console Grid Layouts</h1>
+			<p class="text-xs text-slate-500 max-w-2xl mx-auto font-medium">
+				Reference options for internal dashboard panels (left sidebars, contextual tabs, and grid spans).
 			</p>
 		</div>
 
-		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
+		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 			<!-- Layout 1 -->
 			<Card.Root class="border-slate-200/80 shadow-xs hover:shadow-md transition-all">
 				<Card.Header class="pb-3">
