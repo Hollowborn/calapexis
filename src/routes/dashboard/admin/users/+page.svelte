@@ -10,7 +10,7 @@
 	import { toast } from 'svelte-sonner';
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
-	import { MOCK_OFFICES } from '$lib/supabase';
+	import { MOCK_OFFICES, supabase, isSupabaseConfigured } from '$lib/supabase';
 	
 	// DataTable imports
 	import * as DataTable from "$lib/components/ui/data-table/index.js";
@@ -48,6 +48,22 @@
 
 		return async ({ result, update }) => {
 			if (result.type === "success") {
+				const newUserId = (result.data as any)?.newUserId;
+				if (newUserId && isSupabaseConfigured && supabase) {
+					const { error: profileError } = await supabase
+						.from("profiles")
+						.update({
+							role: newRole,
+							office_id: newRole === 'staff' ? newOfficeId : null
+						})
+						.eq("id", newUserId);
+
+					if (profileError) {
+						rejectUser(new Error(profileError.message || "Failed to configure database role mapping."));
+						return;
+					}
+				}
+
 				resolveUser();
 				isCreatingUser = false;
 				newEmail = '';

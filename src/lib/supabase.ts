@@ -585,21 +585,32 @@ export async function addLocalProfile(
   };
 
   if (isSupabaseConfigured && supabase) {
-    const dbRow = {
-      id: newProfile.id,
+    // 1. Create a non-session-persisting temporary client to sign up the new user
+    const tempSupabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      }
+    });
+
+    const { data: authData, error: authError } = await tempSupabase.auth.signUp({
       email,
-      role,
-      office_id: officeId || null,
-    };
-    const { data, error } = await supabase
-      .from("profiles")
-      .insert([dbRow])
-      .select()
-      .single();
-    if (!error && data) {
-      return mapDbProfileToProfile(data);
+      password: password || "Default123456!",
+    });
+
+    if (authError || !authData.user) {
+      throw new Error(authError?.message || "Failed to create authentication user.");
     }
-    console.warn("Supabase insert profile error, using mock fallback:", error);
+
+    const profile: Profile = {
+      id: authData.user.id,
+      email: authData.user.email || email,
+      role: 'staff', // Default trigger role
+      officeId: undefined,
+      createdAt: authData.user.created_at,
+    };
+
+    return profile;
   }
 
   localProfilesStore = [...localProfilesStore, newProfile];
