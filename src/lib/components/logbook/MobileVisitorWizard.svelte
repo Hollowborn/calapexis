@@ -32,11 +32,17 @@
 	let email = $state('');
 	let phone = $state('');
 	let purpose = $state('');
-	let selectedOfficeId = $state(offices[0]?.id || '');
+	let selectedOfficeId = $state('');
 	let selectedRoomId = $state('');
 	let hostPerson = $state('');
 	let photoUrl = $state('');
 	let registeredVisitor: Visitor | null = $state(null);
+
+	$effect(() => {
+		if (selectedOfficeId === '' && offices.length > 0) {
+			selectedOfficeId = offices[0].id;
+		}
+	});
 
 	let fullName = $derived(`${firstName} ${middleName} ${lastName}`.trim().replace(/\s+/g, ' '));
 

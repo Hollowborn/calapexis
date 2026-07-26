@@ -24,7 +24,7 @@
 	let email = $state('');
 	let phone = $state('');
 	let purpose = $state('');
-	let selectedOfficeId = $state(activeOfficeId);
+	let selectedOfficeId = $state('');
 	let selectedRoomId = $state('');
 	let hostPerson = $state('');
 	let isSubmitting = $state(false);
