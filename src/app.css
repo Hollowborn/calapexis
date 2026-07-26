@@ -225,6 +225,30 @@
   --radius-3xl: calc(var(--radius) * 2.2);
 
   --radius-4xl: calc(var(--radius) * 2.6);
+
+  --animate-aurora: aurora 8s ease-in-out infinite alternate;
+	@keyframes aurora {
+		0% {
+			background-position: 0% 50%;
+			transform: rotate(-5deg) scale(0.9);
+    }
+		25% {
+			background-position: 50% 100%;
+			transform: rotate(5deg) scale(1.1);
+    }
+		50% {
+			background-position: 100% 50%;
+			transform: rotate(-3deg) scale(0.95);
+    }
+		75% {
+			background-position: 50% 0%;
+			transform: rotate(3deg) scale(1.05);
+    }
+		100% {
+			background-position: 0% 50%;
+			transform: rotate(-5deg) scale(0.9);
+    }
+  }
 }
 
 @media print {
@@ -235,7 +259,7 @@
   .flex-col.sm\:flex-row.gap-3.items-center.bg-card.p-4 {
     display: none !important;
   }
-  
+
   /* Reset container parameters for standard printing */
   html, body, main, .flex-grow {
     background: white !important;
@@ -252,18 +276,21 @@
   .overflow-x-auto {
     overflow: visible !important;
   }
-  
+
   th:last-child, td:last-child {
     display: none !important;
   }
-  
+
   table {
     font-size: 10pt !important;
     width: 100% !important;
   }
-  
+
   tr {
     page-break-inside: avoid !important;
   }
 }
-
+	::view-transition-old(root), ::view-transition-new(root) {
+		animation: none;
+		mix-blend-mode: normal;
+}
