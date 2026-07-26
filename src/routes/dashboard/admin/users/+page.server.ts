@@ -36,8 +36,11 @@ export const actions: Actions = {
 		}
 
 		// Provision user profile locally
-		await addLocalProfile(email, role, password, role === 'staff' ? officeId : undefined);
-
-		return { success: true };
+		try {
+			const profile = await addLocalProfile(email, role, password, role === 'staff' ? officeId : undefined);
+			return { success: true, newUserId: profile.id };
+		} catch (error: any) {
+			return fail(400, { message: error.message || "Failed to provision system user account." });
+		}
 	}
 };
