@@ -73,8 +73,10 @@
 	let scanInput = $state('');
 	let scannedVisitor: Visitor | null = $state(null);
 
+	
 	// Security Rejection Dialog overlay state
 	let isRejecting = $state(false);
+	let isRefreshing = $state(false);
 	let rejectingVisitorId = $state('');
 	let rejectionReason = $state('');
 
@@ -109,8 +111,12 @@
 
 	// Interactive action handlers
 	async function handleRefresh() {
+		isRefreshing = true;
 		await loadData();
+		
+		isRefreshing = false;
 		toast.success('Dashboard feeds refreshed.');
+		
 	}
 
 	async function handleCheckout(id: string) {
@@ -364,8 +370,13 @@
 				</div>
 				<div class="flex items-center gap-2">
 					<Button onclick={handleRefresh} variant="outline" size="sm" class="h-9 text-xs font-semibold gap-1.5 rounded-xl border-border/80">
+					{#if isRefreshing}
+						<RefreshCwIcon class="size-3.5 pointer-events-none animate-spin" />
+						<span>Refreshing...</span>
+					{:else}
 						<RefreshCwIcon class="size-3.5 pointer-events-none" />
 						<span>Refresh</span>
+					{/if}
 					</Button>
 				</div>
 			</div>
