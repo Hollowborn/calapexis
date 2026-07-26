@@ -8,7 +8,7 @@
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
-	import ThemeToggle from '$lib/components/theme-toggle.svelte';
+	import { AnimatedThemeToggler } from "$lib/components/magic/animated-theme-toggler";
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
@@ -36,7 +36,7 @@
 				</div>
 				<span class="tracking-tight">Calapexis <span class="text-primary font-normal text-xs uppercase tracking-widest pl-1 font-mono">L2</span></span>
 			</a>
-			<ThemeToggle />
+			<AnimatedThemeToggler />
 		</div>
 
 		<!-- Center Graphics: Simulated Live Map UI Card -->

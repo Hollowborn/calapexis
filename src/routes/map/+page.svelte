@@ -4,7 +4,7 @@
 	import { MOCK_OFFICES, MOCK_ROOMS } from '$lib/supabase';
 	import LeafletMap from '$lib/components/map/LeafletMap.svelte';
 	import RoomSearch from '$lib/components/map/RoomSearch.svelte';
-	import ThemeToggle from '$lib/components/theme-toggle.svelte';
+	import { AnimatedThemeToggler } from "$lib/components/magic/animated-theme-toggler";
 
 	let selectedOffice: Office | null = $state(null);
 	let selectedRoom: Room | null = $state(null);
@@ -44,7 +44,7 @@
 				<a href="/staff" class="text-xs font-medium text-primary hover:underline ml-2">Staff Desk</a>
 				<a href="/admin" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground shadow-xs">Admin Portal</a>
 				<div class="ml-1">
-					<ThemeToggle />
+					<AnimatedThemeToggler />
 				</div>
 			</nav>
 		</div>

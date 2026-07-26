@@ -7,7 +7,7 @@
 	import UserCheckIcon from '@lucide/svelte/icons/user-check';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import SearchIcon from '@lucide/svelte/icons/search';
-	import ThemeToggle from '$lib/components/theme-toggle.svelte';
+	import { AnimatedThemeToggler } from "$lib/components/magic/animated-theme-toggler";
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
@@ -48,7 +48,7 @@
 					<span>Admin Portal</span>
 				</Button>
 				<div class="ml-1">
-					<ThemeToggle />
+					<AnimatedThemeToggler />
 				</div>
 			</nav>
 		</div>

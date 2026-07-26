@@ -10,7 +10,7 @@
 	import BuildingIcon from '@lucide/svelte/icons/building';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import SmartphoneIcon from '@lucide/svelte/icons/smartphone';
-	import ThemeToggle from '$lib/components/theme-toggle.svelte';
+	import { AnimatedThemeToggler } from "$lib/components/magic/animated-theme-toggler";
 
 	let activePass: Visitor | null = $state(null);
 	let isCheckedOut = $state(false);
@@ -61,7 +61,7 @@
 					<span>Staff Desk</span>
 				</a>
 				<div class="ml-1">
-					<ThemeToggle />
+					<AnimatedThemeToggler />
 				</div>
 			</nav>
 		</div>

@@ -9,6 +9,7 @@
 	import { Separator } from "$lib/components/ui/separator/index.js";
 	import ThemeToggle from "$lib/components/theme-toggle.svelte";
 	import { toast } from "svelte-sonner";
+  import AnimatedThemeToggler from "$lib/components/magic/animated-theme-toggler/animated-theme-toggler.svelte";
 
 	let { data, children } = $props();
 
@@ -87,7 +88,7 @@
 			</Breadcrumb.Root>
 			
 			<div class="ms-auto flex items-center gap-2">
-				<ThemeToggle />
+				<AnimatedThemeToggler />
 			</div>
 		</header>
 

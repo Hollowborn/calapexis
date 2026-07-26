@@ -5,7 +5,7 @@
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
-	import ThemeToggle from '$lib/components/theme-toggle.svelte';
+	import { AnimatedThemeToggler } from "$lib/components/magic/animated-theme-toggler";
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import * as Card from '$lib/components/ui/card/index.js';
@@ -34,7 +34,7 @@
 			<span>CALAPEXIS <span class="text-[10px] text-muted-foreground font-mono tracking-widest pl-1">L3</span></span>
 		</a>
 		<div class="flex items-center gap-2">
-			<ThemeToggle />
+			<AnimatedThemeToggler />
 		</div>
 	</header>
 
