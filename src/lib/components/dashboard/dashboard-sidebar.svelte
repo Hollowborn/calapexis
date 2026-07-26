@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { ComponentProps } from 'svelte';
 	import LayoutDashboardIcon from "@lucide/svelte/icons/layout-dashboard";
 	import UsersIcon from "@lucide/svelte/icons/users";
 	import SettingsIcon from "@lucide/svelte/icons/settings";
@@ -8,13 +9,26 @@
 	import { useSidebar } from "$lib/components/ui/sidebar/context.svelte.js";
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
 	import { Separator } from "$lib/components/ui/separator/index.js";
-	import type { ComponentProps } from "svelte";
+	import { page } from "$app/state";
 
-	let { ref = $bindable(null), activeView = $bindable(), role = 'staff', email = '', ...restProps }: ComponentProps<typeof Sidebar.Root> & {
-		activeView: string;
+	let { ref = $bindable(null), role = 'staff', email = '', ...restProps }: ComponentProps<typeof Sidebar.Root> & {
 		role: string;
 		email: string;
 	} = $props();
+
+	// Route mapping coordinates
+	const routeMap: Record<string, string> = {
+		'analytics': '/dashboard',
+		'logs-master': '/dashboard/logs',
+		'security-desk': '/dashboard/security',
+		'staff-desk': '/dashboard/staff',
+		'user-accounts': '/dashboard/admin/users',
+		'office-config': '/dashboard/admin/offices'
+	};
+
+	const activeView = $derived(
+		Object.keys(routeMap).find(id => page.url.pathname === routeMap[id]) || 'analytics'
+	);
 
 	// Sidebar Menu Groups containing access policies based on credentials role
 	const allGroups = [
@@ -57,11 +71,16 @@
 			.filter(group => group.items.length > 0)
 	);
 
-	let activeGroup = $state(visibleGroups[0]);
+	let activeGroup = $state<any>(null);
 
-	// Align activeGroup when authentication rolls switch
+	// Align activeGroup when routing paths or authentication roles change
 	$effect(() => {
-		if (visibleGroups.length > 0 && !visibleGroups.some(g => g.id === activeGroup?.id)) {
+		const matchingGroup = visibleGroups.find(group => 
+			group.items.some(item => routeMap[item.id] === page.url.pathname)
+		);
+		if (matchingGroup) {
+			activeGroup = matchingGroup;
+		} else if (visibleGroups.length > 0 && !visibleGroups.some(g => g.id === activeGroup?.id)) {
 			activeGroup = visibleGroups[0];
 		}
 	});
@@ -149,17 +168,15 @@
 				<Sidebar.GroupContent>
 					<div class="flex flex-col gap-1 p-3">
 						{#each activeGroupItems as item (item.id)}
-							<button
-								onclick={() => {
-									activeView = item.id;
-								}}
-								class="text-start flex flex-col items-start gap-1 p-3.5 text-xs leading-tight transition-all  cursor-pointer border-l-2 {activeView === item.id ? 'bg-sidebar-accent text-sidebar-accent-foreground font-bold  shadow-xs' : 'border-transparent text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
+							<a
+								href={routeMap[item.id]}
+								class="text-start flex flex-col items-start gap-1 p-3.5 text-xs leading-tight transition-all cursor-pointer border-l-2 {activeView === item.id ? 'bg-sidebar-accent border-primary text-sidebar-accent-foreground font-bold shadow-xs' : 'border-transparent text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
 							>
 								<span class="font-bold text-foreground">{item.title}</span>
 								<span class="text-[10px] text-muted-foreground line-clamp-2">
 									{item.description}
 								</span>
-							</button>
+							</a>
 							<Separator />
 						{/each}
 				
