@@ -29,12 +29,14 @@
 <div class="flex min-h-screen flex-col items-center justify-center bg-background p-4 text-center">
 	<Empty.Root>
 		<Empty.Header>
-			<Empty.Title>{errorTitle}</Empty.Title>
+			<Empty.Title class="text-2xl font-bold text-foreground">
+				{errorTitle}
+			</Empty.Title>
 			<Empty.Description class="max-w-md leading-relaxed font-semibold">
 				{errorDescription}
 			</Empty.Description>
 		</Empty.Header>
-		<Empty.Content class="mt-6">
+		<Empty.Content class="mt-2">
 			<div class="flex flex-col gap-4 items-center">
 				<Button href="/" variant="default" class="text-xs font-extrabold rounded-xl shadow-md cursor-pointer h-10 px-5">
 					Return to Homepage
