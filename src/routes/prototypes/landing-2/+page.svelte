@@ -1,10 +1,9 @@
 <script lang="ts">
-	import { MOCK_OFFICES } from '$lib/supabase';
+	import { MOCK_BUILDINGS } from '$lib/supabase';
 	import CompassIcon from '@lucide/svelte/icons/compass';
 	import UserCheckIcon from '@lucide/svelte/icons/user-check';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import BuildingIcon from '@lucide/svelte/icons/building';
-	import QrCodeIcon from '@lucide/svelte/icons/qr-code';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
@@ -15,15 +14,15 @@
 	import { Badge } from '$lib/components/ui/badge/index.js';
 
 	let searchQuery = $state('');
-	let filteredOffices = $derived(
-		MOCK_OFFICES.filter(o => 
-			o.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-			o.code.toLowerCase().includes(searchQuery.toLowerCase())
+	let filteredBuildings = $derived(
+		MOCK_BUILDINGS.filter(b => 
+			b.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+			b.code.toLowerCase().includes(searchQuery.toLowerCase())
 		).slice(0, 4)
 	);
 </script>
 
-<div class="min-h-screen bg-background text-foreground flex flex-col md:flex-row font-sans w-full">
+<div class="min-h-screen bg-background text-foreground flex flex-col md:flex-row font-sans w-full font-semibold text-xs">
 	<!-- Left Side: Immersive Map Hero Banner -->
 	<div class="w-full md:w-1/2 bg-muted/20 border-r border-border p-8 md:p-12 flex flex-col justify-between relative overflow-hidden shrink-0">
 		<div class="absolute -top-32 -left-32 w-96 h-96 bg-primary/5 rounded-full blur-3xl pointer-events-none"></div>
@@ -152,7 +151,7 @@
 			<!-- Search Directory list drawer -->
 			<div class="border-t border-border/60 pt-6 space-y-4">
 				<div class="flex items-center justify-between">
-					<h3 class="text-xs font-black uppercase text-foreground tracking-wider">Fast Room Finder</h3>
+					<h3 class="text-xs font-black uppercase text-foreground tracking-wider">Fast Building Finder</h3>
 					<span class="text-[10px] text-muted-foreground font-semibold">Real-time coordinates lookup</span>
 				</div>
 				
@@ -160,20 +159,20 @@
 					<SearchIcon class="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
 					<Input 
 						type="text" 
-						placeholder="Search office code..." 
+						placeholder="Search building code..." 
 						bind:value={searchQuery}
 						class="pl-10 rounded-xl h-10 text-xs font-semibold"
 					/>
 				</div>
 
 				<div class="flex flex-col gap-2">
-					{#each filteredOffices as office}
+					{#each filteredBuildings as building}
 						<div class="flex items-center justify-between p-2.5 bg-muted/20 border border-border/80 rounded-xl text-xs font-semibold">
 							<div class="flex items-center gap-2">
-								<Badge variant="outline" class="font-mono text-[9px] font-black">{office.code}</Badge>
-								<span class="text-foreground truncate max-w-[150px]">{office.name}</span>
+								<Badge variant="outline" class="font-mono text-[9px] font-black">{building.code}</Badge>
+								<span class="text-foreground truncate max-w-[150px]">{building.name}</span>
 							</div>
-							<a href="/map?office={office.id}" class="text-[10px] text-primary hover:underline font-bold">Locate &rarr;</a>
+							<a href="/map?building={building.id}" class="text-[10px] text-primary hover:underline font-bold">Locate &rarr;</a>
 						</div>
 					{/each}
 				</div>

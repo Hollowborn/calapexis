@@ -10,7 +10,7 @@
 	import { toast } from 'svelte-sonner';
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
-	import { MOCK_OFFICES, supabase, isSupabaseConfigured } from '$lib/supabase';
+	import { MOCK_ROOMS, MOCK_BUILDINGS } from '$lib/supabase';
 	
 	// DataTable imports
 	import * as DataTable from "$lib/components/ui/data-table/index.js";
@@ -20,17 +20,30 @@
 	// Icons
 	import UsersIcon from "@lucide/svelte/icons/users";
 
+	let { data } = $props();
+
 	const dashboardContext = getContext<any>("dashboard-state");
 	let profiles = $derived(dashboardContext.profiles);
+
+	// Fallback to mock lists if DB is empty
+	let roomsList = $derived(data.rooms && data.rooms.length > 0 ? data.rooms : MOCK_ROOMS);
+	let buildingsList = $derived(data.buildings && data.buildings.length > 0 ? data.buildings : MOCK_BUILDINGS);
 
 	// Accounts Provisioning Dialog modal states
 	let isCreatingUser = $state(false);
 	let newEmail = $state('');
 	let newPassword = $state('');
 	let newRole = $state('staff');
-	let newOfficeId = $state('off-1');
+	let newRoomId = $state('');
 
-	// Submit hook hooks
+	// Sync room select fallback on list update
+	$effect(() => {
+		if (roomsList.length > 0 && !newRoomId) {
+			newRoomId = roomsList[0].id;
+		}
+	});
+
+	// Submit handlers
 	let resolveUser: (val?: any) => void;
 	let rejectUser: (err: any) => void;
 
@@ -48,28 +61,12 @@
 
 		return async ({ result, update }) => {
 			if (result.type === "success") {
-				const newUserId = (result.data as any)?.newUserId;
-				if (newUserId && isSupabaseConfigured && supabase) {
-					const { error: profileError } = await supabase
-						.from("profiles")
-						.update({
-							role: newRole,
-							office_id: newRole === 'staff' ? newOfficeId : null
-						})
-						.eq("id", newUserId);
-
-					if (profileError) {
-						rejectUser(new Error(profileError.message || "Failed to configure database role mapping."));
-						return;
-					}
-				}
-
 				resolveUser();
 				isCreatingUser = false;
 				newEmail = '';
 				newPassword = '';
 				newRole = 'staff';
-				newOfficeId = 'off-1';
+				newRoomId = roomsList.length > 0 ? roomsList[0].id : '';
 				await dashboardContext.loadData();
 				await update();
 			} else if (result.type === "failure") {
@@ -92,9 +89,9 @@
 			header: "Access Role",
 			cell: ({ getValue }) => renderSnippet(roleCell, { role: getValue() })
 		}),
-		columnHelper.accessor("officeId", {
-			header: "Assigned Department",
-			cell: ({ row }) => renderSnippet(departmentCell, { profile: row.original })
+		columnHelper.accessor("roomId", {
+			header: "Assigned Office/Desk",
+			cell: ({ row }) => renderSnippet(roomCell, { profile: row.original })
 		}),
 		columnHelper.accessor("createdAt", {
 			header: ({ column }) => renderComponent(DataTable.ColumnHeader, { column: column as any, title: "Created Date" }),
@@ -106,22 +103,31 @@
 <!-- Cell Snippets -->
 {#snippet emailCell({ email }: { email: string })}
 	<span class="font-mono font-bold text-foreground text-sm select-all">{email}</span>
+	{#if email === 'staff' || email === 'admin' || email === 'security'}
+		<Badge variant="secondary" class="ml-2 font-bold text-[8px] px-1 py-0.5 rounded-sm uppercase tracking-wide opacity-80">Default Account</Badge>
+	{/if}
 {/snippet}
 
 {#snippet roleCell({ role }: { role: string })}
 	{#if role === 'admin'}
 		<Badge class="bg-red-500/10 text-red-600 hover:bg-red-500/10 border-red-500/20 text-[10px] font-bold rounded-full">Admin</Badge>
 	{:else if role === 'security'}
-		<Badge class="bg-indigo-500/10 text-indigo-600 hover:bg-indigo-500/10 border-indigo-500/20 text-[10px] font-bold rounded-full">Security</Badge>
+		<Badge class="bg-indigo-500/10 text-indigo-600 hover:bg-indigo-500/10 border-indigo-500/20 text-[10px] font-bold rounded-full">Security Guard</Badge>
 	{:else}
-		<Badge class="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/10 border-emerald-500/20 text-[10px] font-bold rounded-full">Staff</Badge>
+		<Badge class="bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/10 border-emerald-500/20 text-[10px] font-bold rounded-full">Office Staff</Badge>
 	{/if}
 {/snippet}
 
-{#snippet departmentCell({ profile }: { profile: any })}
-	{#if profile.role === 'staff' && profile.officeId}
-		{@const office = MOCK_OFFICES.find(o => o.id === profile.officeId)}
-		<span class="text-xs font-semibold text-foreground">{office?.name || profile.officeId}</span>
+{#snippet roomCell({ profile }: { profile: any })}
+	{#if profile.role === 'staff' && profile.roomId}
+		{@const room = roomsList.find(r => r.id === profile.roomId)}
+		{@const building = buildingsList.find(b => b.id === room?.buildingId)}
+		<span class="text-xs font-semibold text-foreground">
+			{room ? `${room.roomNumber} - ${room.roomName}` : profile.roomId}
+			{#if building}
+				<span class="text-[10px] text-muted-foreground font-medium block">{building.name}</span>
+			{/if}
+		</span>
 	{:else}
 		<span class="italic text-muted-foreground/60 text-[10px] font-medium">Global Access</span>
 	{/if}
@@ -146,17 +152,12 @@
 	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border/60">
 		<div>
 			<h1 class="text-xl md:text-2xl font-black text-foreground tracking-tight">System User Accounts</h1>
-			<p class="text-xs text-muted-foreground leading-relaxed">Monitor system access profiles and bind staff to departments.</p>
+			<p class="text-xs text-muted-foreground leading-relaxed font-semibold">Monitor system access profiles and bind staff to specific department rooms.</p>
 		</div>
 	</div>
 
 	<!-- Users List Panel -->
 	<Card.Root class="border-border/80 shadow-sm rounded-2xl bg-card p-6">
-		<div class="space-y-1 mb-4">
-			<Card.Title class="text-base font-bold text-foreground">User Accounts & Portals Provisioning</Card.Title>
-			<Card.Description class="text-xs text-muted-foreground">Provision security and staff portals access credentials.</Card.Description>
-		</div>
-
 		<DataTable.Root
 			data={profiles}
 			columns={columns as any}
@@ -172,7 +173,7 @@
 	<Dialog.Content class="max-w-md border-border shadow-2xl rounded-2xl">
 		<Dialog.Header>
 			<Dialog.Title class="font-black text-lg">Provision User Account</Dialog.Title>
-			<Dialog.Description class="text-xs">Create credentials and assign system roles.</Dialog.Description>
+			<Dialog.Description class="text-xs font-semibold text-muted-foreground">Create credentials and assign system roles.</Dialog.Description>
 		</Dialog.Header>
 
 		<form method="POST" action="?/createUser" use:enhance={handleCreateUserEnhance} class="flex flex-col gap-4 py-2">
@@ -226,23 +227,29 @@
 
 				{#if newRole === 'staff'}
 					<Field.Field>
-						<Field.FieldLabel class="text-xs font-bold uppercase text-muted-foreground tracking-wider">Bound Department Office</Field.FieldLabel>
-						<input type="hidden" name="officeId" value={newOfficeId} />
+						<Field.FieldLabel class="text-xs font-bold uppercase text-muted-foreground tracking-wider">Bound Department Room</Field.FieldLabel>
+						<input type="hidden" name="roomId" value={newRoomId} />
 						<Select.Root
 							type="single"
-							value={newOfficeId}
-							onValueChange={(val) => newOfficeId = val}
+							value={newRoomId}
+							onValueChange={(val) => newRoomId = val}
 						>
 							<Select.Trigger class="w-full h-10 rounded-xl cursor-pointer hover:bg-muted/30">
 								<span class="text-xs font-semibold text-foreground">
-									{MOCK_OFFICES.find(o => o.id === newOfficeId)?.name || 'Select Department'}
+									{#if newRoomId}
+										{@const room = roomsList.find(r => r.id === newRoomId)}
+										{@const building = buildingsList.find(b => b.id === room?.buildingId)}
+										{room ? `${room.roomNumber} - ${room.roomName} (${building?.name || ''})` : 'Select Desk/Room'}
+									{:else}
+										Select Desk/Room
+									{/if}
 								</span>
 							</Select.Trigger>
 							<Select.Content class="rounded-xl border border-border bg-card">
-								<Select.Group>
-									{#each MOCK_OFFICES as office}
-										<Select.Item value={office.id} label={office.name}>
-											{office.name} ({office.code})
+								<Select.Group class="max-h-60 overflow-y-auto">
+									{#each roomsList as room}
+										<Select.Item value={room.id} label={`${room.roomNumber} - ${room.roomName}`}>
+											{room.roomNumber} - {room.roomName} ({buildingsList.find(b => b.id === room.buildingId)?.code || ''})
 										</Select.Item>
 									{/each}
 								</Select.Group>

@@ -59,7 +59,7 @@
 		"/dashboard/security": "Security Gate Console",
 		"/dashboard/staff": "Staff Desk Console",
 		"/dashboard/admin/users": "System User Accounts",
-		"/dashboard/admin/offices": "Offices & Rooms Config"
+		"/dashboard/admin/buildings": "Offices & Rooms Config"
 	};
 
 	let pageLabel = $derived(routeLabels[page.url.pathname] || "Overview");

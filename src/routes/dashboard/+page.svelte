@@ -5,7 +5,6 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
 	import { toast } from 'svelte-sonner';
-	import { MOCK_OFFICES } from '$lib/supabase';
 	
 	let { data } = $props();
 
@@ -21,9 +20,9 @@
 	let checkoutCount = $derived(visitors.filter((v: any) => v.status === 'checked_out').length);
 	let rejectedCount = $derived(visitors.filter((v: any) => v.verificationStatus === 'rejected').length);
 	
-	let registrarCount = $derived(visitors.filter((v: any) => v.officeId === 'off-1').length);
-	let cashierCount = $derived(visitors.filter((v: any) => v.officeId === 'off-2').length);
-	let ccsCount = $derived(visitors.filter((v: any) => v.officeId === 'off-3').length);
+	let adminBuildingCount = $derived(visitors.filter((v: any) => v.buildingId === 'off-1').length);
+	let techComplexCount = $derived(visitors.filter((v: any) => v.buildingId === 'off-3').length);
+	let studentCenterCount = $derived(visitors.filter((v: any) => v.buildingId === 'off-4').length);
 
 	async function handleRefresh() {
 		await dashboardContext.loadData();
@@ -36,10 +35,10 @@
 	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border/60">
 		<div>
 			<h1 class="text-xl md:text-2xl font-black text-foreground tracking-tight">Analytics Overview</h1>
-			<p class="text-xs text-muted-foreground leading-relaxed">Campus visitor traffic & statistics</p>
+			<p class="text-xs text-muted-foreground leading-relaxed font-semibold">Campus visitor traffic & statistics</p>
 		</div>
 		<div class="flex items-center gap-2">
-			<Button onclick={handleRefresh} variant="outline" size="sm" class="h-9 text-xs font-semibold gap-1.5 rounded-xl border-border/80">
+			<Button onclick={handleRefresh} variant="outline" size="sm" class="h-9 text-xs font-semibold gap-1.5 rounded-xl border-border/80 cursor-pointer">
 				<RefreshCwIcon class="size-3.5 pointer-events-none" />
 				<span>Refresh</span>
 			</Button>
@@ -71,40 +70,40 @@
 
 	<!-- Analytics Breakdown Panels -->
 	<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-		<!-- Traffic by Office -->
+		<!-- Traffic by Building -->
 		<Card.Root class="border-border/80 shadow-sm rounded-2xl">
 			<Card.Header>
-				<Card.Title class="text-base font-bold text-foreground">Traffic by Campus Office</Card.Title>
-				<Card.Description class="text-xs text-muted-foreground">Volume of registered visitors across active department desks.</Card.Description>
+				<Card.Title class="text-base font-bold text-foreground">Traffic by Building complex</Card.Title>
+				<Card.Description class="text-xs text-muted-foreground font-semibold">Volume of registered visitors across active campus buildings.</Card.Description>
 			</Card.Header>
-			<Card.Content class="flex flex-col gap-4">
+			<Card.Content class="flex flex-col gap-4 font-semibold text-xs">
 				<div class="flex flex-col gap-1.5">
 					<div class="flex justify-between text-xs font-bold">
-						<span>Registrar & Admissions</span>
-						<span class="text-muted-foreground">{registrarCount} ({Math.round((registrarCount / (totalCount || 1)) * 100)}%)</span>
+						<span>Administration Building</span>
+						<span class="text-muted-foreground">{adminBuildingCount} ({Math.round((adminBuildingCount / (totalCount || 1)) * 100)}%)</span>
 					</div>
 					<div class="w-full bg-muted h-2 rounded-full overflow-hidden">
-						<div class="bg-primary h-full rounded-full transition-all" style="width: {(registrarCount / (totalCount || 1)) * 100}%"></div>
+						<div class="bg-primary h-full rounded-full transition-all" style="width: {(adminBuildingCount / (totalCount || 1)) * 100}%"></div>
 					</div>
 				</div>
 
 				<div class="flex flex-col gap-1.5">
 					<div class="flex justify-between text-xs font-bold">
-						<span>Cashier & Finance</span>
-						<span class="text-muted-foreground">{cashierCount} ({Math.round((cashierCount / (totalCount || 1)) * 100)}%)</span>
+						<span>Technology Complex</span>
+						<span class="text-muted-foreground">{techComplexCount} ({Math.round((techComplexCount / (totalCount || 1)) * 100)}%)</span>
 					</div>
 					<div class="w-full bg-muted h-2 rounded-full overflow-hidden">
-						<div class="bg-primary h-full rounded-full transition-all" style="width: {(cashierCount / (totalCount || 1)) * 100}%"></div>
+						<div class="bg-primary h-full rounded-full transition-all" style="width: {(techComplexCount / (totalCount || 1)) * 100}%"></div>
 					</div>
 				</div>
 
 				<div class="flex flex-col gap-1.5">
 					<div class="flex justify-between text-xs font-bold">
-						<span>Computer Studies (CCS)</span>
-						<span class="text-muted-foreground">{ccsCount} ({Math.round((ccsCount / (totalCount || 1)) * 100)}%)</span>
+						<span>Student Activity Center</span>
+						<span class="text-muted-foreground">{studentCenterCount} ({Math.round((studentCenterCount / (totalCount || 1)) * 100)}%)</span>
 					</div>
 					<div class="w-full bg-muted h-2 rounded-full overflow-hidden">
-						<div class="bg-primary h-full rounded-full transition-all" style="width: {(ccsCount / (totalCount || 1)) * 100}%"></div>
+						<div class="bg-primary h-full rounded-full transition-all" style="width: {(studentCenterCount / (totalCount || 1)) * 100}%"></div>
 					</div>
 				</div>
 			</Card.Content>
@@ -114,12 +113,12 @@
 		<Card.Root class="border-border/80 shadow-sm rounded-2xl">
 			<Card.Header>
 				<Card.Title class="text-base font-bold text-foreground">Operational Safety Checklists</Card.Title>
-				<Card.Description class="text-xs text-muted-foreground">Digital control parameters and verify modes active status.</Card.Description>
+				<Card.Description class="text-xs text-muted-foreground font-semibold">Digital control parameters and verify modes active status.</Card.Description>
 			</Card.Header>
-			<Card.Content class="flex flex-col gap-3 text-xs font-medium">
+			<Card.Content class="flex flex-col gap-3 text-xs font-semibold">
 				<div class="flex items-center justify-between p-3 rounded-xl bg-muted/40 border border-border/40">
 					<span>Verify & Gate Approval Policy</span>
-					<Badge class="bg-green-600/10 text-green-600 border-green-600/20 text-[10px] font-bold">Auto-Approve Gate</Badge>
+					<Badge class="bg-green-600/10 text-green-600 border-green-600/20 text-[10px] font-bold rounded-full">Auto-Approve Gate</Badge>
 				</div>
 				<div class="flex items-center justify-between p-3 rounded-xl bg-muted/40 border border-border/40">
 					<span>Office check-in confirmation</span>

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Visitor } from '$lib/types';
-	import { MOCK_OFFICES, MOCK_ROOMS, checkoutLocalVisitor } from '$lib/supabase';
+	import { MOCK_BUILDINGS, MOCK_ROOMS, checkoutLocalVisitor } from '$lib/supabase';
 	import CheckInForm from '$lib/components/logbook/CheckInForm.svelte';
 	import { toast } from 'svelte-sonner';
 	import PrinterIcon from '@lucide/svelte/icons/printer';
@@ -85,10 +85,10 @@
 		</a>
 
 		{#if !activePass}
-			<CheckInForm offices={MOCK_OFFICES} rooms={MOCK_ROOMS} onSuccess={handleCheckInSuccess} />
+			<CheckInForm buildings={MOCK_BUILDINGS} rooms={MOCK_ROOMS} onSuccess={handleCheckInSuccess} />
 		{:else}
 			<!-- Digital Visitor Pass Card -->
-			<div class="max-w-md mx-auto bg-card text-card-foreground p-6 rounded-2xl border border-primary/40 shadow-2xl space-y-6 text-center">
+			<div class="max-w-md mx-auto bg-card text-card-foreground p-6 rounded-2xl border border-primary/40 shadow-2xl space-y-6 text-center font-semibold text-xs">
 				<div class="space-y-1">
 					<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary font-bold text-xs">
 						{#if isCheckedOut}
@@ -120,8 +120,8 @@
 				<!-- Pass Details Grid -->
 				<div class="grid grid-cols-2 gap-3 text-left text-xs bg-muted/30 p-3 rounded-lg border border-border">
 					<div>
-						<span class="text-muted-foreground text-[10px]">Destination Office:</span>
-						<div class="font-bold text-foreground">{activePass.officeName || 'General'}</div>
+						<span class="text-muted-foreground text-[10px]">Destination Building:</span>
+						<div class="font-bold text-foreground">{activePass.buildingName || 'General'}</div>
 					</div>
 					<div>
 						<span class="text-muted-foreground text-[10px]">Room / Host:</span>
@@ -140,17 +140,17 @@
 				<!-- Action Buttons -->
 				<div class="space-y-2 pt-2">
 					<a
-						href="/map?office={activePass.officeId}"
+						href="/map?building={activePass.buildingId}"
 						class="w-full py-2.5 px-4 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs shadow-md transition-colors flex items-center justify-center gap-2"
 					>
-						<span>Interactive Map & Directions to {activePass.officeName}</span>
+						<span>Interactive Map & Directions to {activePass.buildingName}</span>
 						<ArrowRightIcon class="size-4" />
 					</a>
 
 					<button
 						type="button"
 						onclick={() => window.print()}
-						class="w-full py-2 px-4 rounded-xl border border-border text-foreground hover:bg-muted font-semibold text-xs transition-colors flex items-center justify-center gap-2"
+						class="w-full py-2 px-4 rounded-xl border border-border text-foreground hover:bg-muted font-semibold text-xs transition-colors flex items-center justify-center gap-2 h-10 cursor-pointer"
 					>
 						<PrinterIcon class="size-4" />
 						<span>Print Visitor Pass Receipt</span>
@@ -160,7 +160,7 @@
 						<button
 							type="button"
 							onclick={handleSelfCheckout}
-							class="w-full py-2 px-4 rounded-xl border border-destructive/50 text-destructive hover:bg-destructive/10 font-semibold text-xs transition-colors"
+							class="w-full py-2 px-4 rounded-xl border border-destructive/50 text-destructive hover:bg-destructive/10 font-semibold text-xs transition-colors h-10 cursor-pointer"
 						>
 							Self-Serve Check-Out Now
 						</button>

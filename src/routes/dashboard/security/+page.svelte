@@ -7,7 +7,7 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { toast } from 'svelte-sonner';
-	import { MOCK_OFFICES, verifyVisitor, checkoutLocalVisitor } from '$lib/supabase';
+	import { MOCK_BUILDINGS, verifyVisitor, checkoutLocalVisitor } from '$lib/supabase';
 	
 	// Icons
 	import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
@@ -109,7 +109,7 @@
 		if (match) {
 			scannedVisitor = match;
 			if (match.status === 'checked_in') {
-				toast.success(`Scan Validated: ${match.fullName} is registered to visit ${match.officeName}.`);
+				toast.success(`Scan Validated: ${match.fullName} is registered to visit ${match.buildingName || 'General Building'}.`);
 			} else {
 				toast.info(`Scan Record: ${match.fullName} has checked out.`);
 			}
@@ -121,14 +121,14 @@
 </script>
 
 <!-- Snippets for dynamically colored theme-aware badges using OKLCH -->
-{#snippet officeBadge(officeName: string)}
-	{@const colorVar = getColorVar(officeName)}
+{#snippet buildingBadge(buildingName: string)}
+	{@const colorVar = getColorVar(buildingName)}
 	<Badge
 		style="background-color: oklch(from var({colorVar}) l c h / 0.12); border-color: oklch(from var({colorVar}) l c h / 0.25); color: var({colorVar});"
 		variant="outline"
 		class="text-[11px] font-bold border transition-colors shadow-xs rounded-full px-2.5"
 	>
-		{officeName}
+		{buildingName}
 	</Badge>
 {/snippet}
 
@@ -157,7 +157,7 @@
 	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border/60">
 		<div>
 			<h1 class="text-xl md:text-2xl font-black text-foreground tracking-tight">Security Gate Monitor</h1>
-			<p class="text-xs text-muted-foreground leading-relaxed">Guard verification control console</p>
+			<p class="text-xs text-muted-foreground leading-relaxed font-semibold">Guard verification control console</p>
 		</div>
 	</div>
 
@@ -174,7 +174,7 @@
 					<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 						{#each pendingVerificationQueue as visitor}
 							<Card.Root class="border-amber-400/40 bg-amber-500/[0.02] shadow-sm rounded-2xl">
-								<Card.Content class="p-4 flex flex-col gap-4">
+								<Card.Content class="p-4 flex flex-col gap-4 font-semibold text-xs">
 									<div class="flex items-center gap-3">
 										{#if visitor.photoUrl}
 											<img src={visitor.photoUrl} alt="Selfie" class="w-12 h-12 rounded-full object-cover border border-amber-300 shadow-xs" />
@@ -188,9 +188,12 @@
 										</div>
 									</div>
 
-									<div class="text-xs bg-card p-3 rounded-xl border border-border/80 flex flex-col gap-1.5 font-medium">
-										<div><span class="text-muted-foreground font-semibold">Office:</span> <span class="font-bold text-foreground">{visitor.officeName}</span></div>
-										<div><span class="text-muted-foreground font-semibold">Purpose:</span> <span class="text-foreground">{visitor.purpose}</span></div>
+									<div class="text-xs bg-card p-3 rounded-xl border border-border/80 flex flex-col gap-1.5 font-semibold">
+										<div><span class="text-muted-foreground">Building Destination:</span> <span class="font-bold text-foreground">{visitor.buildingName}</span></div>
+										{#if visitor.roomNumber}
+											<div><span class="text-muted-foreground">Office/Room:</span> <span class="font-bold text-foreground">{visitor.roomNumber}</span></div>
+										{/if}
+										<div><span class="text-muted-foreground">Purpose:</span> <span class="text-foreground">{visitor.purpose}</span></div>
 									</div>
 
 									<div class="flex gap-2">
@@ -221,7 +224,7 @@
 					<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 						{#each liveMonitorList as visitor}
 							<Card.Root class="shadow-xs border-border/80 hover:shadow-md transition-all rounded-2xl bg-card">
-								<Card.Content class="p-4 flex flex-col gap-3.5">
+								<Card.Content class="p-4 flex flex-col gap-3.5 font-semibold text-xs">
 									<div class="flex items-center justify-between">
 										<div class="flex items-center gap-2.5">
 											{#if visitor.photoUrl}
@@ -247,8 +250,11 @@
 											<span class="font-mono text-foreground font-bold">{formatTime(visitor.checkInTime)}</span>
 										</div>
 										<div class="col-span-2 mt-1">
-											<span class="text-muted-foreground block text-[9px] uppercase font-bold tracking-wider mb-0.5">Destination Office</span>
-											{@render officeBadge(visitor.officeName || 'General')}
+											<span class="text-muted-foreground block text-[9px] uppercase font-bold tracking-wider mb-0.5">Destination Building</span>
+											{@render buildingBadge(visitor.buildingName || 'General')}
+											{#if visitor.roomNumber}
+												<span class="text-[10px] text-muted-foreground font-bold block mt-1">Office: {visitor.roomNumber}</span>
+											{/if}
 										</div>
 										{#if visitor.roomCheckInTime}
 											<div class="col-span-2 text-[10px] text-indigo-500 font-bold flex items-center gap-1.5 bg-indigo-500/[0.04] p-2 rounded-xl border border-indigo-200/30 mt-1">
@@ -283,7 +289,7 @@
 						<QrCodeIcon class="size-4 text-primary pointer-events-none" />
 						Scan Gate Pass QR
 					</Card.Title>
-					<Card.Description class="text-xs text-muted-foreground">Simulate barcode scanner sweeps at the campus gates.</Card.Description>
+					<Card.Description class="text-xs text-muted-foreground font-semibold">Simulate barcode scanner sweeps at the campus gates.</Card.Description>
 				</Card.Header>
 				<Card.Content class="flex flex-col gap-4">
 					<form onsubmit={handleSimulateScan} class="flex flex-col gap-4">
@@ -306,7 +312,7 @@
 							</Field.Field>
 						</Field.FieldGroup>
 
-						<div class="border-t border-border/60 pt-4 mt-2">
+						<div class="border-t border-border/60 pt-4 mt-2 font-semibold">
 							<div class="text-xs font-extrabold text-foreground uppercase tracking-wider mb-2">Simulate Quick Scans:</div>
 							<div class="flex flex-wrap gap-2">
 								{#each visitors.filter((v: any) => v.status === 'checked_in') as vis}
@@ -324,7 +330,7 @@
 			<Card.Root class="border-border/80 shadow-md rounded-2xl overflow-hidden bg-muted/[0.15]">
 				<Card.Content class="p-6 flex flex-col gap-4 items-center justify-center min-h-[300px]">
 					{#if scannedVisitor}
-						<div class="w-full flex flex-col gap-4 items-center text-center">
+						<div class="w-full flex flex-col gap-4 items-center text-center font-semibold">
 							{#if scannedVisitor.photoUrl}
 								<img src={scannedVisitor.photoUrl} alt="Selfie" class="w-24 h-24 rounded-full object-cover border-4 border-primary/20 shadow-md" />
 							{:else}
@@ -336,8 +342,8 @@
 								<div class="text-sm font-mono font-bold text-primary">{scannedVisitor.passCode}</div>
 							</div>
 
-							<div class="w-full grid grid-cols-2 gap-2 text-left text-xs bg-card p-3 rounded-xl border border-border/80 font-medium">
-								<div><span class="text-muted-foreground text-[10px] block uppercase font-bold tracking-wider">Destination</span><div class="font-bold truncate">{scannedVisitor.officeName}</div></div>
+							<div class="w-full grid grid-cols-2 gap-2 text-left text-xs bg-card p-3 rounded-xl border border-border/80 font-semibold">
+								<div><span class="text-muted-foreground text-[10px] block uppercase font-bold tracking-wider">Destination</span><div class="font-bold truncate">{scannedVisitor.buildingName}</div></div>
 								<div><span class="text-muted-foreground text-[10px] block uppercase font-bold tracking-wider">Status</span><div>{@render statusBadge(scannedVisitor)}</div></div>
 								<div><span class="text-muted-foreground text-[10px] block uppercase font-bold tracking-wider">Gate Entry</span><div class="font-mono">{formatTime(scannedVisitor.checkInTime)}</div></div>
 								<div>
@@ -347,7 +353,7 @@
 							</div>
 
 							{#if scannedVisitor.status === 'checked_in'}
-								<Button onclick={() => handleCheckout(scannedVisitor!.id)} class="w-full bg-destructive hover:bg-destructive/95 text-destructive-foreground font-extrabold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-xs cursor-pointer">
+								<Button onclick={() => handleCheckout(scannedVisitor!.id)} class="w-full bg-destructive hover:bg-destructive/95 text-destructive-foreground font-extrabold text-xs py-2.5 rounded-xl flex items-center justify-center gap-1.5 shadow-xs cursor-pointer h-10">
 									<LogOutIcon class="size-4 pointer-events-none" />
 									<span>Validate Exit Check-Out</span>
 								</Button>
@@ -359,10 +365,10 @@
 							{/if}
 						</div>
 					{:else}
-						<div class="text-center text-muted-foreground space-y-2 py-10">
+						<div class="text-center text-muted-foreground space-y-2 py-10 font-semibold">
 							<QrCodeIcon class="size-11 mx-auto text-primary/30 animate-pulse pointer-events-none" />
 							<div class="font-extrabold text-xs text-foreground uppercase tracking-widest">Waiting for Pass scan</div>
-							<p class="text-xs max-w-[200px] mx-auto text-muted-foreground/80 leading-relaxed font-medium">Please enter a pass code or click a simulation button above.</p>
+							<p class="text-xs max-w-[200px] mx-auto text-muted-foreground/80 leading-relaxed font-semibold">Please enter a pass code or click a simulation button above.</p>
 						</div>
 					{/if}
 				</Card.Content>
@@ -375,8 +381,8 @@
 <Dialog.Root bind:open={isRejecting}>
 	<Dialog.Content class="max-w-md border-destructive/40 shadow-2xl rounded-2xl">
 		<Dialog.Header>
-			<Dialog.Title class="text-destructive font-black">Decline Visitor Entry Pass</Dialog.Title>
-			<Dialog.Description class="text-xs">Provide a reason for declining verification on this entry pass.</Dialog.Description>
+			<Dialog.Title class="text-destructive font-black text-left">Decline Visitor Entry Pass</Dialog.Title>
+			<Dialog.Description class="text-xs text-left font-semibold text-muted-foreground">Provide a reason for declining verification on this entry pass.</Dialog.Description>
 		</Dialog.Header>
 
 		<Field.FieldGroup class="flex flex-col gap-4 py-2">
@@ -386,7 +392,7 @@
 					id="reasonText"
 					bind:value={rejectionReason}
 					placeholder="e.g. Blurry photo snapshot, invalid purpose statement, or unrecognized destination head"
-					class="w-full h-24 rounded-xl border border-border bg-background p-3 text-xs shadow-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-destructive/20 focus-visible:border-destructive transition-all"
+					class="w-full h-24 rounded-xl border border-border bg-background p-3 text-xs shadow-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-destructive/20 focus-visible:border-destructive transition-all font-semibold"
 					required
 				></textarea>
 			</Field.Field>

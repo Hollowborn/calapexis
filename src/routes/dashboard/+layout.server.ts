@@ -18,6 +18,6 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 	return {
 		role: session.role,
 		email: email,
-		assignedOfficeId: session.officeId || null
+		assignedRoomId: session.roomId || null
 	};
 };

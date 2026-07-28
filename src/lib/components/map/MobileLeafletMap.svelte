@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import type { Office, Room } from '$lib/types';
+	import type { Building, Room } from '$lib/types';
 	import { MOCK_MAP_NODES, updateOfficeCheckIn } from '$lib/supabase';
 	import RoomQrScannerModal from '$lib/components/logbook/RoomQrScannerModal.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -14,9 +14,9 @@
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 
 	interface Props {
-		offices: Office[];
+		buildings: Building[];
 		rooms: Room[];
-		selectedOfficeId: string;
+		selectedBuildingId: string;
 		selectedRoomId?: string;
 		visitorName?: string;
 		photoUrl?: string;
@@ -24,9 +24,9 @@
 	}
 
 	let {
-		offices = [],
+		buildings = [],
 		rooms = [],
-		selectedOfficeId = '',
+		selectedBuildingId = '',
 		selectedRoomId = '',
 		visitorName = 'Visitor',
 		photoUrl = '',
@@ -43,7 +43,7 @@
 	let isDrawerExpanded = $state(true);
 	let isRoomCheckedIn = $state(false);
 
-	let selectedOffice = $derived(offices.find((o) => o.id === selectedOfficeId));
+	let selectedBuilding = $derived(buildings.find((b) => b.id === selectedBuildingId));
 
 	onMount(async () => {
 		if (typeof window === 'undefined' || !mapElement) return;
@@ -57,7 +57,6 @@
 		if (navigator.geolocation) {
 			navigator.geolocation.getCurrentPosition(
 				(pos) => {
-					// Map real lat/lng to campus map bounds if available
 					console.log('GPS acquired:', pos.coords.latitude, pos.coords.longitude);
 				},
 				(err) => console.log('Geolocation fallback to Entrance:', err.message),
@@ -91,7 +90,7 @@
 		// Add Visitor Current Location Marker with rotating Compass Direction Arrow
 		updateVisitorMarker(L);
 
-		// Add Destination Office Marker & Polyline Route
+		// Add Destination Building Marker & Polyline Route
 		updateDestinationRoute(L);
 	});
 
@@ -141,27 +140,27 @@
 	}
 
 	function updateDestinationRoute(L: any) {
-		if (!mapInstance || !selectedOffice) return;
+		if (!mapInstance || !selectedBuilding) return;
 
 		if (routePolyline) {
 			mapInstance.removeLayer(routePolyline);
 			routePolyline = null;
 		}
 
-		if (selectedOffice.xCoord && selectedOffice.yCoord) {
+		if (selectedBuilding.xCoord && selectedBuilding.yCoord) {
 			// Destination Marker
 			const destIcon = L.divIcon({
 				className: 'dest-marker',
 				html: `<div class="bg-foreground text-background px-3 py-1.5 rounded-full text-xs font-bold shadow-2xl border-2 border-primary flex items-center gap-1.5">
 					<span class="w-2 h-2 rounded-full bg-primary animate-ping"></span>
-					<span>${selectedOffice.code}</span>
+					<span>${selectedBuilding.code}</span>
 				</div>`,
 				iconSize: [90, 32],
 				iconAnchor: [45, 16]
 			});
 
-			const destMarker = L.marker([selectedOffice.yCoord, selectedOffice.xCoord], { icon: destIcon }).addTo(mapInstance);
-			destMarker.bindPopup(`<b>${selectedOffice.name}</b><br>${selectedOffice.building} • ${selectedOffice.floor}`);
+			const destMarker = L.marker([selectedBuilding.yCoord, selectedBuilding.xCoord], { icon: destIcon }).addTo(mapInstance);
+			destMarker.bindPopup(`<b>${selectedBuilding.name}</b><br>${selectedBuilding.floors} Floors`);
 
 			// Draw animated route line
 			const midQuad = MOCK_MAP_NODES.find((n) => n.id === 'node-h1') || { x: 300, y: 400 };
@@ -169,7 +168,7 @@
 			const pathLatLngs: [number, number][] = [
 				[userLocation.y, userLocation.x],
 				[midQuad.y, midQuad.x],
-				[selectedOffice.yCoord, selectedOffice.xCoord]
+				[selectedBuilding.yCoord, selectedBuilding.xCoord]
 			];
 
 			routePolyline = L.polyline(pathLatLngs, {
@@ -192,9 +191,9 @@
 			await updateOfficeCheckIn(visitorId, newStatus);
 		}
 		if (newStatus) {
-			toast.success(`Arrived & Checked In at ${selectedOffice?.name || 'Office'}!`);
+			toast.success(`Arrived & Checked In at ${selectedBuilding?.name || 'Building'}!`);
 		} else {
-			toast.info(`Checked Out of ${selectedOffice?.name || 'Office'}.`);
+			toast.info(`Checked Out of ${selectedBuilding?.name || 'Building'}.`);
 		}
 	}
 </script>
@@ -212,7 +211,7 @@
 
 		<Button
 			onclick={() => (isScannerOpen = true)}
-			class="bg-primary text-primary-foreground font-bold text-xs px-3.5 py-1.5 rounded-full shadow-xl pointer-events-auto flex items-center gap-1.5"
+			class="bg-primary text-primary-foreground font-bold text-xs px-3.5 py-1.5 rounded-full shadow-xl pointer-events-auto flex items-center gap-1.5 cursor-pointer h-8"
 		>
 			<QrCodeIcon class="size-4" />
 			<span>Scan Room QR</span>
@@ -224,7 +223,7 @@
 		<div class="flex items-center justify-between border-b border-border/60 pb-2 mb-3">
 			<div class="flex items-center gap-2">
 				<NavigationIcon class="size-4 text-primary" />
-				<span class="font-bold text-sm text-foreground">Route to {selectedOffice?.name || 'Office'}</span>
+				<span class="font-bold text-sm text-foreground">Route to {selectedBuilding?.name || 'Building'}</span>
 			</div>
 
 			<button
@@ -241,13 +240,13 @@
 		</div>
 
 		{#if isDrawerExpanded}
-			<div class="space-y-3 text-xs">
+			<div class="space-y-3 text-xs font-semibold">
 				<div class="flex items-center justify-between bg-muted/60 p-2.5 rounded-xl border border-border/80">
 					<div class="flex items-center gap-2">
 						<MapPinIcon class="size-4 text-primary" />
 						<div>
-							<div class="font-bold text-foreground">{selectedOffice?.name} ({selectedOffice?.code})</div>
-							<div class="text-[11px] text-muted-foreground">{selectedOffice?.building} • {selectedOffice?.floor}</div>
+							<div class="font-bold text-foreground">{selectedBuilding?.name} ({selectedBuilding?.code})</div>
+							<div class="text-[11px] text-muted-foreground">{selectedBuilding?.floors} Floors</div>
 						</div>
 					</div>
 					{#if isRoomCheckedIn}
@@ -258,13 +257,13 @@
 				<ol class="space-y-2 text-[11px] text-muted-foreground list-decimal list-inside bg-card p-3 rounded-xl border border-border">
 					<li>Start at <span class="font-bold text-foreground">Main Campus Gate</span>.</li>
 					<li>Walk down the <span class="font-bold text-foreground">Central Quadrangle Walkway</span>.</li>
-					<li>Turn into <span class="font-bold text-foreground">{selectedOffice?.building}</span>.</li>
-					<li>Locate <span class="font-bold text-primary">{selectedOffice?.name}</span> door sign and scan door QR code.</li>
+					<li>Turn into <span class="font-bold text-foreground">{selectedBuilding?.name}</span>.</li>
+					<li>Locate your destination room sign and scan door QR code.</li>
 				</ol>
 
 				<Button
 					onclick={() => (isScannerOpen = true)}
-					class="w-full bg-primary text-primary-foreground font-bold text-xs py-2 rounded-xl shadow-md gap-2"
+					class="w-full bg-primary text-primary-foreground font-bold text-xs py-2 rounded-xl shadow-md gap-2 cursor-pointer h-10"
 				>
 					<QrCodeIcon class="size-4" />
 					<span>{isRoomCheckedIn ? 'Scan Room Door QR Again' : 'Arrived at Room? Scan Room QR Code'}</span>
@@ -276,7 +275,7 @@
 	<!-- Room QR Scanner Modal -->
 	<RoomQrScannerModal
 		isOpen={isScannerOpen}
-		targetOfficeName={selectedOffice?.name}
+		targetOfficeName={selectedBuilding?.name}
 		onClose={() => (isScannerOpen = false)}
 		onSuccess={handleRoomQrSuccess}
 	/>

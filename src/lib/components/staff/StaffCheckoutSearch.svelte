@@ -10,11 +10,11 @@
 	import LogOutIcon from '@lucide/svelte/icons/log-out';
 
 	interface Props {
-		activeOfficeId?: string;
+		activeRoomId?: string;
 		onUpdate?: () => void;
 	}
 
-	let { activeOfficeId = '', onUpdate }: Props = $props();
+	let { activeRoomId = '', onUpdate }: Props = $props();
 
 	let searchQuery = $state('');
 	let lastCheckedOutVisitor: Visitor | null = $state(null);
@@ -34,15 +34,15 @@
 	let filteredActiveVisitors = $derived(
 		allVisitors.filter((v) => {
 			const isCheckedIn = v.status === 'checked_in';
-			const matchesOffice = !activeOfficeId || v.officeId === activeOfficeId;
+			const matchesRoom = !activeRoomId || v.roomId === activeRoomId;
 			const query = searchQuery.trim().toLowerCase();
-			if (!query) return isCheckedIn && matchesOffice;
+			if (!query) return isCheckedIn && matchesRoom;
 
 			const matchesQuery =
 				v.passCode.toLowerCase().includes(query) ||
 				v.fullName.toLowerCase().includes(query) ||
 				v.phone.toLowerCase().includes(query) ||
-				(v.officeName && v.officeName.toLowerCase().includes(query));
+				(v.buildingName && v.buildingName.toLowerCase().includes(query));
 
 			return isCheckedIn && matchesQuery;
 		})
@@ -65,7 +65,7 @@
 	<Card.Root class="shadow-sm border-border">
 		<Card.Header class="pb-3">
 			<Card.Title class="text-xl font-bold text-foreground">Assisted Visitor Check-Out</Card.Title>
-			<Card.Description class="text-xs text-muted-foreground">
+			<Card.Description class="text-xs text-muted-foreground font-semibold">
 				Search by Pass Code (e.g. VP-8921), visitor name, or phone number to check out visitors upon exit.
 			</Card.Description>
 		</Card.Header>
@@ -75,9 +75,9 @@
 					type="text"
 					placeholder="Search Pass Code (VP-XXXX), Visitor Name, or Phone..."
 					bind:value={searchQuery}
-					class="w-full pl-9 pr-4 py-2 text-sm bg-background border-border"
+					class="w-full pl-9 pr-4 py-2 text-xs bg-background border-border rounded-xl h-10"
 				/>
-				<SearchIcon class="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+				<SearchIcon class="absolute left-3 top-3 size-4 text-muted-foreground" />
 			</div>
 
 			{#if lastCheckedOutVisitor}
@@ -94,22 +94,22 @@
 			<div class="flex flex-col gap-2">
 				<div class="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between">
 					<span>Active Visitors ({filteredActiveVisitors.length})</span>
-					{#if activeOfficeId}
-						<span class="text-[10px] text-primary">Filtered for current department</span>
+					{#if activeRoomId}
+						<span class="text-[10px] text-primary">Filtered for current room</span>
 					{/if}
 				</div>
 
 				{#if filteredActiveVisitors.length > 0}
-					<div class="divide-y divide-border border border-border rounded-lg overflow-hidden bg-card">
+					<div class="divide-y divide-border border border-border rounded-xl overflow-hidden bg-card">
 						{#each filteredActiveVisitors as visitor (visitor.id)}
-							<div class="p-3 flex items-center justify-between hover:bg-muted/40 transition-colors text-xs">
+							<div class="p-3 flex items-center justify-between hover:bg-muted/40 transition-colors text-xs font-semibold">
 								<div class="flex flex-col gap-0.5">
 									<div class="flex items-center gap-2">
 										<span class="font-mono font-bold text-primary">{visitor.passCode}</span>
 										<span class="font-semibold text-foreground">{visitor.fullName}</span>
 									</div>
 									<div class="text-[11px] text-muted-foreground">
-										{visitor.officeName || 'General Office'} • {visitor.purpose}
+										{visitor.buildingName || 'General'} • {visitor.roomNumber || ''} • {visitor.purpose}
 									</div>
 								</div>
 
@@ -117,7 +117,7 @@
 									onclick={() => handlePerformCheckout(visitor.id)}
 									variant="destructive"
 									size="sm"
-									class="text-xs font-semibold px-3 py-1 gap-1.5"
+									class="text-xs font-semibold px-3 py-1 gap-1.5 rounded-xl cursor-pointer"
 								>
 									<LogOutIcon class="size-3.5" />
 									<span>Check Out</span>
@@ -126,7 +126,7 @@
 						{/each}
 					</div>
 				{:else}
-					<div class="p-8 text-center border border-dashed border-border rounded-lg text-xs text-muted-foreground">
+					<div class="p-8 text-center border border-dashed border-border rounded-xl text-xs text-muted-foreground">
 						No active checked-in visitors match your search.
 					</div>
 				{/if}

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Office, Room, Visitor } from '$lib/types';
+	import type { Building, Room, Visitor } from '$lib/types';
 	import { addLocalVisitor } from '$lib/supabase';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -12,46 +12,50 @@
 	import UserCheckIcon from '@lucide/svelte/icons/user-check';
 
 	interface Props {
-		offices: Office[];
+		buildings: Building[];
 		rooms: Room[];
-		activeOfficeId: string;
+		activeRoomId?: string;
 		onSuccess: (visitor: Visitor) => void;
 	}
 
-	let { offices = [], rooms = [], activeOfficeId = '', onSuccess }: Props = $props();
+	let { buildings = [], rooms = [], activeRoomId = '', onSuccess }: Props = $props();
 
 	let fullName = $state('');
 	let email = $state('');
 	let phone = $state('');
 	let purpose = $state('');
-	let selectedOfficeId = $state('');
+	let selectedBuildingId = $state('');
 	let selectedRoomId = $state('');
 	let hostPerson = $state('');
 	let isSubmitting = $state(false);
 	let generatedPass: Visitor | null = $state(null);
 
 	$effect(() => {
-		if (activeOfficeId) {
-			selectedOfficeId = activeOfficeId;
+		if (activeRoomId) {
+			selectedRoomId = activeRoomId;
+			const parentRoom = rooms.find((r) => r.id === activeRoomId);
+			if (parentRoom) {
+				selectedBuildingId = parentRoom.buildingId;
+			}
 		}
 	});
 
 	let availableRooms = $derived(
-		selectedOfficeId ? rooms.filter((r) => r.officeId === selectedOfficeId) : []
+		selectedBuildingId ? rooms.filter((r) => r.buildingId === selectedBuildingId) : []
 	);
 
-	let activeOffice = $derived(offices.find((o) => o.id === selectedOfficeId));
+	let activeBuilding = $derived(buildings.find((b) => b.id === selectedBuildingId));
 	let selectedRoomName = $derived(
 		selectedRoomId ? rooms.find((r) => r.id === selectedRoomId)?.roomName : ''
 	);
 
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
-		if (!fullName || !selectedOfficeId || !purpose) return;
+		if (!fullName || !selectedBuildingId || !purpose) return;
 
 		isSubmitting = true;
 
-		const targetOffice = offices.find((o) => o.id === selectedOfficeId);
+		const targetBuilding = buildings.find((b) => b.id === selectedBuildingId);
 		const targetRoom = rooms.find((r) => r.id === selectedRoomId);
 
 		// Determine first, middle, last name from fullName
@@ -68,11 +72,11 @@
 			email: email || 'walkin@campus.visitor',
 			phone: phone || 'No Mobile Phone',
 			purpose,
-			officeId: selectedOfficeId,
-			officeName: targetOffice?.name,
+			buildingId: selectedBuildingId,
+			buildingName: targetBuilding?.name,
 			roomId: selectedRoomId || undefined,
 			roomNumber: targetRoom?.roomNumber || undefined,
-			hostPerson: hostPerson || targetOffice?.headPerson,
+			hostPerson: hostPerson || targetBuilding?.headPerson,
 			photoUrl: undefined, // No photo for manual staff desk assisted walk-ins
 			verificationStatus: 'approved' // Staff entries are automatically verified
 		});
@@ -100,12 +104,12 @@
 	<Card.Root class="max-w-xl mx-auto shadow-md border-border">
 		<Card.Header class="pb-4">
 			<Card.Title class="text-xl font-bold text-foreground">Assisted Visitor Check-In</Card.Title>
-			<Card.Description class="text-xs text-muted-foreground">
+			<Card.Description class="text-xs text-muted-foreground font-semibold">
 				Manually register visitors who do not have a mobile phone or mobile data.
 			</Card.Description>
 		</Card.Header>
 		<Card.Content>
-			<form onsubmit={handleSubmit} class="flex flex-col gap-4">
+			<form onsubmit={handleSubmit} class="flex flex-col gap-4 font-semibold text-xs">
 				<Field.FieldGroup class="flex flex-col gap-4">
 					<Field.Field>
 						<Field.FieldLabel for="staff-fullName">Visitor Full Name *</Field.FieldLabel>
@@ -115,6 +119,7 @@
 							placeholder="e.g. Maria Clara"
 							bind:value={fullName}
 							required
+							class="rounded-xl h-10 text-xs"
 						/>
 					</Field.Field>
 
@@ -126,6 +131,7 @@
 								type="tel"
 								placeholder="No phone or +63 900 000 0000"
 								bind:value={phone}
+								class="rounded-xl h-10 text-xs"
 							/>
 						</Field.Field>
 						<Field.Field>
@@ -135,6 +141,7 @@
 								type="email"
 								placeholder="Optional email"
 								bind:value={email}
+								class="rounded-xl h-10 text-xs"
 							/>
 						</Field.Field>
 					</div>
@@ -147,23 +154,24 @@
 							placeholder="e.g. Inquiry, Document Submission, Consultation"
 							bind:value={purpose}
 							required
+							class="rounded-xl h-10 text-xs"
 						/>
 					</Field.Field>
 
 					<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 						<Field.Field>
-							<Field.FieldLabel for="staff-office">Destination Office *</Field.FieldLabel>
-							<Select.Root type="single" bind:value={selectedOfficeId}>
-								<Select.Trigger id="staff-office" class="w-full h-10">
-									<span class="text-sm font-medium">
-										{activeOffice?.name || "Select an Office..."}
+							<Field.FieldLabel for="staff-building">Destination Building *</Field.FieldLabel>
+							<Select.Root type="single" bind:value={selectedBuildingId}>
+								<Select.Trigger id="staff-building" class="w-full h-10 rounded-xl cursor-pointer">
+									<span class="text-xs font-semibold">
+										{activeBuilding?.name || "Select a Building..."}
 									</span>
 								</Select.Trigger>
-								<Select.Content>
+								<Select.Content class="rounded-xl border border-border bg-card">
 									<Select.Group>
-										{#each offices as office}
-											<Select.Item value={office.id} label={office.name}>
-												{office.name} ({office.code})
+										{#each buildings as building}
+											<Select.Item value={building.id} label={building.name}>
+												{building.name} ({building.code})
 											</Select.Item>
 										{/each}
 									</Select.Group>
@@ -175,12 +183,12 @@
 							<Field.Field>
 								<Field.FieldLabel for="staff-room">Specific Room</Field.FieldLabel>
 								<Select.Root type="single" bind:value={selectedRoomId}>
-									<Select.Trigger id="staff-room" class="w-full h-10">
-										<span class="text-sm font-medium">
+									<Select.Trigger id="staff-room" class="w-full h-10 rounded-xl cursor-pointer">
+										<span class="text-xs font-semibold">
 											{selectedRoomName || "Any / Reception Counter"}
 										</span>
 									</Select.Trigger>
-									<Select.Content>
+									<Select.Content class="rounded-xl border border-border bg-card">
 										<Select.Group>
 											<Select.Item value="" label="Any / Reception Counter">
 												Any / Reception Counter
@@ -202,8 +210,9 @@
 						<Input
 							id="staff-host"
 							type="text"
-							placeholder={activeOffice?.headPerson || 'Office Staff'}
+							placeholder={activeBuilding?.headPerson || 'Office Staff'}
 							bind:value={hostPerson}
+							class="rounded-xl h-10 text-xs"
 						/>
 					</Field.Field>
 				</Field.FieldGroup>
@@ -212,7 +221,7 @@
 					<Button
 						type="submit"
 						disabled={isSubmitting}
-						class="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs py-2.5 rounded-lg shadow-md flex items-center justify-center gap-2"
+						class="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs py-2.5 rounded-xl shadow-md flex items-center justify-center gap-2 h-10 cursor-pointer"
 					>
 						<UserCheckIcon class="size-4 pointer-events-none" />
 						<span>{isSubmitting ? 'Issuing Pass...' : 'Issue Visitor Pass & Register'}</span>
@@ -226,7 +235,7 @@
 	<Card.Root class="max-w-md mx-auto border-2 border-primary/60 shadow-2xl bg-card text-center">
 		<Card.Header class="pb-3 border-b border-border">
 			<div class="flex items-center justify-between">
-				<Badge variant="outline" class="border-primary text-primary font-bold text-[10px]">STAFF ASSISTED ENTRY</Badge>
+				<Badge variant="outline" class="border-primary text-primary font-bold text-[10px] rounded-full">STAFF ASSISTED ENTRY</Badge>
 				<span class="text-[10px] text-muted-foreground font-mono">{new Date(generatedPass.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
 			</div>
 			<Card.Title class="text-2xl font-black text-foreground pt-1">{generatedPass.fullName}</Card.Title>
@@ -237,13 +246,13 @@
 			<div class="p-4 rounded-xl bg-muted/60 border border-border flex flex-col gap-1">
 				<span class="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Physical Pass Code</span>
 				<div class="text-4xl font-mono font-black text-primary tracking-wider">{generatedPass.passCode}</div>
-				<span class="text-[11px] text-muted-foreground italic">Provide this pass code to the visitor or write on slip</span>
+				<span class="text-[11px] text-muted-foreground italic font-semibold">Provide this pass code to the visitor or write on slip</span>
 			</div>
 
 			<div class="grid grid-cols-2 gap-2 text-left text-xs bg-card p-3 rounded-lg border border-border">
 				<div>
-					<span class="text-muted-foreground text-[10px]">Office Destination:</span>
-					<div class="font-bold text-foreground">{generatedPass.officeName}</div>
+					<span class="text-muted-foreground text-[10px]">Building Destination:</span>
+					<div class="font-bold text-foreground">{generatedPass.buildingName}</div>
 				</div>
 				<div>
 					<span class="text-muted-foreground text-[10px]">Room / Host:</span>
@@ -257,11 +266,11 @@
 		</Card.Content>
 
 		<Card.Footer class="flex flex-col gap-2 pt-0">
-			<Button onclick={() => window.print()} variant="outline" class="w-full text-xs font-semibold flex items-center justify-center gap-2">
+			<Button onclick={() => window.print()} variant="outline" class="w-full text-xs font-semibold flex items-center justify-center gap-2 rounded-xl h-10 cursor-pointer border-border">
 				<PrinterIcon class="size-4 pointer-events-none" />
 				<span>Print Physical Visitor Slip</span>
 			</Button>
-			<Button onclick={handleReset} class="w-full bg-primary text-primary-foreground text-xs font-semibold">
+			<Button onclick={handleReset} class="w-full bg-primary text-primary-foreground text-xs font-semibold rounded-xl h-10 cursor-pointer">
 				Register Another Walk-In Visitor
 			</Button>
 		</Card.Footer>

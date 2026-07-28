@@ -6,7 +6,7 @@
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { toast } from 'svelte-sonner';
-	import { MOCK_OFFICES, MOCK_ROOMS, checkoutLocalVisitor } from '$lib/supabase';
+	import { MOCK_BUILDINGS, MOCK_ROOMS, checkoutLocalVisitor } from '$lib/supabase';
 	import StaffCheckInForm from '$lib/components/staff/StaffCheckInForm.svelte';
 	import StaffCheckoutSearch from '$lib/components/staff/StaffCheckoutSearch.svelte';
 
@@ -15,20 +15,21 @@
 	const dashboardContext = getContext<any>("dashboard-state");
 	let visitors = $derived(dashboardContext.visitors);
 
-	// Staff desk configuration state
-	let activeOfficeId = $state('off-1');
+	// Staff desk configuration state (roomId)
+	let activeRoomId = $state('rm-101');
 	let activeStaffTab = $state('checkin');
 
 	$effect(() => {
-		if (data.assignedOfficeId) {
-			activeOfficeId = data.assignedOfficeId;
+		if (data.assignedRoomId) {
+			activeRoomId = data.assignedRoomId;
 		}
 	});
 
 	// Dynamic derived listings
-	let officeVisitors = $derived(visitors.filter((v: any) => v.officeId === activeOfficeId));
-	let activeOffice = $derived(MOCK_OFFICES.find((o) => o.id === activeOfficeId));
-	let activeOfficeCount = $derived(officeVisitors.filter((v: any) => v.status === 'checked_in').length);
+	let roomVisitors = $derived(visitors.filter((v: any) => v.roomId === activeRoomId));
+	let activeRoom = $derived(MOCK_ROOMS.find((r) => r.id === activeRoomId));
+	let activeBuilding = $derived(activeRoom ? MOCK_BUILDINGS.find((b) => b.id === activeRoom.buildingId) : null);
+	let activeRoomCount = $derived(roomVisitors.filter((v: any) => v.status === 'checked_in').length);
 
 	// Helpers
 	function formatTime(isoString: string): string {
@@ -75,44 +76,48 @@
 	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border/60">
 		<div>
 			<h1 class="text-xl md:text-2xl font-black text-foreground tracking-tight">Staff Desk Console</h1>
-			<p class="text-xs text-muted-foreground leading-relaxed">Department manual walk-in check-in desk</p>
+			<p class="text-xs text-muted-foreground leading-relaxed font-semibold">Department manual walk-in check-in desk</p>
 		</div>
 	</div>
 
-	<!-- Office Department Banner -->
+	<!-- Room Office Department Banner -->
 	<div class="p-5 rounded-2xl bg-card border border-border/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
 		<div class="flex flex-col gap-1">
-			<div class="flex items-center gap-2">
-				<Badge variant="secondary" class="font-mono text-xs font-black uppercase rounded-lg px-2 py-0.5">{activeOffice?.code}</Badge>
-				<h1 class="text-lg font-bold text-foreground">{activeOffice?.name}</h1>
+			<div class="flex items-center gap-2 flex-wrap">
+				<Badge variant="secondary" class="font-mono text-xs font-black uppercase rounded-lg px-2 py-0.5">{activeRoom?.roomNumber}</Badge>
+				<h1 class="text-lg font-bold text-foreground">{activeRoom?.roomName}</h1>
 			</div>
-			<p class="text-xs text-muted-foreground font-semibold">{activeOffice?.building} • {activeOffice?.floor} • Head: {activeOffice?.headPerson}</p>
+			<p class="text-xs text-muted-foreground font-semibold">
+				{#if activeBuilding}
+					{activeBuilding.name} ({activeBuilding.code}) • {activeRoom?.floor} • Head: {activeBuilding.headPerson || 'N/A'}
+				{/if}
+			</p>
 		</div>
 
-		<!-- Department Selector for Admin / General Desk users -->
+		<!-- Desk Selector for Admin / General users -->
 		<div class="flex items-center gap-3">
 			<div class="flex items-center gap-2.5">
-				<span class="text-xs font-bold uppercase text-muted-foreground tracking-wide hidden md:inline">Current Department:</span>
-				{#if data.assignedOfficeId}
+				<span class="text-xs font-bold uppercase text-muted-foreground tracking-wide hidden md:inline">Current Office/Room:</span>
+				{#if data.assignedRoomId}
 					<Badge class="bg-primary text-primary-foreground font-black text-xs py-1.5 px-3.5 rounded-xl shadow-xs">
-						{MOCK_OFFICES.find(o => o.id === data.assignedOfficeId)?.name}
+						{MOCK_ROOMS.find(r => r.id === data.assignedRoomId)?.roomNumber} - {MOCK_ROOMS.find(r => r.id === data.assignedRoomId)?.roomName}
 					</Badge>
 				{:else}
 					<Select.Root
 						type="single"
-						value={activeOfficeId}
-						onValueChange={(val) => activeOfficeId = val}
+						value={activeRoomId}
+						onValueChange={(val) => activeRoomId = val}
 					>
 						<Select.Trigger class="h-9 min-w-56 rounded-xl hover:bg-muted/30 cursor-pointer">
 							<span class="text-xs font-semibold text-foreground">
-								{MOCK_OFFICES.find(o => o.id === activeOfficeId)?.name || 'Select Department'}
+								{MOCK_ROOMS.find(r => r.id === activeRoomId)?.roomNumber} - {MOCK_ROOMS.find(r => r.id === activeRoomId)?.roomName || 'Select Desk/Room'}
 							</span>
 						</Select.Trigger>
 						<Select.Content class="rounded-xl border border-border bg-card">
-							<Select.Group>
-								{#each MOCK_OFFICES as office}
-									<Select.Item value={office.id} label={office.name}>
-										{office.name} ({office.code})
+							<Select.Group class="max-h-60 overflow-y-auto">
+								{#each MOCK_ROOMS as room}
+									<Select.Item value={room.id} label={`${room.roomNumber} - ${room.roomName}`}>
+										{room.roomNumber} - {room.roomName} ({MOCK_BUILDINGS.find(b => b.id === room.buildingId)?.code || ''})
 									</Select.Item>
 								{/each}
 							</Select.Group>
@@ -121,7 +126,7 @@
 				{/if}
 			</div>
 			<Badge variant="outline" class="border-primary text-primary font-bold text-xs py-1.5 px-3 rounded-xl bg-primary/[0.02]">
-				{activeOfficeCount} Active Visitors
+				{activeRoomCount} Active Visitors
 			</Badge>
 		</div>
 	</div>
@@ -136,30 +141,30 @@
 				Quick Check-Out
 			</Tabs.Trigger>
 			<Tabs.Trigger value="directory" class="text-xs font-extrabold rounded-lg cursor-pointer">
-				Office Log ({officeVisitors.length})
+				Office Log ({roomVisitors.length})
 			</Tabs.Trigger>
 		</Tabs.List>
 
 		<Tabs.Content value="checkin">
 			<StaffCheckInForm
-				offices={MOCK_OFFICES}
+				buildings={MOCK_BUILDINGS}
 				rooms={MOCK_ROOMS}
-				{activeOfficeId}
+				{activeRoomId}
 				onSuccess={async () => await dashboardContext.loadData()}
 			/>
 		</Tabs.Content>
 
 		<Tabs.Content value="checkout">
 			<StaffCheckoutSearch
-				{activeOfficeId}
+				{activeRoomId}
 				onUpdate={async () => await dashboardContext.loadData()}
 			/>
 		</Tabs.Content>
 
 		<Tabs.Content value="directory" class="flex flex-col gap-4">
 			<div class="flex items-center justify-between">
-				<h2 class="text-sm font-bold text-foreground uppercase tracking-wider">Office visitors logs for {activeOffice?.name}</h2>
-				<span class="text-xs text-muted-foreground font-semibold">Total: {officeVisitors.length} logs</span>
+				<h2 class="text-sm font-bold text-foreground uppercase tracking-wider">Office visitors logs for {activeRoom?.roomName}</h2>
+				<span class="text-xs text-muted-foreground font-semibold">Total: {roomVisitors.length} logs</span>
 			</div>
 
 			<div class="w-full overflow-x-auto rounded-2xl border border-border/80 bg-card shadow-sm">
@@ -176,7 +181,7 @@
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-border/60">
-						{#each officeVisitors as visitor}
+						{#each roomVisitors as visitor}
 							<tr class="hover:bg-muted/30 transition-colors font-medium">
 								<td class="px-6 py-4 font-mono font-black text-primary">{visitor.passCode}</td>
 								<td class="px-6 py-4">
@@ -201,7 +206,7 @@
 											onclick={() => handleCheckout(visitor.id)}
 											variant="destructive"
 											size="sm"
-											class="text-[10px] font-bold h-7 px-3 rounded-lg cursor-pointer"
+											class="text-[10px] font-bold h-7 px-3 rounded-lg cursor-pointer animate-pulse"
 										>
 											Check Out
 										</Button>

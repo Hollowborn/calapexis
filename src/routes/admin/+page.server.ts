@@ -18,7 +18,7 @@ export const actions: Actions = {
 		const email = (data.get('email') as string || '').trim();
 		const password = data.get("password") as string;
 		const role = data.get('role') as 'security' | 'staff';
-		const officeId = data.get('officeId') as string;
+		const roomId = data.get('roomId') as string;
 
 		if (!email || !password || !role) {
 			return fail(400, { message: 'All fields are required.' });
@@ -30,12 +30,12 @@ export const actions: Actions = {
 			return fail(400, { message: 'Username is already taken.' });
 		}
 
-		if (role === 'staff' && !officeId) {
-			return fail(400, { message: 'Office department binding is required for staff role.' });
+		if (role === 'staff' && !roomId) {
+			return fail(400, { message: 'Room office binding is required for staff role.' });
 		}
 
 		// Provision user profile locally
-		await addLocalProfile(email, role, password, role === 'staff' ? officeId : undefined);
+		await addLocalProfile(email, role, password, role === 'staff' ? roomId : undefined);
 
 		return { success: true };
 	}

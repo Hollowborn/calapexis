@@ -35,14 +35,14 @@
 </script>
 
 <!-- Snippet for dynamically colored theme-aware badges using OKLCH -->
-{#snippet officeBadge(officeName: string)}
-	{@const colorVar = getColorVar(officeName)}
+{#snippet buildingBadge(buildingName: string)}
+	{@const colorVar = getColorVar(buildingName)}
 	<Badge
 		style="background-color: oklch(from var({colorVar}) l c h / 0.15); border-color: oklch(from var({colorVar}) l c h / 0.3); color: var({colorVar});"
 		variant="outline"
-		class="text-[11px] font-medium border transition-colors shadow-xs"
+		class="text-[11px] font-bold border transition-colors shadow-xs rounded-full px-2.5"
 	>
-		{officeName}
+		{buildingName}
 	</Badge>
 {/snippet}
 
@@ -67,13 +67,13 @@
 {/snippet}
 
 <div class="w-full overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-	<table class="w-full text-left text-xs text-foreground font-sans">
+	<table class="w-full text-left text-xs text-foreground font-sans font-semibold">
 		<thead class="bg-muted/50 text-muted-foreground uppercase text-[10px] tracking-wider font-semibold border-b border-border">
 			<tr>
 				<th class="px-4 py-3">Pass Code</th>
 				<th class="px-4 py-3">Visitor Name</th>
 				<th class="px-4 py-3">Contact</th>
-				<th class="px-4 py-3">Destination Office</th>
+				<th class="px-4 py-3">Destination Building</th>
 				<th class="px-4 py-3">Purpose</th>
 				<th class="px-4 py-3">Check-In</th>
 				<th class="px-4 py-3">Check-Out</th>
@@ -87,7 +87,7 @@
 					<td class="px-4 py-3 font-mono text-xs font-bold text-primary">
 						{visitor.passCode}
 					</td>
-					<td class="px-4 py-3 font-medium text-foreground">
+					<td class="px-4 py-3 font-bold text-foreground">
 						{visitor.fullName}
 					</td>
 					<td class="px-4 py-3 text-muted-foreground">
@@ -95,15 +95,15 @@
 						<div class="text-[10px]">{visitor.phone}</div>
 					</td>
 					<td class="px-4 py-3">
-						{@render officeBadge(visitor.officeName || 'General')}
+						{@render buildingBadge(visitor.buildingName || 'General')}
 					</td>
 					<td class="px-4 py-3 text-muted-foreground max-w-[150px] truncate" title={visitor.purpose}>
 						{visitor.purpose}
 					</td>
-					<td class="px-4 py-3 font-mono text-muted-foreground">
+					<td class="px-4 py-3 font-mono text-muted-foreground font-semibold">
 						{formatTime(visitor.checkInTime)}
 					</td>
-					<td class="px-4 py-3 font-mono text-muted-foreground">
+					<td class="px-4 py-3 font-mono text-muted-foreground font-semibold">
 						{visitor.checkOutTime ? formatTime(visitor.checkOutTime) : '-'}
 					</td>
 					<td class="px-4 py-3">
@@ -116,13 +116,13 @@
 								variant="destructive"
 								size="sm"
 								onclick={() => handleCheckout(visitor.id)}
-								class="h-7 text-[11px] font-bold rounded-md flex items-center gap-1.5 ml-auto"
+								class="h-7 text-[11px] font-bold rounded-xl flex items-center gap-1.5 ml-auto cursor-pointer"
 							>
 								<LogOutIcon class="size-3.5 pointer-events-none" />
 								<span>Check Out</span>
 							</Button>
 						{:else}
-							<span class="text-[10px] text-muted-foreground italic">Completed</span>
+							<span class="text-[10px] text-muted-foreground italic font-semibold">Completed</span>
 						{/if}
 					</td>
 				</tr>

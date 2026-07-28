@@ -37,10 +37,10 @@
 			cell: ({ row }) => renderSnippet(visitorNameCell, { visitor: row.original })
 		}),
 
-		// 4. Destination Office (oklch custom badge)
-		columnHelper.accessor("officeName", {
-			header: "Destination Office",
-			cell: ({ getValue }) => renderSnippet(officeBadge, { name: getValue() || 'General' })
+		// 4. Destination Building (oklch custom badge)
+		columnHelper.accessor("buildingName", {
+			header: "Destination Building",
+			cell: ({ getValue }) => renderSnippet(buildingBadge, { name: getValue() || 'General' })
 		}),
 
 		// 5. Purpose (truncated)
@@ -89,9 +89,9 @@
 
 	// CSV Exporter Action
 	function exportCSV() {
-		const headers = 'Pass Code,Name,Email,Phone,Purpose,Office,Check In,Check Out,Status,Verification\n';
+		const headers = 'Pass Code,Name,Email,Phone,Purpose,Building,Check In,Check Out,Status,Verification\n';
 		const rows = (visitors as any[]).map(v => {
-			return `"${v.passCode}","${v.fullName}","${v.email}","${v.phone}","${v.purpose}","${v.officeName || 'General'}","${v.checkInTime}","${v.checkOutTime || ''}","${v.status}","${v.verificationStatus}"`;
+			return `"${v.passCode}","${v.fullName}","${v.email}","${v.phone}","${v.purpose}","${v.buildingName || 'General'}","${v.checkInTime}","${v.checkOutTime || ''}","${v.status}","${v.verificationStatus}"`;
 		}).join('\n');
 
 		const blob = new Blob([headers + rows], { type: 'text/csv' });
@@ -139,7 +139,7 @@
 {/snippet}
 
 {#snippet purposeCell({ purpose }: { purpose: any })}
-	<div class="max-w-[150px] truncate text-muted-foreground text-xs" title={purpose}>{purpose}</div>
+	<div class="max-w-[150px] truncate text-muted-foreground text-xs font-semibold" title={purpose}>{purpose}</div>
 {/snippet}
 
 {#snippet timestampCell({ time }: { time: any })}
@@ -154,7 +154,7 @@
 {/snippet}
 
 <!-- Svelte Snippet for dynamic colored theme-aware badges using OKLCH custom colors -->
-{#snippet officeBadge({ name }: { name: any })}
+{#snippet buildingBadge({ name }: { name: any })}
 	{@const chartColors = ['--chart-1', '--chart-2', '--chart-3', '--chart-4', '--chart-5']}
 	{@const hash = String(name || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)}
 	{@const colorVar = chartColors[Math.abs(hash) % chartColors.length]}
@@ -204,7 +204,7 @@
 						await dashboardContext.loadData();
 					}
 				}}
-				class="h-8 px-2.5 text-xs font-semibold text-primary hover:bg-primary/10 rounded-lg"
+				class="h-8 px-2.5 text-xs font-semibold text-primary hover:bg-primary/10 rounded-lg cursor-pointer"
 			>
 				Check out
 			</Button>
@@ -242,12 +242,12 @@
 	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border/60">
 		<div>
 			<h1 class="text-xl md:text-2xl font-black text-foreground tracking-tight">Logbook Master</h1>
-			<p class="text-xs text-muted-foreground leading-relaxed">Historical database log spreadsheets</p>
+			<p class="text-xs text-muted-foreground leading-relaxed font-semibold">Historical database log spreadsheets</p>
 		</div>
 	</div>
 
 	<!-- Print-Only Heading -->
-	<div class="hidden print:block text-center space-y-1 mb-6">
+	<div class="hidden print:block text-center space-y-1 mb-6 font-semibold">
 		<h1 class="text-xl font-bold tracking-tight text-black">Calapexis Visitor Compliance Logbook</h1>
 		<p class="text-xs text-zinc-600">Generated on {new Date().toLocaleString()} • Classified Official Campus Document</p>
 	</div>

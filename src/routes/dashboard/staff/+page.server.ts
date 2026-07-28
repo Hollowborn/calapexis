@@ -10,6 +10,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	return {
-		assignedOfficeId: session.officeId || null
+		assignedRoomId: session.roomId || null
 	};
 };

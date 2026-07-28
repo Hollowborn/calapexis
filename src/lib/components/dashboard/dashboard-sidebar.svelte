@@ -23,7 +23,7 @@
 		'security-desk': '/dashboard/security',
 		'staff-desk': '/dashboard/staff',
 		'user-accounts': '/dashboard/admin/users',
-		'office-config': '/dashboard/admin/offices'
+		'office-config': '/dashboard/admin/buildings'
 	};
 
 	const activeView = $derived(
@@ -119,7 +119,7 @@
 			</Sidebar.Menu>
 		</Sidebar.Header>
 
-		<Sidebar.Content class="bg-sidebar">
+		<Sidebar.Content class="bg-sidebar/10">
 			<Sidebar.Group>
 				<Sidebar.GroupContent class="px-1.5 md:px-0">
 					<Sidebar.Menu class="gap-2">

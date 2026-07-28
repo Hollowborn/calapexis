@@ -1,25 +1,25 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { Office, Room } from '$lib/types';
-	import { MOCK_OFFICES, MOCK_ROOMS } from '$lib/supabase';
+	import type { Building, Room } from '$lib/types';
+	import { MOCK_BUILDINGS, MOCK_ROOMS } from '$lib/supabase';
 	import LeafletMap from '$lib/components/map/LeafletMap.svelte';
 	import RoomSearch from '$lib/components/map/RoomSearch.svelte';
 	import { AnimatedThemeToggler } from "$lib/components/magic/animated-theme-toggler";
 
-	let selectedOffice: Office | null = $state(null);
+	let selectedBuilding: Building | null = $state(null);
 	let selectedRoom: Room | null = $state(null);
 
 	onMount(() => {
 		const params = new URLSearchParams(window.location.search);
-		const officeId = params.get('office');
-		if (officeId) {
-			const found = MOCK_OFFICES.find((o) => o.id === officeId);
-			if (found) selectedOffice = found;
+		const buildingId = params.get('building');
+		if (buildingId) {
+			const found = MOCK_BUILDINGS.find((b) => b.id === buildingId);
+			if (found) selectedBuilding = found;
 		}
 	});
 
-	function handleSelectOffice(office: Office) {
-		selectedOffice = office;
+	function handleSelectBuilding(building: Building) {
+		selectedBuilding = building;
 		selectedRoom = null;
 	}
 
@@ -28,7 +28,7 @@
 	}
 </script>
 
-<div class="min-h-screen bg-background text-foreground flex flex-col font-sans">
+<div class="min-h-screen bg-background text-foreground flex flex-col font-sans font-semibold text-xs">
 	<!-- Interactive Map Header Layout -->
 	<header class="border-b border-border bg-card/80 backdrop-blur-md sticky top-0 z-40">
 		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -55,13 +55,13 @@
 		<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card p-4 rounded-xl border border-border shadow-xs">
 			<div>
 				<h1 class="text-xl font-bold tracking-tight text-foreground">Interactive Campus Map & Room Navigation</h1>
-				<p class="text-xs text-muted-foreground">Select an office or search for rooms to get directional route guidance.</p>
+				<p class="text-xs text-muted-foreground font-semibold">Select a building or search for rooms to get directional route guidance.</p>
 			</div>
 
 			<RoomSearch
-				offices={MOCK_OFFICES}
+				buildings={MOCK_BUILDINGS}
 				rooms={MOCK_ROOMS}
-				onSelectOffice={handleSelectOffice}
+				onSelectBuilding={handleSelectBuilding}
 				onSelectRoom={handleSelectRoom}
 			/>
 		</div>
@@ -70,45 +70,33 @@
 		<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 			<div class="lg:col-span-2">
 				<LeafletMap
-					offices={MOCK_OFFICES}
+					buildings={MOCK_BUILDINGS}
 					rooms={MOCK_ROOMS}
-					selectedOfficeId={selectedOffice?.id}
+					selectedBuildingId={selectedBuilding?.id}
 					selectedRoomId={selectedRoom?.id}
-					onSelectOffice={handleSelectOffice}
+					onSelectBuilding={handleSelectBuilding}
 				/>
 			</div>
 
-			<!-- Selected Destination Office Sidebar -->
+			<!-- Selected Destination Building Sidebar -->
 			<div class="bg-card p-5 rounded-xl border border-border shadow-sm space-y-4 h-fit">
-				{#if selectedOffice}
+				{#if selectedBuilding}
 					<div class="space-y-2 pb-3 border-b border-border">
 						<div class="flex items-center justify-between">
 							<span class="px-2 py-0.5 rounded bg-primary/10 text-primary font-mono text-xs font-bold">
-								{selectedOffice.code}
+								{selectedBuilding.code}
 							</span>
-							<span class="text-xs text-muted-foreground">{selectedOffice.building}</span>
+							<span class="text-xs text-muted-foreground">{selectedBuilding.floors} Floors</span>
 						</div>
-						<h2 class="text-lg font-bold text-foreground">{selectedOffice.name}</h2>
-						<p class="text-xs text-muted-foreground">{selectedOffice.description}</p>
+						<h2 class="text-lg font-bold text-foreground">{selectedBuilding.name}</h2>
+						<p class="text-xs text-muted-foreground">{selectedBuilding.description}</p>
 					</div>
 
 					<div class="space-y-2 text-xs">
-						<div>
-							<span class="text-muted-foreground">Floor Location:</span>
-							<span class="font-semibold text-foreground ml-1">{selectedOffice.floor}</span>
-						</div>
-						{#if selectedOffice.headPerson}
+						{#if selectedBuilding.headPerson}
 							<div>
-								<span class="text-muted-foreground">Department Head:</span>
-								<span class="font-semibold text-foreground ml-1">{selectedOffice.headPerson}</span>
-							</div>
-						{/if}
-						{#if selectedOffice.contactEmail}
-							<div>
-								<span class="text-muted-foreground">Contact Email:</span>
-								<a href="mailto:{selectedOffice.contactEmail}" class="text-primary hover:underline ml-1">
-									{selectedOffice.contactEmail}
-								</a>
+								<span class="text-muted-foreground">Building Admin/Head:</span>
+								<span class="font-semibold text-foreground ml-1">{selectedBuilding.headPerson}</span>
 							</div>
 						{/if}
 					</div>
@@ -118,17 +106,16 @@
 						<ol class="space-y-2 text-xs text-muted-foreground list-decimal list-inside">
 							<li>Enter via <span class="font-medium text-foreground">Main Campus Gate</span>.</li>
 							<li>Proceed straight through the <span class="font-medium text-foreground">Central Quadrangle Walkway</span>.</li>
-							<li>Turn toward <span class="font-medium text-foreground">{selectedOffice.building}</span> on <span class="font-medium text-foreground">{selectedOffice.floor}</span>.</li>
-							<li>Locate <span class="font-bold text-primary">{selectedOffice.name}</span> door sign.</li>
+							<li>Turn toward the <span class="font-bold text-primary">{selectedBuilding.name}</span> entrance.</li>
 						</ol>
 					</div>
 
 					<div class="pt-2">
 						<a
 							href="/checkin"
-							class="block text-center w-full py-2 px-3 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs shadow-xs transition-colors"
+							class="block text-center w-full py-2 px-3 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs shadow-xs transition-colors h-10 flex items-center justify-center cursor-pointer"
 						>
-							Check In for Visit to {selectedOffice.code} →
+							Check In for Visit to {selectedBuilding.code} →
 						</a>
 					</div>
 				{:else}
@@ -136,7 +123,7 @@
 						<svg class="w-10 h-10 mx-auto text-primary/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
 						</svg>
-						<div class="text-sm font-semibold text-foreground">No Office Selected</div>
+						<div class="text-sm font-semibold text-foreground">No Building Selected</div>
 						<p class="text-xs max-w-xs mx-auto">Click any map marker or use the search bar above to view room directions.</p>
 					</div>
 				{/if}

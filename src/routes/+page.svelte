@@ -1,13 +1,11 @@
 <script lang="ts">
-	import { MOCK_OFFICES } from '$lib/supabase';
+	import { MOCK_BUILDINGS } from '$lib/supabase';
 	import CompassIcon from '@lucide/svelte/icons/compass';
 	import UserCheckIcon from '@lucide/svelte/icons/user-check';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
 	import SparklesIcon from '@lucide/svelte/icons/sparkles';
-	import CommandIcon from '@lucide/svelte/icons/command';
-	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import AnimatedShinyText from '$lib/components/magic/animated-shiny-text/animated-shiny-text.svelte';
 	import AuroraText from '$lib/components/magic/aurora-text/aurora-text.svelte';
 	import { AnimatedThemeToggler } from "$lib/components/magic/animated-theme-toggler";
@@ -57,9 +55,9 @@
 		<!-- Hero copy text with extra premium typography -->
 		<div class="text-center space-y-4">
 			<Badge variant="outline" class="font-extrabold tracking-widest border-primary/20 bg-primary/5 text-primary rounded-full px-3.5 py-1 text-[10px] gap-1.5 uppercase font-mono mx-auto">
-				<SparklesIcon class="size-3 text-primary  animate-duration-3000" />
+				<SparklesIcon class="size-3 text-primary animate-duration-3000" />
 				<AnimatedShinyText class="text-[10px] font-extrabold tracking-widest uppercase text-primary">
-				<span>Digital Pass & Navigation System</span>
+					<span>Digital Pass & Navigation System</span>
 				</AnimatedShinyText>
 			</Badge>
 			
@@ -69,7 +67,7 @@
 			</h1>
 			
 			<p class="text-xs sm:text-sm text-muted-foreground font-semibold leading-relaxed max-w-md mx-auto">
-				A minimalist navigation gateway. Instantly locate department offices, verify your visitor logs, and explore interactive pathfindings.
+				A minimalist navigation gateway. Instantly locate building landmarks, check into rooms, and explore interactive pathfinding.
 			</p>
 		</div>
 
@@ -81,7 +79,7 @@
 			>
 				<div class="flex items-center gap-3">
 					<SearchIcon class="size-5 text-muted-foreground pointer-events-none" />
-					<span class="font-semibold text-xs sm:text-sm">Search department, building, or room...</span>
+					<span class="font-semibold text-xs sm:text-sm">Search building complex or room...</span>
 				</div>
 				<Kbd class="h-6 px-1.5 border border-border shadow-xs bg-muted text-[10px] font-bold">
 					Ctrl K
@@ -118,14 +116,13 @@
 </div>
 
 <!-- Command Palette Dialog -->
-
 <Command.Dialog 
 	bind:open={isCommandOpen} 
 	title="Campus Portal Guide" 
-	description="Search for rooms, departments, or access console gateways."
-	class="border border-border/80 shadow-2xl overflow-hidden "
+	description="Search for rooms, buildings, or access console gateways."
+	class="border border-border/80 shadow-2xl overflow-hidden"
 >
-	<Command.Input placeholder="Search department, building, or room..." bind:value={searchQuery} />
+	<Command.Input placeholder="Search building complex or room..." bind:value={searchQuery} />
 	<Command.List class="p-2">
 		<Command.Empty class="py-6 text-center text-xs text-muted-foreground">No results found.</Command.Empty>
 		
@@ -151,15 +148,15 @@
 		
 		<Command.Separator class="my-2 bg-border/60" />
 		
-		<Command.Group heading="Campus Offices & Departments" class="px-2 font-bold text-[10px] uppercase tracking-wider text-muted-foreground">
-			{#each MOCK_OFFICES as office}
-				<Command.LinkItem href="/map?office={office.id}" class="rounded-xl flex items-center gap-2.5 px-3 py-2.5 cursor-pointer">
+		<Command.Group heading="Campus Buildings & Landmarks" class="px-2 font-bold text-[10px] uppercase tracking-wider text-muted-foreground">
+			{#each MOCK_BUILDINGS as building}
+				<Command.LinkItem href="/map?building={building.id}" class="rounded-xl flex items-center gap-2.5 px-3 py-2.5 cursor-pointer font-semibold text-xs">
 					<MapPinIcon class="size-4 text-primary pointer-events-none" />
 					<div class="flex flex-col gap-0.5">
-						<span class="font-bold text-xs text-foreground leading-tight">{office.name}</span>
-						<span class="text-[10px] text-muted-foreground font-semibold leading-relaxed">{office.building} ({office.floor})</span>
+						<span class="font-bold text-xs text-foreground leading-tight">{building.name}</span>
+						<span class="text-[10px] text-muted-foreground font-semibold leading-relaxed">{building.floors} Floors</span>
 					</div>
-					<Command.Shortcut class="font-mono text-[9px] font-bold">{office.code}</Command.Shortcut>
+					<Command.Shortcut class="font-mono text-[9px] font-bold">{building.code}</Command.Shortcut>
 				</Command.LinkItem>
 			{/each}
 		</Command.Group>

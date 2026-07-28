@@ -25,7 +25,7 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 function setSessionCookies(
   cookies: any,
   role: string,
-  officeId?: string | null,
+  roomId?: string | null,
 ) {
   cookies.set("session_role", role, {
     path: "/",
@@ -35,8 +35,8 @@ function setSessionCookies(
     maxAge: 60 * 60 * 24, // 1 day
   });
 
-  if (officeId) {
-    cookies.set("session_office_id", officeId, {
+  if (roomId) {
+    cookies.set("session_room_id", roomId, {
       path: "/",
       httpOnly: true,
       sameSite: "strict",
@@ -44,7 +44,7 @@ function setSessionCookies(
       maxAge: 60 * 60 * 24,
     });
   } else {
-    cookies.delete("session_office_id", { path: "/" });
+    cookies.delete("session_room_id", { path: "/" });
   }
 }
 
@@ -103,7 +103,7 @@ export const actions: Actions = {
             resolvedRole = "security";
           }
 
-          const defaultOfficeId = resolvedRole === "staff" ? "off-1" : null;
+          const defaultRoomId = resolvedRole === "staff" ? "rm-105" : null;
 
           let insertResult = await supabase
             .from("profiles")
@@ -112,7 +112,7 @@ export const actions: Actions = {
                 id: authData.user.id,
                 email: username,
                 role: resolvedRole,
-                office_id: defaultOfficeId,
+                room_id: defaultRoomId,
               },
             ])
             .select()
@@ -120,13 +120,13 @@ export const actions: Actions = {
 
           if (
             insertResult.error &&
-            (insertResult.error.message.includes("office_id") ||
+            (insertResult.error.message.includes("room_id") ||
               insertResult.error.code === "P0002" ||
               insertResult.error.code === "42703")
           ) {
-            // Fallback: Insert without office_id if the column doesn't exist yet
+            // Fallback: Insert without room_id if the column doesn't exist yet
             console.warn(
-              "office_id column not found in database, retrying insert without it",
+              "room_id column not found in database, retrying insert without it",
             );
             insertResult = await supabase
               .from("profiles")
@@ -154,7 +154,7 @@ export const actions: Actions = {
           profile = insertResult.data;
         }
 
-        setSessionCookies(cookies, profile.role, profile.office_id);
+        setSessionCookies(cookies, profile.role, profile.room_id);
         throw redirect(303, getRedirectUrl(profile.role, url));
       }
 
@@ -164,7 +164,7 @@ export const actions: Actions = {
         (p) => p.email.toLowerCase() === username.toLowerCase(),
       );
       if (mockProfile && mockProfile.password === password) {
-        setSessionCookies(cookies, mockProfile.role, mockProfile.officeId);
+        setSessionCookies(cookies, mockProfile.role, mockProfile.roomId);
         throw redirect(303, getRedirectUrl(mockProfile.role, url));
       }
 
@@ -187,13 +187,13 @@ export const actions: Actions = {
       return fail(400, { message: "Invalid password." });
     }
 
-    setSessionCookies(cookies, userProfile.role, userProfile.officeId);
+    setSessionCookies(cookies, userProfile.role, userProfile.roomId);
     throw redirect(303, getRedirectUrl(userProfile.role, url));
   },
 
   logout: async ({ cookies }) => {
     cookies.delete("session_role", { path: "/" });
-    cookies.delete("session_office_id", { path: "/" });
+    cookies.delete("session_room_id", { path: "/" });
     throw redirect(303, "/login?logout=success");
   },
 };

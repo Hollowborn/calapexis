@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Office, Room, Visitor } from '$lib/types';
+	import type { Building, Room, Visitor } from '$lib/types';
 	import { addLocalVisitor } from '$lib/supabase';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -7,12 +7,12 @@
 	import * as Select from '$lib/components/ui/select';
 
 	interface Props {
-		offices: Office[];
+		buildings: Building[];
 		rooms: Room[];
 		onSuccess: (visitor: Visitor) => void;
 	}
 
-	let { offices = [], rooms = [], onSuccess }: Props = $props();
+	let { buildings = [], rooms = [], onSuccess }: Props = $props();
 
 	let firstName = $state('');
 	let middleName = $state('');
@@ -20,7 +20,7 @@
 	let email = $state('');
 	let phone = $state('');
 	let purpose = $state('');
-	let selectedOfficeId = $state('');
+	let selectedBuildingId = $state('');
 	let selectedRoomId = $state('');
 	let hostPerson = $state('');
 	let isSubmitting = $state(false);
@@ -28,21 +28,21 @@
 	let fullName = $derived(`${firstName} ${middleName} ${lastName}`.trim().replace(/\s+/g, ' '));
 
 	let availableRooms = $derived(
-		selectedOfficeId ? rooms.filter((r) => r.officeId === selectedOfficeId) : []
+		selectedBuildingId ? rooms.filter((r) => r.buildingId === selectedBuildingId) : []
 	);
 
-	let selectedOffice = $derived(offices.find((o) => o.id === selectedOfficeId));
+	let selectedBuilding = $derived(buildings.find((b) => b.id === selectedBuildingId));
 	let selectedRoomName = $derived(
 		selectedRoomId ? rooms.find((r) => r.id === selectedRoomId)?.roomName : ''
 	);
 
 	async function handleSubmit(e: SubmitEvent) {
 		e.preventDefault();
-		if (!firstName || !lastName || !email || !selectedOfficeId || !purpose) return;
+		if (!firstName || !lastName || !email || !selectedBuildingId || !purpose) return;
 
 		isSubmitting = true;
 
-		const targetOffice = offices.find((o) => o.id === selectedOfficeId);
+		const targetBuilding = buildings.find((b) => b.id === selectedBuildingId);
 		const targetRoom = rooms.find((r) => r.id === selectedRoomId);
 
 		const newVisitor = await addLocalVisitor({
@@ -53,11 +53,11 @@
 			email,
 			phone,
 			purpose,
-			officeId: selectedOfficeId,
-			officeName: targetOffice?.name,
+			buildingId: selectedBuildingId,
+			buildingName: targetBuilding?.name,
 			roomId: selectedRoomId || undefined,
 			roomNumber: targetRoom?.roomNumber || undefined,
-			hostPerson: hostPerson || targetOffice?.headPerson,
+			hostPerson: hostPerson || targetBuilding?.headPerson,
 			verificationStatus: 'approved' // Auto-approve on public desk check-in
 		});
 
@@ -66,10 +66,10 @@
 	}
 </script>
 
-<form onsubmit={handleSubmit} class="flex flex-col gap-4 max-w-lg mx-auto bg-card p-6 rounded-xl border border-border shadow-lg">
+<form onsubmit={handleSubmit} class="flex flex-col gap-4 max-w-lg mx-auto bg-card p-6 rounded-xl border border-border shadow-lg font-semibold text-xs">
 	<div class="space-y-1">
 		<h2 class="text-xl font-bold tracking-tight text-foreground">Digital Visitor Logbook</h2>
-		<p class="text-xs text-muted-foreground">Please fill out your visitor check-in details for campus entry.</p>
+		<p class="text-xs text-muted-foreground font-semibold">Please fill out your visitor check-in details for campus entry.</p>
 	</div>
 
 	<Field.FieldGroup class="flex flex-col gap-4 pt-2">
@@ -82,6 +82,7 @@
 					placeholder="John"
 					bind:value={firstName}
 					required
+					class="rounded-xl h-10 text-xs font-semibold"
 				/>
 			</Field.Field>
 			<Field.Field>
@@ -92,6 +93,7 @@
 					placeholder="Paul"
 					bind:value={middleName}
 					required
+					class="rounded-xl h-10 text-xs font-semibold"
 				/>
 			</Field.Field>
 			<Field.Field>
@@ -102,6 +104,7 @@
 					placeholder="Doe"
 					bind:value={lastName}
 					required
+					class="rounded-xl h-10 text-xs font-semibold"
 				/>
 			</Field.Field>
 		</div>
@@ -115,6 +118,7 @@
 					placeholder="john.doe@example.com"
 					bind:value={email}
 					required
+					class="rounded-xl h-10 text-xs"
 				/>
 			</Field.Field>
 			<Field.Field>
@@ -124,6 +128,7 @@
 					type="tel"
 					placeholder="+63 900 000 0000"
 					bind:value={phone}
+					class="rounded-xl h-10 text-xs"
 				/>
 			</Field.Field>
 		</div>
@@ -136,22 +141,23 @@
 				placeholder="e.g. Document Request, Faculty Meeting"
 				bind:value={purpose}
 				required
+				class="rounded-xl h-10 text-xs"
 			/>
 		</Field.Field>
 
 		<Field.Field>
-			<Field.FieldLabel for="office">Destination Office *</Field.FieldLabel>
-			<Select.Root type="single" bind:value={selectedOfficeId}>
-				<Select.Trigger id="office" class="w-full h-10">
-					<span class="text-sm font-medium">
-						{selectedOffice?.name || "Select an Office..."}
+			<Field.FieldLabel for="building">Destination Building *</Field.FieldLabel>
+			<Select.Root type="single" bind:value={selectedBuildingId}>
+				<Select.Trigger id="building" class="w-full h-10 rounded-xl cursor-pointer">
+					<span class="text-xs font-semibold">
+						{selectedBuilding?.name || "Select a Building..."}
 					</span>
 				</Select.Trigger>
-				<Select.Content>
+				<Select.Content class="rounded-xl border border-border bg-card">
 					<Select.Group>
-						{#each offices as office}
-							<Select.Item value={office.id} label={office.name}>
-								{office.name} ({office.code})
+						{#each buildings as building}
+							<Select.Item value={building.id} label={building.name}>
+								{building.name} ({building.code})
 							</Select.Item>
 						{/each}
 					</Select.Group>
@@ -163,12 +169,12 @@
 			<Field.Field>
 				<Field.FieldLabel for="room">Specific Room (Optional)</Field.FieldLabel>
 				<Select.Root type="single" bind:value={selectedRoomId}>
-					<Select.Trigger id="room" class="w-full h-10">
-						<span class="text-sm font-medium">
+					<Select.Trigger id="room" class="w-full h-10 rounded-xl cursor-pointer">
+						<span class="text-xs font-semibold">
 							{selectedRoomName || "Any / General Counter"}
 						</span>
 					</Select.Trigger>
-					<Select.Content>
+					<Select.Content class="rounded-xl border border-border bg-card">
 						<Select.Group>
 							<Select.Item value="" label="Any / General Counter">
 								Any / General Counter
@@ -191,6 +197,7 @@
 				type="text"
 				placeholder="e.g. Dr. Maria Santos"
 				bind:value={hostPerson}
+				class="rounded-xl h-10 text-xs"
 			/>
 		</Field.Field>
 	</Field.FieldGroup>
@@ -199,7 +206,7 @@
 		<Button
 			type="submit"
 			disabled={isSubmitting}
-			class="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-sm py-2.5 rounded-lg transition-colors shadow-md"
+			class="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs py-2.5 rounded-xl transition-colors shadow-md h-10 cursor-pointer"
 		>
 			{isSubmitting ? 'Processing Check-in...' : 'Complete Digital Check-In'}
 		</Button>

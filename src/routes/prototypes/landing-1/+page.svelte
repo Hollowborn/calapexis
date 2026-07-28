@@ -1,9 +1,8 @@
 <script lang="ts">
-	import { MOCK_OFFICES } from '$lib/supabase';
+	import { MOCK_BUILDINGS } from '$lib/supabase';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
 	import CompassIcon from '@lucide/svelte/icons/compass';
 	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
-	import BuildingIcon from '@lucide/svelte/icons/building';
 	import UserCheckIcon from '@lucide/svelte/icons/user-check';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import SearchIcon from '@lucide/svelte/icons/search';
@@ -14,16 +13,15 @@
 	import { Badge } from '$lib/components/ui/badge/index.js';
 
 	let searchQuery = $state('');
-	let filteredOffices = $derived(
-		MOCK_OFFICES.filter(o => 
-			o.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-			o.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-			o.building.toLowerCase().includes(searchQuery.toLowerCase())
+	let filteredBuildings = $derived(
+		MOCK_BUILDINGS.filter(b => 
+			b.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+			b.code.toLowerCase().includes(searchQuery.toLowerCase())
 		)
 	);
 </script>
 
-<div class="min-h-screen bg-background text-foreground flex flex-col font-sans">
+<div class="min-h-screen bg-background text-foreground flex flex-col font-sans font-semibold text-xs">
 	<!-- Top Navigation -->
 	<header class="border-b border-border bg-card/60 backdrop-blur-xl sticky top-0 z-40">
 		<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -34,7 +32,7 @@
 				<span class="tracking-tight">Calapexis <span class="text-primary font-normal text-xs uppercase tracking-widest pl-1 font-mono">L1</span></span>
 			</a>
 
-			<nav class="flex items-center gap-2">
+			<nav class="flex items-center gap-2 font-semibold">
 				<Button href="/checkin" variant="ghost" size="sm" class="text-xs font-bold gap-1.5 rounded-xl">
 					<UserCheckIcon class="size-4" />
 					<span>Visitor Check-In</span>
@@ -43,7 +41,7 @@
 					<CompassIcon class="size-4" />
 					<span>Campus Map</span>
 				</Button>
-				<Button href="/login" variant="default" size="sm" class="text-xs font-extrabold gap-1.5 rounded-xl shadow-md shadow-primary/10">
+				<Button href="/login" variant="default" size="sm" class="text-xs font-extrabold gap-1.5 rounded-xl shadow-md shadow-primary/10 cursor-pointer h-9">
 					<ShieldCheckIcon class="size-4" />
 					<span>Admin Portal</span>
 				</Button>
@@ -71,17 +69,17 @@
 					Experience a smarter campus journey.
 				</h1>
 				
-				<p class="text-muted-foreground text-sm md:text-base leading-relaxed font-medium">
-					Check in instantly with digital guest passes. Search, query, and navigate through campus offices in real-time with our interactive pathfinding map.
+				<p class="text-muted-foreground text-sm md:text-base leading-relaxed font-semibold">
+					Check in instantly with digital guest passes. Search, query, and navigate through campus complexes in real-time with our interactive pathfinding map.
 				</p>
 				
 				<div class="pt-4 flex flex-wrap items-center gap-3">
-					<Button href="/checkin" size="lg" class="text-xs font-bold rounded-2xl h-11 px-6 shadow-md shadow-primary/10 gap-2">
+					<Button href="/checkin" size="lg" class="text-xs font-bold rounded-2xl h-11 px-6 shadow-md shadow-primary/10 gap-2 cursor-pointer">
 						<span>Start Check-In</span>
 						<ArrowRightIcon class="size-4" />
 					</Button>
 					
-					<Button href="/map" variant="outline" size="lg" class="text-xs font-bold rounded-2xl h-11 px-6 border-border/85 gap-2">
+					<Button href="/map" variant="outline" size="lg" class="text-xs font-bold rounded-2xl h-11 px-6 border-border/85 gap-2 cursor-pointer">
 						<CompassIcon class="size-4" />
 						<span>Open Campus Map</span>
 					</Button>
@@ -116,14 +114,14 @@
 			<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
 				<div>
 					<h2 class="text-2xl font-black text-foreground tracking-tight">Campus Directory</h2>
-					<p class="text-xs text-muted-foreground font-semibold">Instantly find details and coordinates of all campus departments.</p>
+					<p class="text-xs text-muted-foreground font-semibold">Instantly find details and coordinates of all campus building landmarks.</p>
 				</div>
 
 				<div class="relative w-full sm:max-w-xs">
 					<SearchIcon class="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
 					<Input 
 						type="text" 
-						placeholder="Search office or building..." 
+						placeholder="Search building..." 
 						bind:value={searchQuery}
 						class="pl-10 rounded-xl h-10 text-xs font-semibold"
 					/>
@@ -131,25 +129,25 @@
 			</div>
 
 			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-				{#each filteredOffices as office}
+				{#each filteredBuildings as building}
 					<Card.Root class="border-border/80 shadow-xs hover:shadow-md transition-all rounded-2xl bg-card overflow-hidden flex flex-col justify-between">
 						<Card.Header class="pb-3">
 							<div class="flex items-center justify-between">
-								<Badge variant="secondary" class="font-mono font-black text-[10px] rounded-md">{office.code}</Badge>
-								<span class="text-[10px] text-muted-foreground font-bold">{office.building}</span>
+								<Badge variant="secondary" class="font-mono font-black text-[10px] rounded-md">{building.code}</Badge>
+								<span class="text-[10px] text-muted-foreground font-bold">{building.floors} Floors</span>
 							</div>
-							<Card.Title class="text-base font-extrabold text-foreground pt-2 leading-tight">{office.name}</Card.Title>
-							<Card.Description class="text-xs leading-relaxed line-clamp-2 pt-1 font-medium">{office.description}</Card.Description>
+							<Card.Title class="text-base font-extrabold text-foreground pt-2 leading-tight">{building.name}</Card.Title>
+							<Card.Description class="text-xs leading-relaxed line-clamp-2 pt-1 font-semibold">{building.description}</Card.Description>
 						</Card.Header>
 						
 						<Card.Content class="pt-0 pb-4 text-[11px] font-semibold text-muted-foreground">
-							<div><span class="font-bold text-foreground">Location:</span> {office.floor}</div>
+							<div><span class="font-bold text-foreground">Head Person:</span> {building.headPerson || 'N/A'}</div>
 						</Card.Content>
 
 						<Card.Footer class="border-t border-border/40 pt-3 flex items-center justify-between">
-							<span class="text-[10px] text-muted-foreground font-bold">Coords: {office.xCoord || 'N/A'}, {office.yCoord || 'N/A'}</span>
-							<Button href="/map?office={office.id}" variant="ghost" size="sm" class="text-xs font-bold text-primary hover:text-primary gap-1">
-								<span>Locate Office</span>
+							<span class="text-[10px] text-muted-foreground font-bold">Coords: {building.xCoord || 'N/A'}, {building.yCoord || 'N/A'}</span>
+							<Button href="/map?building={building.id}" variant="ghost" size="sm" class="text-xs font-bold text-primary hover:text-primary gap-1 cursor-pointer h-8 rounded-lg">
+								<span>Locate Complex</span>
 								<MapPinIcon class="size-3.5" />
 							</Button>
 						</Card.Footer>
