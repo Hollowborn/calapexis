@@ -1,0 +1,8 @@
+- [x] Critique campus office architecture and terminology
+- [x] Design Reddit-style image uploader layout with drag-and-drop preview
+- [x] Simplify creation modal layout into required/optional sections
+- [x] Implement client-side image upload logic to Supabase storage bucket
+- [x] Create server actions to register uploaded image URLs
+- [x] Refactor offices page to use "Buildings & Landmarks" copy and headers
+- [x] Refactor room management to use right-side Sheet panel
+- [x] Validate and check build output success

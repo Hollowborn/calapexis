@@ -1,0 +1,8 @@
+- [ ] Update Supabase database schema tables, FKs, and triggers in `supabase/schema.sql`
+- [ ] Refactor TypeScript interfaces in `src/lib/types.ts`
+- [ ] Update Supabase connection adapters and mappers in `src/lib/supabase.ts`
+- [ ] Rename SvelteKit admin offices directory to `src/routes/dashboard/admin/buildings`
+- [ ] Update buildings server action controllers and routes
+- [ ] Refactor admin users creation portal to bind accounts to buildings
+- [ ] Align visitor log sheets and public check-in forms with building IDs
+- [ ] Run syntax validation with typescript and svelte check compiler
