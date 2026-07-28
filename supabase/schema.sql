@@ -1,12 +1,11 @@
 -- Supabase SQL Schema for University Visitor Logbook & Map Navigation
 
--- 1. Offices Table
-CREATE TABLE IF NOT EXISTS public.offices (
+-- 1. Buildings Table (Campus landmarks/structures)
+CREATE TABLE IF NOT EXISTS public.buildings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
     code TEXT UNIQUE NOT NULL,
-    building TEXT NOT NULL,
-    floor TEXT NOT NULL,
+    floors INTEGER NOT NULL DEFAULT 1,
     description TEXT,
     head_person TEXT,
     contact_email TEXT,
@@ -17,13 +16,12 @@ CREATE TABLE IF NOT EXISTS public.offices (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 2. Rooms Table
+-- 2. Rooms Table (Specific rooms/workspaces inside a building)
 CREATE TABLE IF NOT EXISTS public.rooms (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    office_id UUID REFERENCES offices(id) ON DELETE CASCADE,
+    building_id UUID REFERENCES public.buildings(id) ON DELETE CASCADE,
     room_number TEXT NOT NULL,
     room_name TEXT NOT NULL,
-    building TEXT NOT NULL,
     floor TEXT NOT NULL,
     x_coord NUMERIC NOT NULL,
     y_coord NUMERIC NOT NULL,
@@ -32,12 +30,12 @@ CREATE TABLE IF NOT EXISTS public.rooms (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 3. Profiles Table (RBAC roles & department binding)
+-- 3. Profiles Table (RBAC roles & desk/room binding)
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT NOT NULL,
     role TEXT NOT NULL CHECK (role IN ('admin', 'security', 'staff')),
-    office_id UUID REFERENCES public.offices(id) ON DELETE SET NULL,
+    room_id UUID REFERENCES public.rooms(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -51,9 +49,9 @@ CREATE TABLE IF NOT EXISTS public.visitors (
     email TEXT NOT NULL,
     phone TEXT NOT NULL,
     purpose TEXT NOT NULL,
-    office_id UUID REFERENCES offices(id) ON DELETE SET NULL,
-    office_name TEXT,
-    room_id UUID REFERENCES rooms(id) ON DELETE SET NULL,
+    building_id UUID REFERENCES public.buildings(id) ON DELETE SET NULL,
+    building_name TEXT,
+    room_id UUID REFERENCES public.rooms(id) ON DELETE SET NULL,
     room_number TEXT,
     host_person TEXT,
     photo_url TEXT, -- Face snapshot URL
@@ -77,7 +75,7 @@ CREATE TABLE IF NOT EXISTS public.map_edges (
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.offices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.buildings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.visitors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.map_edges ENABLE ROW LEVEL SECURITY;
@@ -96,9 +94,9 @@ CREATE POLICY "Allow admins all access to profiles" ON public.profiles FOR ALL U
     public.get_user_role(auth.uid()) = 'admin'
 );
 
--- Offices Policies
-CREATE POLICY "Public offices read access" ON public.offices FOR SELECT USING (true);
-CREATE POLICY "Admin write access to offices" ON public.offices FOR ALL USING (
+-- Buildings Policies
+CREATE POLICY "Public buildings read access" ON public.buildings FOR SELECT USING (true);
+CREATE POLICY "Admin write access to buildings" ON public.buildings FOR ALL USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
@@ -128,9 +126,27 @@ CREATE POLICY "Admin write access to map_edges" ON public.map_edges FOR ALL USIN
 -- Auto-profile creation trigger
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+    user_role TEXT;
+    user_room_id UUID;
+    meta_room_id TEXT;
 BEGIN
-    INSERT INTO public.profiles (id, email, role)
-    VALUES (new.id, new.email, 'staff'); -- Default role
+    -- Extract role from metadata, fallback to 'staff' if not set
+    user_role := COALESCE(new.raw_user_meta_data->>'role', 'staff');
+    
+    -- Extract room_id text
+    meta_room_id := new.raw_user_meta_data->>'room_id';
+    
+    -- Validate if room_id matches UUID format before casting
+    IF meta_room_id IS NOT NULL AND meta_room_id ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' THEN
+        user_room_id := meta_room_id::UUID;
+    ELSE
+        user_room_id := NULL;
+    END IF;
+
+    INSERT INTO public.profiles (id, email, role, room_id)
+    VALUES (new.id, new.email, user_role, user_room_id);
+    
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -138,3 +154,23 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Storage bucket configuration for campus assets
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('campus-assets', 'campus-assets', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage policies for the campus-assets bucket
+CREATE POLICY "Allow public read access to campus assets"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'campus-assets');
+
+CREATE POLICY "Allow authenticated admin uploads to campus assets"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'campus-assets');
+
+CREATE POLICY "Allow authenticated admin deletes to campus assets"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (bucket_id = 'campus-assets');
