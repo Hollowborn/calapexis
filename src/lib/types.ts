@@ -1,9 +1,8 @@
-export interface Office {
+export interface Building {
 	id: string;
 	name: string;
 	code: string;
-	building: string;
-	floor: string;
+	floors: number;
 	description: string;
 	headPerson?: string;
 	contactEmail?: string;
@@ -15,10 +14,9 @@ export interface Office {
 
 export interface Room {
 	id: string;
-	officeId: string;
+	buildingId: string;
 	roomNumber: string;
 	roomName: string;
-	building: string;
 	floor: string;
 	xCoord: number;
 	yCoord: number;
@@ -38,8 +36,8 @@ export interface Visitor {
 	email: string;
 	phone: string;
 	purpose: string;
-	officeId: string;
-	officeName?: string;
+	buildingId: string;
+	buildingName?: string;
 	roomId?: string;
 	roomNumber?: string;
 	hostPerson?: string;
@@ -74,6 +72,6 @@ export interface Profile {
 	id: string;
 	email: string;
 	role: 'admin' | 'security' | 'staff';
-	officeId?: string;
+	roomId?: string;
 	createdAt?: string;
 }

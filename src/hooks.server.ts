@@ -3,14 +3,14 @@ import type { Handle } from "@sveltejs/kit";
 
 export const handle: Handle = async ({ event, resolve }) => {
 	const sessionRole = event.cookies.get("session_role");
-	const sessionOfficeId = event.cookies.get("session_office_id");
+	const sessionRoomId = event.cookies.get("session_room_id");
 	const path = event.url.pathname;
 
 	// Populate server execution context session
 	if (sessionRole) {
 		event.locals.session = {
 			role: sessionRole,
-			officeId: sessionOfficeId
+			roomId: sessionRoomId
 		};
 	}
 
