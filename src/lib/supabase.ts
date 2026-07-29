@@ -23,6 +23,27 @@ export const supabase = isSupabaseConfigured
 	? createClient(supabaseUrl, supabaseAnonKey)
 	: null;
 
+let cachedServerClient: any = null;
+
+// Get the appropriate database client (elevated service role on server if key exists, else anon key)
+export function getDbClient() {
+	if (typeof window === "undefined" && isSupabaseConfigured) {
+		if (cachedServerClient) return cachedServerClient;
+		const processEnv = (globalThis as any).process?.env;
+		const serviceKey = processEnv?.SUPABASE_SERVICE_ROLE_KEY || "";
+		if (serviceKey) {
+			cachedServerClient = createClient(supabaseUrl, serviceKey, {
+				auth: {
+					persistSession: false,
+					autoRefreshToken: false,
+				},
+			});
+			return cachedServerClient;
+		}
+	}
+	return supabase;
+}
+
 // Initial Mock Buildings & Rooms Data
 export const MOCK_BUILDINGS: Building[] = [
 	{
@@ -375,7 +396,7 @@ function mapVisitorToDbVisitor(v: any): any {
 // Local Data Access Helper Functions
 export async function getLocalVisitors(): Promise<Visitor[]> {
 	if (isSupabaseConfigured && supabase) {
-		const { data, error } = await supabase
+		const { data, error } = await getDbClient()
 			.from("visitors")
 			.select("*")
 			.order("check_in_time", { ascending: false });
@@ -405,7 +426,7 @@ export async function addLocalVisitor(
 
 	if (isSupabaseConfigured && supabase) {
 		const dbRow = mapVisitorToDbVisitor(newVisitor);
-		const { data, error } = await supabase
+		const { data, error } = await getDbClient()
 			.from("visitors")
 			.insert([dbRow])
 			.select()
@@ -426,19 +447,20 @@ export async function verifyVisitor(
 	reason?: string,
 ): Promise<Visitor | null> {
 	if (isSupabaseConfigured && supabase) {
-		const { data, error } = await supabase
+		const { data, error } = await getDbClient()
 			.from("visitors")
 			.update({
 				verification_status: status,
 				rejection_reason: reason || null,
 			})
 			.eq("id", id)
-			.select()
-			.single();
-		if (!error && data) {
-			return mapDbVisitorToVisitor(data);
+			.select();
+		if (!error && data && data.length > 0) {
+			return mapDbVisitorToVisitor(data[0]);
 		}
-		console.warn("Supabase verify visitor error, using mock fallback:", error);
+		if (error) {
+			console.warn("Supabase verify visitor error, using mock fallback:", error);
+		}
 	}
 
 	let target: Visitor | null = null;
@@ -461,21 +483,22 @@ export async function updateOfficeCheckIn(
 	checkIn: boolean,
 ): Promise<Visitor | null> {
 	if (isSupabaseConfigured && supabase) {
-		const { data, error } = await supabase
+		const { data, error } = await getDbClient()
 			.from("visitors")
 			.update({
 				room_check_in_time: checkIn ? new Date().toISOString() : null,
 			})
 			.eq("id", id)
-			.select()
-			.single();
-		if (!error && data) {
-			return mapDbVisitorToVisitor(data);
+			.select();
+		if (!error && data && data.length > 0) {
+			return mapDbVisitorToVisitor(data[0]);
 		}
-		console.warn(
-			"Supabase office check-in update error, using mock fallback:",
-			error,
-		);
+		if (error) {
+			console.warn(
+				"Supabase office check-in update error, using mock fallback:",
+				error,
+			);
+		}
 	}
 
 	let target: Visitor | null = null;
@@ -496,7 +519,7 @@ export async function checkoutLocalVisitor(
 	idOrPassCode: string,
 ): Promise<Visitor | null> {
 	if (isSupabaseConfigured && supabase) {
-		const { data, error } = await supabase
+		const { data, error } = await getDbClient()
 			.from("visitors")
 			.update({
 				status: "checked_out",
@@ -537,7 +560,7 @@ export async function getLocalProfiles(): Promise<
 	(Profile & { password?: string })[]
 > {
 	if (isSupabaseConfigured && supabase) {
-		const { data, error } = await supabase
+		const { data, error } = await getDbClient()
 			.from("profiles")
 			.select("*")
 			.order("created_at", { ascending: true });
@@ -613,7 +636,7 @@ let localRoomsStore = [...MOCK_ROOMS];
 
 export async function getLocalBuildings(): Promise<Building[]> {
 	if (isSupabaseConfigured && supabase) {
-		const { data, error } = await supabase
+		const { data, error } = await getDbClient()
 			.from("buildings")
 			.select("*")
 			.order("name", { ascending: true });
@@ -647,7 +670,7 @@ export async function addLocalBuilding(
 			image_url: building.imageUrl || null,
 		};
 
-		const { data, error } = await supabase
+		const { data, error } = await getDbClient()
 			.from("buildings")
 			.insert([dbRow])
 			.select()
@@ -663,9 +686,54 @@ export async function addLocalBuilding(
 	return newBuilding;
 }
 
+export async function updateLocalBuilding(
+	id: string,
+	building: Partial<Omit<Building, "id">>,
+): Promise<Building | null> {
+	if (isSupabaseConfigured && supabase) {
+		const dbRow: any = {};
+		if (building.name !== undefined) dbRow.name = building.name;
+		if (building.code !== undefined) dbRow.code = building.code;
+		if (building.floors !== undefined) dbRow.floors = building.floors;
+		if (building.description !== undefined) dbRow.description = building.description;
+		if (building.headPerson !== undefined) dbRow.head_person = building.headPerson || null;
+		if (building.contactEmail !== undefined) dbRow.contact_email = building.contactEmail || null;
+		if (building.xCoord !== undefined) dbRow.x_coord = building.xCoord || null;
+		if (building.yCoord !== undefined) dbRow.y_coord = building.yCoord || null;
+		if (building.color !== undefined) dbRow.color = building.color || null;
+		if (building.imageUrl !== undefined) dbRow.image_url = building.imageUrl || null;
+
+		const { data, error } = await getDbClient()
+			.from("buildings")
+			.update(dbRow)
+			.eq("id", id)
+			.select();
+
+		if (!error && data && data.length > 0) {
+			return mapDbBuildingToBuilding(data[0]);
+		}
+		if (error) {
+			console.warn("Supabase update building error, using mock fallback:", error);
+		}
+	}
+
+	let target: Building | null = null;
+	localBuildingsStore = localBuildingsStore.map((b) => {
+		if (b.id === id) {
+			target = {
+				...b,
+				...building,
+			};
+			return target;
+		}
+		return b;
+	});
+	return target;
+}
+
 export async function deleteLocalBuilding(id: string): Promise<boolean> {
 	if (isSupabaseConfigured && supabase) {
-		const { error } = await supabase.from("buildings").delete().eq("id", id);
+		const { error } = await getDbClient().from("buildings").delete().eq("id", id);
 		if (!error) {
 			return true;
 		}
@@ -679,7 +747,7 @@ export async function deleteLocalBuilding(id: string): Promise<boolean> {
 
 export async function getLocalRooms(): Promise<Room[]> {
 	if (isSupabaseConfigured && supabase) {
-		const { data, error } = await supabase
+		const { data, error } = await getDbClient()
 			.from("rooms")
 			.select("*")
 			.order("room_number", { ascending: true });
@@ -709,7 +777,7 @@ export async function addLocalRoom(room: Omit<Room, "id">): Promise<Room> {
 			image_url: room.imageUrl || null,
 		};
 
-		const { data, error } = await supabase
+		const { data, error } = await getDbClient()
 			.from("rooms")
 			.insert([dbRow])
 			.select()
@@ -727,7 +795,7 @@ export async function addLocalRoom(room: Omit<Room, "id">): Promise<Room> {
 
 export async function deleteLocalRoom(id: string): Promise<boolean> {
 	if (isSupabaseConfigured && supabase) {
-		const { error } = await supabase.from("rooms").delete().eq("id", id);
+		const { error } = await getDbClient().from("rooms").delete().eq("id", id);
 		if (!error) {
 			return true;
 		}
@@ -738,3 +806,49 @@ export async function deleteLocalRoom(id: string): Promise<boolean> {
 	localRoomsStore = localRoomsStore.filter((r) => r.id !== id);
 	return localRoomsStore.length < initialLength;
 }
+
+export async function uploadLocalImage(
+	fileBuffer: ArrayBuffer | Uint8Array,
+	fileName: string,
+	contentType: string,
+	serviceRoleKey?: string
+): Promise<string> {
+	const key = serviceRoleKey || (typeof window === "undefined" ? (globalThis as any).process?.env?.SUPABASE_SERVICE_ROLE_KEY : "");
+	
+	if (isSupabaseConfigured && supabaseUrl) {
+		const client = key
+			? createClient(supabaseUrl, key, { auth: { persistSession: false, autoRefreshToken: false } })
+			: (getDbClient() || supabase);
+
+		if (!client) {
+			throw new Error("Supabase client is not configured.");
+		}
+
+		const { data, error } = await client.storage
+			.from("campus-assets")
+			.upload(fileName, fileBuffer, {
+				contentType,
+				cacheControl: '3600',
+				upsert: true
+			});
+
+		if (error) {
+			console.error("Supabase Storage Upload Error details:", error);
+			throw new Error(`Storage upload failed: ${error.message}`);
+		}
+
+		const { data: { publicUrl } } = client.storage
+			.from("campus-assets")
+			.getPublicUrl(fileName);
+
+		if (!publicUrl) {
+			throw new Error("Failed to resolve public URL for uploaded asset.");
+		}
+
+		return publicUrl;
+	}
+
+	// Fallback mock image URL during offline development
+	return `https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=600&auto=format&fit=crop&q=60`;
+}
+
