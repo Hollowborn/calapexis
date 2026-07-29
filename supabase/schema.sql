@@ -168,9 +168,23 @@ USING (bucket_id = 'campus-assets');
 CREATE POLICY "Allow authenticated admin uploads to campus assets"
 ON storage.objects FOR INSERT
 TO authenticated
-WITH CHECK (bucket_id = 'campus-assets');
+WITH CHECK (
+    bucket_id = 'campus-assets' AND
+    public.get_user_role(auth.uid()) = 'admin'
+);
+
+CREATE POLICY "Allow authenticated admin updates to campus assets"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (
+    bucket_id = 'campus-assets' AND
+    public.get_user_role(auth.uid()) = 'admin'
+);
 
 CREATE POLICY "Allow authenticated admin deletes to campus assets"
 ON storage.objects FOR DELETE
 TO authenticated
-USING (bucket_id = 'campus-assets');
+USING (
+    bucket_id = 'campus-assets' AND
+    public.get_user_role(auth.uid()) = 'admin'
+);

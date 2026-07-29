@@ -18,6 +18,7 @@
 	import SchoolIcon from "@lucide/svelte/icons/school";
 	import XIcon from "@lucide/svelte/icons/x";
 	import UploadCloudIcon from "@lucide/svelte/icons/upload-cloud";
+	import PencilIcon from "@lucide/svelte/icons/pencil";
 
 	import { supabase, isSupabaseConfigured } from '$lib/supabase';
 
@@ -31,11 +32,29 @@
 	let isCreatingBuilding = $state(false);
 	let activeQrBuilding = $state<Building | null>(null);
 	let activeManageRoomsBuilding = $state<Building | null>(null);
+	let activeEditingBuilding = $state<Building | null>(null);
+
+	// Edit Building Form States
+	let editCode = $state("");
+	let editName = $state("");
+	let editFloors = $state(1);
+	let editDescription = $state("");
+	let editColor = $state("#3b82f6");
+	let editXCoord = $state<number | undefined>(undefined);
+	let editYCoord = $state<number | undefined>(undefined);
+	let editHeadPerson = $state("");
+	let editContactEmail = $state("");
 
 	// Reddit-style Image States for Buildings
 	let buildingImageFile = $state<File | null>(null);
 	let buildingImagePreview = $state<string | null>(null);
 	let isUploadingBuildingImage = $state(false);
+
+	// Reddit-style Image States for Editing Buildings
+	let editBuildingImageFile = $state<File | null>(null);
+	let editBuildingImagePreview = $state<string | null>(null);
+	let isUpdatingBuildingImage = $state(false);
+	let keepExistingImage = $state(true);
 
 	// Reddit-style Image States for Rooms
 	let roomImageFile = $state<File | null>(null);
@@ -56,6 +75,38 @@
 		buildingImagePreview = null;
 	}
 
+	function handleEditBuildingImageChange(e: Event) {
+		const target = e.target as HTMLInputElement;
+		const file = target.files?.[0];
+		if (file) {
+			editBuildingImageFile = file;
+			editBuildingImagePreview = URL.createObjectURL(file);
+			keepExistingImage = false;
+		}
+	}
+
+	function clearEditBuildingImage() {
+		editBuildingImageFile = null;
+		editBuildingImagePreview = null;
+		keepExistingImage = false;
+	}
+
+	function startEditBuilding(building: Building) {
+		activeEditingBuilding = building;
+		editCode = building.code;
+		editName = building.name;
+		editFloors = building.floors;
+		editDescription = building.description || "";
+		editColor = building.color || "#3b82f6";
+		editXCoord = building.xCoord;
+		editYCoord = building.yCoord;
+		editHeadPerson = building.headPerson || "";
+		editContactEmail = building.contactEmail || "";
+		editBuildingImageFile = null;
+		editBuildingImagePreview = building.imageUrl || null;
+		keepExistingImage = !!building.imageUrl;
+	}
+
 	function handleRoomImageChange(e: Event) {
 		const target = e.target as HTMLInputElement;
 		const file = target.files?.[0];
@@ -70,35 +121,12 @@
 		roomImagePreview = null;
 	}
 
-	// Client-side Supabase Storage Uploader
-	async function uploadImage(file: File, folderName: string): Promise<string> {
-		if (!isSupabaseConfigured || !supabase) {
-			return URL.createObjectURL(file); // Local mock URL fallback during development
-		}
-		
-		const fileExt = file.name.split('.').pop();
-		const fileName = `${folderName}/${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
-		const { data, error } = await supabase.storage
-			.from("campus-assets")
-			.upload(fileName, file, {
-				cacheControl: '3600',
-				upsert: true
-			});
-
-		if (error) {
-			throw error;
-		}
-
-		// Get Public URL
-		const { data: { publicUrl } } = supabase.storage
-			.from("campus-assets")
-			.getPublicUrl(fileName);
-
-		return publicUrl;
-	}
-
 	// SvelteKit form submission enhance handlers
 	const handleCreateBuildingEnhance: SubmitFunction = async ({ formData }) => {
+		if (buildingImageFile) {
+			formData.set('buildingImage', buildingImageFile);
+		}
+
 		let resolveCreateBuilding: (v?: any) => void = () => {};
 		let rejectCreateBuilding: (e: any) => void = () => {};
 		const createPromise = new Promise((resolve, reject) => {
@@ -112,20 +140,7 @@
 			error: (err: any) => err.message || "Failed to create building."
 		});
 
-		isUploadingBuildingImage = true;
-		try {
-			if (buildingImageFile) {
-				const publicUrl = await uploadImage(buildingImageFile, 'building-images');
-				formData.set('imageUrl', publicUrl);
-			}
-		} catch (err: any) {
-			rejectCreateBuilding(new Error("Image upload failed: " + err.message));
-			isUploadingBuildingImage = false;
-			return;
-		}
-
 		return async ({ result, update }: { result: any; update: any }) => {
-			isUploadingBuildingImage = false;
 			if (result.type === "success") {
 				resolveCreateBuilding();
 				isCreatingBuilding = false;
@@ -135,6 +150,40 @@
 				rejectCreateBuilding(new Error((result.data as any)?.message || "Failed to create building."));
 			} else {
 				rejectCreateBuilding(new Error("Unexpected error."));
+			}
+		};
+	};
+
+	const handleUpdateBuildingEnhance: SubmitFunction = async ({ formData }) => {
+		if (editBuildingImageFile) {
+			formData.set('editBuildingImage', editBuildingImageFile);
+		} else {
+			formData.set('keepExistingImage', String(keepExistingImage));
+		}
+
+		let resolveUpdateBuilding: (v?: any) => void = () => {};
+		let rejectUpdateBuilding: (e: any) => void = () => {};
+		const updatePromise = new Promise((resolve, reject) => {
+			resolveUpdateBuilding = resolve;
+			rejectUpdateBuilding = reject;
+		});
+
+		toast.promise(updatePromise, {
+			loading: "Updating building landmark...",
+			success: "Building updated successfully!",
+			error: (err: any) => err.message || "Failed to update building."
+		});
+
+		return async ({ result, update }: { result: any; update: any }) => {
+			if (result.type === "success") {
+				resolveUpdateBuilding();
+				activeEditingBuilding = null;
+				clearEditBuildingImage();
+				await update();
+			} else if (result.type === "failure") {
+				rejectUpdateBuilding(new Error((result.data as any)?.message || "Failed to update building."));
+			} else {
+				rejectUpdateBuilding(new Error("Unexpected error."));
 			}
 		};
 	};
@@ -166,6 +215,10 @@
 	};
 
 	const handleCreateRoomEnhance: SubmitFunction = async ({ formData }) => {
+		if (roomImageFile) {
+			formData.set('roomImage', roomImageFile);
+		}
+
 		let resolveCreateRoom: (v?: any) => void = () => {};
 		let rejectCreateRoom: (e: any) => void = () => {};
 		const createPromise = new Promise((resolve, reject) => {
@@ -179,20 +232,7 @@
 			error: (err: any) => err.message || "Failed to create room."
 		});
 
-		isUploadingRoomImage = true;
-		try {
-			if (roomImageFile) {
-				const publicUrl = await uploadImage(roomImageFile, 'room-images');
-				formData.set('imageUrl', publicUrl);
-			}
-		} catch (err: any) {
-			rejectCreateRoom(new Error("Room image upload failed: " + err.message));
-			isUploadingRoomImage = false;
-			return;
-		}
-
 		return async ({ result, update }: { result: any; update: any }) => {
-			isUploadingRoomImage = false;
 			if (result.type === "success") {
 				resolveCreateRoom();
 				clearRoomImage();
@@ -239,10 +279,19 @@
 			<h1 class="text-xl md:text-2xl font-black text-foreground tracking-tight">Campus Buildings & Landmarks</h1>
 			<p class="text-xs text-muted-foreground leading-relaxed font-semibold">Manage campus building layouts, classroom spaces, and generate door QR codes.</p>
 		</div>
-		<Button onclick={() => (isCreatingBuilding = true)} class="text-xs font-extrabold gap-1.5 rounded-xl h-10 shadow-md shadow-primary/10 cursor-pointer">
-			<PlusIcon class="size-4 pointer-events-none" />
-			<span>Add Building / Landmark</span>
-		</Button>
+		<div class="flex items-center gap-2">
+			<a 
+				href="/dashboard/admin/buildings/test-upload" 
+				class="px-3 py-2 border border-border bg-card hover:bg-muted/40 text-xs font-extrabold rounded-xl h-10 flex items-center gap-1.5 transition-colors"
+			>
+				<UploadCloudIcon class="size-4 pointer-events-none" />
+				<span>Storage Test</span>
+			</a>
+			<Button onclick={() => (isCreatingBuilding = true)} class="text-xs font-extrabold gap-1.5 rounded-xl h-10 shadow-md shadow-primary/10 cursor-pointer">
+				<PlusIcon class="size-4 pointer-events-none" />
+				<span>Add Building / Landmark</span>
+			</Button>
+		</div>
 	</div>
 
 	<!-- Buildings Cards Grid -->
@@ -291,7 +340,7 @@
 
 					<!-- Footer Actions Panel -->
 					<Card.Footer class="pt-3 flex gap-2 flex-wrap sm:flex-nowrap">
-						<Button onclick={() => (activeQrBuilding = building)} variant="outline" size="sm" class="w-full text-xs font-bold gap-1.5 rounded-xl h-9 cursor-pointer border-border/80">
+						<Button onclick={() => (activeQrBuilding = building)} variant="outline" size="sm" class="w-full sm:w-auto text-xs font-bold gap-1.5 rounded-xl h-9 cursor-pointer border-border/80">
 							<QrCodeIcon class="size-4 pointer-events-none" />
 							<span>Generate Door QR Sign</span>
 						</Button>
@@ -300,10 +349,20 @@
 							onclick={() => (activeManageRoomsBuilding = building)} 
 							variant="outline" 
 							size="sm" 
-							class="w-full text-xs font-bold gap-1.5 rounded-xl h-9 cursor-pointer border-border/80"
+							class="w-full sm:w-auto text-xs font-bold gap-1.5 rounded-xl h-9 cursor-pointer border-border/80"
 						>
 							<SchoolIcon class="size-4 pointer-events-none" />
 							<span>Manage Classrooms ({rooms.filter(r => r.buildingId === building.id).length})</span>
+						</Button>
+
+						<Button 
+							onclick={() => startEditBuilding(building)} 
+							variant="outline" 
+							size="sm" 
+							class="w-full sm:w-auto text-xs font-bold gap-1.5 rounded-xl h-9 cursor-pointer border-border/80"
+						>
+							<PencilIcon class="size-4 pointer-events-none" />
+							<span>Edit</span>
 						</Button>
 
 						<form method="POST" action="?/deleteBuilding" use:enhance={handleDeleteBuildingEnhance} class="w-full sm:w-auto shrink-0">
@@ -380,6 +439,7 @@
 		<form 
 			method="POST" 
 			action="?/createBuilding" 
+			enctype="multipart/form-data"
 			use:enhance={handleCreateBuildingEnhance} 
 			class="flex-grow overflow-y-auto p-6 flex flex-col gap-6 text-xs font-semibold"
 		>
@@ -438,6 +498,7 @@
 						<input 
 							type="file" 
 							id="building-image-upload" 
+							name="buildingImage"
 							accept="image/*" 
 							onchange={handleBuildingImageChange} 
 							class="sr-only" 
@@ -492,6 +553,153 @@
 					class="px-5 py-2 rounded-xl text-xs font-extrabold shadow-sm cursor-pointer h-9"
 				>
 					Create Landmark
+				</Button>
+			</div>
+		</form>
+	</Sheet.Content>
+</Sheet.Root>
+
+<!-- Edit Building Side Sheet -->
+<Sheet.Root
+	open={!!activeEditingBuilding}
+	onOpenChange={(open) => {
+		if (!open) {
+			activeEditingBuilding = null;
+			clearEditBuildingImage();
+		}
+	}}
+>
+	<Sheet.Content class="sm:max-w-md md:max-w-lg flex flex-col h-full bg-card border-l border-border/80 overflow-hidden p-0">
+		<Sheet.Header class="p-6 border-b border-border/60">
+			<Sheet.Title class="font-black text-lg text-left">Edit Building / Landmark</Sheet.Title>
+			<Sheet.Description class="text-xs text-muted-foreground font-semibold leading-relaxed text-left">
+				Modify building node or department office details.
+			</Sheet.Description>
+		</Sheet.Header>
+		
+		<form 
+			method="POST" 
+			action="?/updateBuilding" 
+			enctype="multipart/form-data"
+			use:enhance={handleUpdateBuildingEnhance} 
+			class="flex-grow overflow-y-auto p-6 flex flex-col gap-6 text-xs font-semibold"
+		>
+			<input type="hidden" name="id" value={activeEditingBuilding?.id} />
+
+			<!-- Section 1: Core Info -->
+			<div class="space-y-3">
+				<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">1. Core Information (Required)</div>
+				<div class="grid grid-cols-3 gap-2">
+					<div class="flex flex-col gap-1.5">
+						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Code *</label>
+						<Input name="code" placeholder="e.g. TECH" maxlength={5} required bind:value={editCode} class="h-9 rounded-lg text-xs font-semibold" />
+					</div>
+					<div class="flex flex-col gap-1.5 col-span-2">
+						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Building Name *</label>
+						<Input name="name" placeholder="e.g. Technology Complex" required bind:value={editName} class="h-9 rounded-lg text-xs font-semibold" />
+					</div>
+				</div>
+				
+				<div class="grid grid-cols-2 gap-2">
+					<div class="flex flex-col gap-1.5">
+						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Total Floors *</label>
+						<Input name="floors" type="number" min="1" placeholder="e.g. 4" required bind:value={editFloors} class="h-9 rounded-lg text-xs" />
+					</div>
+				</div>
+				
+				<div class="flex flex-col gap-1.5">
+					<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Brief Description *</label>
+					<Input name="description" placeholder="Dean offices, lecture complexes, and research labs." required bind:value={editDescription} class="h-9 rounded-lg text-xs" />
+				</div>
+			</div>
+
+			<!-- Section 2: Reddit Style Photo Uploader -->
+			<div class="space-y-3">
+				<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">2. Visual Asset (Optional)</div>
+				<div class="flex flex-col gap-1.5">
+					<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Landmark Image</label>
+					{#if editBuildingImagePreview}
+						<div class="relative w-full h-40 rounded-xl overflow-hidden border border-border bg-muted/40 flex items-center justify-center group">
+							<img src={editBuildingImagePreview} alt="Preview" class="size-full object-cover" />
+							<button 
+								type="button" 
+								onclick={clearEditBuildingImage}
+								class="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 hover:bg-black/85 text-white transition-all cursor-pointer shadow-md"
+							>
+								<XIcon class="size-4 pointer-events-none" />
+							</button>
+						</div>
+					{:else}
+						<label 
+							for="edit-building-image-upload" 
+							class="w-full h-28 border border-dashed border-border/80 rounded-xl flex flex-col items-center justify-center gap-1 bg-muted/10 hover:bg-muted/20 transition-all cursor-pointer select-none"
+						>
+							<UploadCloudIcon class="size-6 text-muted-foreground pointer-events-none" />
+							<span class="text-xs font-bold text-foreground">Upload Landmark Photo</span>
+							<span class="text-[10px] text-muted-foreground/80 font-medium">JPEG, PNG up to 5MB</span>
+						</label>
+						<input 
+							type="file" 
+							id="edit-building-image-upload" 
+							name="editBuildingImage"
+							accept="image/*" 
+							onchange={handleEditBuildingImageChange} 
+							class="sr-only" 
+						/>
+					{/if}
+				</div>
+			</div>
+			
+			<!-- Section 3: Map Coordinates -->
+			<div class="space-y-3">
+				<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">3. Map Coordinates & Pin (Optional)</div>
+				<div class="grid grid-cols-3 gap-2">
+					<div class="flex flex-col gap-1.5">
+						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Pin Color</label>
+						<Input name="color" type="color" bind:value={editColor} class="h-9 w-full rounded-lg p-0 border border-border cursor-pointer bg-transparent" />
+					</div>
+					<div class="flex flex-col gap-1.5">
+						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Latitude</label>
+						<Input name="xCoord" type="number" step="any" placeholder="e.g. 9.894" bind:value={editXCoord} class="h-9 rounded-lg text-xs" />
+					</div>
+					<div class="flex flex-col gap-1.5">
+						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Longitude</label>
+						<Input name="yCoord" type="number" step="any" placeholder="e.g. 123.882" bind:value={editYCoord} class="h-9 rounded-lg text-xs" />
+					</div>
+				</div>
+			</div>
+			
+			<!-- Section 4: Admin Contacts -->
+			<div class="space-y-3">
+				<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">4. Department Contacts (Optional)</div>
+				<div class="grid grid-cols-2 gap-2">
+					<div class="flex flex-col gap-1.5">
+						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Head Person</label>
+						<Input name="headPerson" placeholder="Engr. Robert Lee" bind:value={editHeadPerson} class="h-9 rounded-lg text-xs" />
+					</div>
+					<div class="flex flex-col gap-1.5">
+						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Contact Email</label>
+						<Input name="contactEmail" type="email" placeholder="ccs@university.edu" bind:value={editContactEmail} class="h-9 rounded-lg text-xs" />
+					</div>
+				</div>
+			</div>
+			
+			<input type="hidden" name="imageUrl" value="" />
+
+			<div class="pt-4 border-t border-border/60 flex items-center justify-end gap-3 mt-4 shrink-0">
+				<button 
+					type="button" 
+					onclick={() => { activeEditingBuilding = null; clearEditBuildingImage(); }}
+					class="px-4 py-2 border border-border rounded-xl text-xs font-bold hover:bg-muted/40 cursor-pointer bg-transparent font-semibold"
+				>
+					Cancel
+				</button>
+				<Button 
+					type="submit" 
+					disabled={isUpdatingBuildingImage}
+					class="px-5 py-2 rounded-xl text-xs font-extrabold shadow-sm cursor-pointer h-9"
+				>
+					Save Changes
 				</Button>
 			</div>
 		</form>
@@ -563,7 +771,7 @@
 
 			<!-- Create Classroom/Lab Bottom Panel Form -->
 			<div class="border-t border-border/80 bg-muted/20 p-6 max-h-[50vh] overflow-y-auto shrink-0">
-				<form method="POST" action="?/createRoom" use:enhance={handleCreateRoomEnhance} class="flex flex-col gap-4 text-xs font-semibold">
+				<form method="POST" action="?/createRoom" enctype="multipart/form-data" use:enhance={handleCreateRoomEnhance} class="flex flex-col gap-4 text-xs font-semibold">
 					<input type="hidden" name="buildingId" value={activeManageRoomsBuilding?.id} />
 
 					<div class="pb-1 border-b border-border/60">
@@ -620,6 +828,7 @@
 							<input 
 								type="file" 
 								id="room-image-upload" 
+								name="roomImage"
 								accept="image/*" 
 								onchange={handleRoomImageChange} 
 								class="sr-only" 
