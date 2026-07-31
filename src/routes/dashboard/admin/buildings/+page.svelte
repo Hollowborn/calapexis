@@ -14,6 +14,7 @@
 	// Icons
 	import QrCodeIcon from "@lucide/svelte/icons/qr-code";
 	import PrinterIcon from "@lucide/svelte/icons/printer";
+	import Building2Icon from "@lucide/svelte/icons/building-2";
 	import PlusIcon from "@lucide/svelte/icons/plus";
 	import Trash2Icon from "@lucide/svelte/icons/trash-2";
 	import SchoolIcon from "@lucide/svelte/icons/school";
@@ -44,6 +45,18 @@
 	// Deletion Confirmation Target States
 	let deletingBuildingTarget = $state<Building | null>(null);
 	let deletingRoomTarget = $state<Room | null>(null);
+
+	// Edit Room States
+	let activeEditingRoom = $state<Room | null>(null);
+	let editRoomNumber = $state("");
+	let editRoomName = $state("");
+	let editRoomFloor = $state("");
+	let editRoomDescription = $state("");
+	let editRoomXCoord = $state<number | undefined>(undefined);
+	let editRoomYCoord = $state<number | undefined>(undefined);
+	let editRoomImageFile = $state<File | null>(null);
+	let editRoomImagePreview = $state<string | null>(null);
+	let keepExistingRoomImage = $state(true);
 
 	// Search Query State
 	let buildingSearchQuery = $state("");
@@ -162,6 +175,35 @@
 	function clearRoomImage() {
 		roomImageFile = null;
 		roomImagePreview = null;
+	}
+
+	function startEditRoom(room: Room) {
+		activeEditingRoom = room;
+		editRoomNumber = room.roomNumber;
+		editRoomName = room.roomName;
+		editRoomFloor = room.floor;
+		editRoomDescription = room.description || "";
+		editRoomXCoord = room.xCoord;
+		editRoomYCoord = room.yCoord;
+		editRoomImageFile = null;
+		editRoomImagePreview = room.imageUrl || null;
+		keepExistingRoomImage = !!room.imageUrl;
+	}
+
+	function handleEditRoomImageChange(e: Event) {
+		const target = e.target as HTMLInputElement;
+		const file = target.files?.[0];
+		if (file) {
+			editRoomImageFile = file;
+			editRoomImagePreview = URL.createObjectURL(file);
+			keepExistingRoomImage = false;
+		}
+	}
+
+	function clearEditRoomImage() {
+		editRoomImageFile = null;
+		editRoomImagePreview = null;
+		keepExistingRoomImage = false;
 	}
 
 	// SvelteKit form submission enhance handlers
@@ -289,6 +331,38 @@
 		};
 	};
 
+	const handleUpdateRoomEnhance: SubmitFunction = async ({ formData }) => {
+		if (editRoomImageFile) {
+			formData.set('editRoomImage', editRoomImageFile);
+		}
+		formData.set('keepExistingImage', keepExistingRoomImage.toString());
+
+		let resolveUpdateRoom: (v?: any) => void = () => {};
+		let rejectUpdateRoom: (e: any) => void = () => {};
+		const updatePromise = new Promise((resolve, reject) => {
+			resolveUpdateRoom = resolve;
+			rejectUpdateRoom = reject;
+		});
+
+		toast.promise(updatePromise, {
+			loading: "Updating classroom/lab...",
+			success: "Room details updated!",
+			error: (err: any) => err.message || "Failed to update room."
+		});
+
+		return async ({ result, update }: { result: any; update: any }) => {
+			if (result.type === "success") {
+				resolveUpdateRoom();
+				activeEditingRoom = null;
+				await update();
+			} else if (result.type === "failure") {
+				rejectUpdateRoom(new Error((result.data as any)?.message || "Failed to update room."));
+			} else {
+				rejectUpdateRoom(new Error("Unexpected error."));
+			}
+		};
+	};
+
 	const handleDeleteRoomEnhance: SubmitFunction = () => {
 		let resolveDeleteRoom: (v?: any) => void = () => {};
 		let rejectDeleteRoom: (e: any) => void = () => {};
@@ -320,23 +394,23 @@
 <div class="flex flex-col gap-6 p-6 md:p-8">
 	<!-- Page Header block -->
 	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border/60">
+		<div class="flex items-center gap-3">
+			<div class="p-3 rounded-2xl bg-primary/10 border border-primary/20 text-primary">
+				<Building2Icon class="size-6 pointer-events-none" />
+			</div>
 		<div>
 			<h1 class="text-xl md:text-2xl font-black text-foreground tracking-tight">Campus Buildings & Landmarks</h1>
 			<p class="text-xs text-muted-foreground leading-relaxed font-semibold">Manage campus building layouts, classroom spaces, and generate door QR codes.</p>
 		</div>
-		<div class="flex items-center gap-2">
-			<!-- <a 
-				href="/dashboard/admin/buildings/test-upload" 
-				class="px-3 py-2 border border-border bg-card hover:bg-muted/40 text-xs font-extrabold rounded-xl h-10 flex items-center gap-1.5 transition-colors"
-			>
-				<UploadCloudIcon class="size-4 pointer-events-none" />
-				<span>Storage Test</span>
-			</a> -->
+		</div>
+		
+		
 			<Button onclick={() => (isCreatingBuilding = true)} class="text-xs font-extrabold gap-1.5 rounded-xl h-10 shadow-md shadow-primary/10 cursor-pointer">
 				<PlusIcon class="size-4 pointer-events-none" />
 				<span>Add Building / Landmark</span>
 			</Button>
-		</div>
+	
+
 	</div>
 
 	<!-- Buildings Cards Grid -->
@@ -891,15 +965,26 @@
 								</div>
 							</div>
 
-							<Button 
-								type="button" 
-								onclick={() => (deletingRoomTarget = room)} 
-								variant="ghost" 
-								size="icon" 
-								class="size-8 rounded-lg hover:bg-destructive/15 text-muted-foreground hover:text-destructive shrink-0 cursor-pointer"
-							>
-								<Trash2Icon class="size-3.5 pointer-events-none" />
-							</Button>
+							<div class="flex items-center gap-1 shrink-0">
+								<Button 
+									type="button" 
+									onclick={() => startEditRoom(room)} 
+									variant="ghost" 
+									size="icon" 
+									class="size-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+								>
+									<PencilIcon class="size-3.5 pointer-events-none" />
+								</Button>
+								<Button 
+									type="button" 
+									onclick={() => (deletingRoomTarget = room)} 
+									variant="ghost" 
+									size="icon" 
+									class="size-8 rounded-lg hover:bg-destructive/15 text-muted-foreground hover:text-destructive shrink-0 cursor-pointer"
+								>
+									<Trash2Icon class="size-3.5 pointer-events-none" />
+								</Button>
+							</div>
 						</div>
 					{:else}
 						<div class="text-center py-8 text-xs text-muted-foreground/80 font-semibold bg-muted/10 border border-dashed border-border rounded-xl">
@@ -1041,7 +1126,7 @@
 			</div>
 			<Dialog.Description class="text-xs leading-relaxed font-medium">
 				Are you sure you want to delete <strong class="text-foreground">{deletingRoomTarget?.roomNumber} - {deletingRoomTarget?.roomName}</strong>?
-				This will permanently remove the room from the building layout.
+				This action cannot be undone.
 			</Dialog.Description>
 		</Dialog.Header>
 
@@ -1056,5 +1141,104 @@
 				</Button>
 			</form>
 		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<!-- Edit Room Modal Dialog -->
+<Dialog.Root open={!!activeEditingRoom} onOpenChange={(open) => { if (!open) { activeEditingRoom = null; clearEditRoomImage(); } }}>
+	<Dialog.Content class="sm:max-w-md md:max-w-lg rounded-2xl p-6">
+		<Dialog.Header class="space-y-1">
+			<Dialog.Title class="text-base font-black text-foreground">Edit Classroom / Lab</Dialog.Title>
+			<Dialog.Description class="text-xs font-semibold text-muted-foreground">
+				Modify room number, floor, description, or photo asset.
+			</Dialog.Description>
+		</Dialog.Header>
+
+		<form 
+			method="POST" 
+			action="?/updateRoom" 
+			enctype="multipart/form-data" 
+			use:enhance={handleUpdateRoomEnhance} 
+			class="flex flex-col gap-4 text-xs font-semibold pt-2"
+		>
+			<input type="hidden" name="id" value={activeEditingRoom?.id} />
+
+			<div class="grid grid-cols-3 gap-3">
+				<div class="flex flex-col gap-1.5 col-span-2">
+					<label for="edit-roomNumber" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Room Number *</label>
+					<Input id="edit-roomNumber" name="roomNumber" placeholder="e.g. Room 201" required bind:value={editRoomNumber} class="h-9 rounded-lg text-xs font-semibold" />
+				</div>
+				<div class="flex flex-col gap-1.5">
+					<label for="edit-roomFloor" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Floor Level *</label>
+					<select id="edit-roomFloor" name="floor" required bind:value={editRoomFloor} class="h-9 w-full rounded-lg border border-border bg-background px-3 py-1 text-xs font-bold shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring cursor-pointer">
+						<option value="1st">1st Floor</option>
+						<option value="2nd">2nd Floor</option>
+						<option value="3rd">3rd Floor</option>
+						<option value="4th">4th Floor</option>
+						<option value="5th">5th Floor</option>
+					</select>
+				</div>
+			</div>
+
+			<div class="flex flex-col gap-1.5">
+				<label for="edit-roomName" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Room Name *</label>
+				<Input id="edit-roomName" name="roomName" placeholder="e.g. Computer Lab A" required bind:value={editRoomName} class="h-9 rounded-lg text-xs" />
+			</div>
+
+			<div class="flex flex-col gap-1.5">
+				<label for="edit-roomDescription" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Room Description *</label>
+				<Input id="edit-roomDescription" name="description" placeholder="e.g. Cisco networking workstation center" required bind:value={editRoomDescription} class="h-9 rounded-lg text-xs" />
+			</div>
+
+			<div class="flex flex-col gap-1.5">
+				<label for="edit-room-photo-input" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Room Photo (Optional)</label>
+				{#if editRoomImagePreview}
+					<div class="relative w-full h-32 rounded-xl overflow-hidden border border-border bg-muted/40 flex items-center justify-center group">
+						<img src={editRoomImagePreview} alt="Preview" class="size-full object-cover" />
+						<button 
+							type="button" 
+							onclick={clearEditRoomImage} 
+							class="absolute top-2 right-2 p-1 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors cursor-pointer"
+						>
+							<XIcon class="size-3.5" />
+						</button>
+					</div>
+				{:else}
+					<label for="edit-room-photo-input" class="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-border rounded-xl cursor-pointer hover:bg-muted/30 transition-colors">
+						<UploadCloudIcon class="size-5 text-muted-foreground mb-1" />
+						<span class="text-[11px] font-bold text-foreground">Click to upload room photo</span>
+						<span class="text-[9px] text-muted-foreground">PNG, JPG up to 5MB</span>
+					</label>
+					<input 
+						type="file" 
+						id="edit-room-photo-input"
+						name="editRoomImage" 
+						accept="image/*" 
+						onchange={handleEditRoomImageChange} 
+						class="sr-only" 
+					/>
+				{/if}
+			</div>
+
+			<div class="grid grid-cols-2 gap-3">
+				<div class="flex flex-col gap-1.5">
+					<label for="edit-room-xCoord" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Latitude (Optional)</label>
+					<Input id="edit-room-xCoord" name="xCoord" type="number" step="any" placeholder="e.g. 9.894" bind:value={editRoomXCoord} class="h-9 rounded-lg text-xs" />
+				</div>
+				<div class="flex flex-col gap-1.5">
+					<label for="edit-room-yCoord" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Longitude (Optional)</label>
+					<Input id="edit-room-yCoord" name="yCoord" type="number" step="any" placeholder="e.g. 123.882" bind:value={editRoomYCoord} class="h-9 rounded-lg text-xs" />
+				</div>
+			</div>
+
+			<Dialog.Footer class="pt-3 flex items-center justify-end gap-2">
+				<Button type="button" variant="outline" onclick={() => { activeEditingRoom = null; clearEditRoomImage(); }} class="text-xs font-bold rounded-xl h-9">
+					Cancel
+				</Button>
+				<Button type="submit" class="text-xs font-bold rounded-xl h-9 cursor-pointer">
+					Save Room Changes
+				</Button>
+			</Dialog.Footer>
+		</form>
 	</Dialog.Content>
 </Dialog.Root>

@@ -8,6 +8,7 @@ import {
 	updateLocalBuilding,
 	deleteLocalBuilding, 
 	addLocalRoom, 
+	updateLocalRoom,
 	deleteLocalRoom,
 	uploadLocalImage
 } from "$lib/supabase";
@@ -226,6 +227,59 @@ export const actions: Actions = {
 			return { success: true };
 		} catch (error: any) {
 			return fail(500, { message: error.message || "Failed to delete room." });
+		}
+	},
+
+	updateRoom: async ({ request }) => {
+		const data = await request.formData();
+		const id = data.get("id") as string;
+		const roomNumber = (data.get("roomNumber") as string || "").trim();
+		const roomName = (data.get("roomName") as string || "").trim();
+		const floor = (data.get("floor") as string || "").trim();
+		const description = (data.get("description") as string || "").trim();
+		const imageUrl = (data.get("imageUrl") as string || "").trim();
+
+		const xCoordVal = data.get("xCoord");
+		const yCoordVal = data.get("yCoord");
+		const xCoord = xCoordVal ? Number(xCoordVal) : 0;
+		const yCoord = yCoordVal ? Number(yCoordVal) : 0;
+
+		if (!id || !roomNumber || !roomName || !floor) {
+			return fail(400, { message: "Room ID, Room Number, Room Name, and Floor are required fields." });
+		}
+
+		let finalImageUrl = imageUrl;
+		const editRoomImage = data.get("editRoomImage") as File;
+		const keepExistingImage = data.get("keepExistingImage") === "true";
+
+		if (editRoomImage && editRoomImage.size > 0) {
+			try {
+				const buffer = await editRoomImage.arrayBuffer();
+				const fileExt = editRoomImage.name.split('.').pop();
+				const fileName = `room-images/${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+				const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY || "";
+				finalImageUrl = await uploadLocalImage(buffer, fileName, editRoomImage.type, serviceRoleKey);
+			} catch (uploadError: any) {
+				console.error("Server-side edit room image upload error:", uploadError);
+				return fail(500, { message: "Failed to upload image: " + uploadError.message });
+			}
+		} else if (!keepExistingImage) {
+			finalImageUrl = "";
+		}
+
+		try {
+			await updateLocalRoom(id, {
+				roomNumber,
+				roomName,
+				floor,
+				xCoord,
+				yCoord,
+				description: description || undefined,
+				imageUrl: finalImageUrl || undefined
+			});
+			return { success: true };
+		} catch (error: any) {
+			return fail(500, { message: error.message || "Failed to update room." });
 		}
 	}
 };
