@@ -50,34 +50,71 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT NOT NULL,
     role TEXT NOT NULL CHECK (role IN ('admin', 'security', 'staff')),
+    office_id UUID REFERENCES public.offices(id) ON DELETE SET NULL,
     room_id UUID REFERENCES public.rooms(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4. Visitors Table (Digital Logbook)
-CREATE TABLE IF NOT EXISTS public.visitors (
+-- 4. Registered Visitors Table (Unique Visitor Profiles Directory)
+CREATE TABLE IF NOT EXISTS public.registered_visitors (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     full_name TEXT NOT NULL,
     first_name TEXT,
     middle_name TEXT,
     last_name TEXT,
-    email TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
     phone TEXT NOT NULL,
+    photo_url TEXT, -- Visitor face snapshot URL
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 4.1 Visitor Logs Table (Normalized 3NF Check-In Sessions)
+CREATE TABLE IF NOT EXISTS public.visitor_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    visitor_id UUID REFERENCES public.registered_visitors(id) ON DELETE CASCADE NOT NULL,
+    office_id UUID REFERENCES public.offices(id) ON DELETE SET NULL, -- Single Entry Point Office handling check-in/out
     purpose TEXT NOT NULL,
-    building_id UUID REFERENCES public.buildings(id) ON DELETE SET NULL,
-    building_name TEXT,
-    room_id UUID REFERENCES public.rooms(id) ON DELETE SET NULL,
-    room_number TEXT,
     host_person TEXT,
-    photo_url TEXT, -- Face snapshot URL
     check_in_time TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     check_out_time TIMESTAMP WITH TIME ZONE,
-    room_check_in_time TIMESTAMP WITH TIME ZONE, -- Check-in timestamp inside target office/room
     status TEXT NOT NULL DEFAULT 'checked_in' CHECK (status IN ('checked_in', 'checked_out', 'expired')),
     verification_status TEXT NOT NULL DEFAULT 'approved' CHECK (verification_status IN ('pending', 'approved', 'rejected')),
     rejection_reason TEXT,
     pass_code TEXT UNIQUE NOT NULL
 );
+
+-- 4.2 Backward Compatibility View (Derives building, office, and room metadata via JOINs)
+CREATE OR REPLACE VIEW public.visitors AS
+SELECT 
+    vl.id,
+    rv.full_name,
+    rv.first_name,
+    rv.middle_name,
+    rv.last_name,
+    rv.email,
+    rv.phone,
+    vl.purpose,
+    vl.office_id,
+    o.name AS office_name,
+    o.building_id,
+    b.name AS building_name,
+    o.room_id,
+    r.room_number,
+    vl.host_person,
+    rv.photo_url,
+    vl.check_in_time,
+    vl.check_out_time,
+    vl.status,
+    vl.verification_status,
+    vl.rejection_reason,
+    vl.pass_code,
+    vl.visitor_id
+FROM public.visitor_logs vl
+JOIN public.registered_visitors rv ON vl.visitor_id = rv.id
+LEFT JOIN public.offices o ON vl.office_id = o.id
+LEFT JOIN public.buildings b ON o.building_id = b.id
+LEFT JOIN public.rooms r ON o.room_id = r.id;
 
 -- 5. Map Edges Table (Pathfinding network)
 CREATE TABLE IF NOT EXISTS public.map_edges (
@@ -92,7 +129,8 @@ CREATE TABLE IF NOT EXISTS public.map_edges (
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.buildings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.visitors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.registered_visitors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.visitor_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.map_edges ENABLE ROW LEVEL SECURITY;
 
 -- Security Definer Role Resolver (Bypasses RLS to avoid infinite recursion)
@@ -121,14 +159,22 @@ CREATE POLICY "Admin write access to rooms" ON public.rooms FOR ALL USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
--- Visitors Policies (Public inserts & checkouts, Guard/Staff management)
-CREATE POLICY "Public visitor check-in insert" ON public.visitors FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public visitor read pass" ON public.visitors FOR SELECT USING (true);
-CREATE POLICY "Public visitor checkout update" ON public.visitors FOR UPDATE USING (true);
-CREATE POLICY "Staff/Guard read all visitors" ON public.visitors FOR SELECT USING (
+-- Registered Visitors Policies
+CREATE POLICY "Public visitor registration insert" ON public.registered_visitors FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public visitor profile read" ON public.registered_visitors FOR SELECT USING (true);
+CREATE POLICY "Public visitor profile update" ON public.registered_visitors FOR UPDATE USING (true);
+CREATE POLICY "Staff/Guard read all registered visitors" ON public.registered_visitors FOR SELECT USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'security', 'staff'))
 );
-CREATE POLICY "Staff/Guard update visitor status" ON public.visitors FOR UPDATE USING (
+
+-- Visitor Logs Policies (Public inserts & checkouts, Guard/Staff management)
+CREATE POLICY "Public visitor log insert" ON public.visitor_logs FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public visitor log read" ON public.visitor_logs FOR SELECT USING (true);
+CREATE POLICY "Public visitor log update" ON public.visitor_logs FOR UPDATE USING (true);
+CREATE POLICY "Staff/Guard read all visitor logs" ON public.visitor_logs FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'security', 'staff'))
+);
+CREATE POLICY "Staff/Guard update visitor logs" ON public.visitor_logs FOR UPDATE USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'security', 'staff'))
 );
 
