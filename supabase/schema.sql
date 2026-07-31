@@ -30,6 +30,21 @@ CREATE TABLE IF NOT EXISTS public.rooms (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- 2.1 Offices & Check-In Desks Table
+CREATE TABLE IF NOT EXISTS public.offices (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    code TEXT NOT NULL UNIQUE,
+    building_id UUID REFERENCES public.buildings(id) ON DELETE CASCADE,
+    room_id UUID REFERENCES public.rooms(id) ON DELETE SET NULL,
+    head_person TEXT,
+    contact_email TEXT,
+    operating_hours TEXT,
+    description TEXT,
+    is_active BOOLEAN DEFAULT true NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- 3. Profiles Table (RBAC roles & desk/room binding)
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
