@@ -2,6 +2,7 @@
 	import * as Card from "$lib/components/ui/card/index.js";
 	import * as Dialog from "$lib/components/ui/dialog/index.js";
 	import * as Sheet from "$lib/components/ui/sheet/index.js";
+	import * as Select from "$lib/components/ui/select/index.js";
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -24,6 +25,7 @@
 	import MailIcon from "@lucide/svelte/icons/mail";
 	import MapPinIcon from "@lucide/svelte/icons/map-pin";
 	import AlertTriangleIcon from "@lucide/svelte/icons/alert-triangle";
+	import SearchIcon from "@lucide/svelte/icons/search";
 
 	import { supabase, isSupabaseConfigured } from '$lib/supabase';
 
@@ -43,12 +45,44 @@
 	let deletingBuildingTarget = $state<Building | null>(null);
 	let deletingRoomTarget = $state<Room | null>(null);
 
+	// Search Query State
+	let buildingSearchQuery = $state("");
+
+	let filteredBuildings = $derived(
+		buildings.filter((b) => {
+			if (!buildingSearchQuery.trim()) return true;
+			const q = buildingSearchQuery.toLowerCase().trim();
+			return (
+				b.name.toLowerCase().includes(q) ||
+				b.code.toLowerCase().includes(q) ||
+				(b.description && b.description.toLowerCase().includes(q)) ||
+				(b.headPerson && b.headPerson.toLowerCase().includes(q))
+			);
+		})
+	);
+
+	// Create Building Form States
+	let createColor = $state("#3b82f6");
+
 	// Edit Building Form States
 	let editCode = $state("");
 	let editName = $state("");
 	let editFloors = $state(1);
 	let editDescription = $state("");
 	let editColor = $state("#3b82f6");
+
+	const RAINBOW_COLORS = [
+		{ label: "Red (Crimson)", value: "#ef4444" },
+		{ label: "Orange (Amber)", value: "#f97316" },
+		{ label: "Yellow (Gold)", value: "#eab308" },
+		{ label: "Green (Emerald)", value: "#10b981" },
+		{ label: "Blue (Royal Blue)", value: "#3b82f6" },
+		{ label: "Indigo (Navy)", value: "#6366f1" },
+		{ label: "Violet (Purple)", value: "#8b5cf6" },
+		{ label: "Pink (Rose)", value: "#ec4899" },
+		{ label: "Teal (Cyan)", value: "#14b8a6" },
+		{ label: "Slate (Neutral)", value: "#64748b" }
+	];
 	let editXCoord = $state<number | undefined>(undefined);
 	let editYCoord = $state<number | undefined>(undefined);
 	let editHeadPerson = $state("");
@@ -307,13 +341,25 @@
 
 	<!-- Buildings Cards Grid -->
 	<div class="flex flex-col gap-4">
-		<div class="flex items-center justify-between">
-			<h2 class="text-sm font-extrabold text-foreground uppercase tracking-wider">Campus Locations Setup</h2>
-			<span class="text-xs text-muted-foreground font-semibold">{buildings.length} buildings loaded.</span>
+		<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+			<div>
+				<h2 class="text-sm font-extrabold text-foreground uppercase tracking-wider">Campus Locations Setup</h2>
+				<span class="text-xs text-muted-foreground font-semibold">{filteredBuildings.length} of {buildings.length} buildings displayed.</span>
+			</div>
+
+			<div class="relative w-full sm:w-64">
+				<SearchIcon class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+				<Input 
+					type="text" 
+					placeholder="Search buildings or codes..." 
+					bind:value={buildingSearchQuery} 
+					class="pl-9 h-9 text-xs rounded-xl"
+				/>
+			</div>
 		</div>
 
 		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-			{#each buildings as building (building.id)}
+			{#each filteredBuildings as building (building.id)}
 				<Card.Root class="border-border shadow-xs hover:shadow-md rounded-2xl bg-card overflow-hidden transition-all flex flex-col group">
 					<!-- Hero Image Cover Header -->
 					<div class="relative w-full h-44 overflow-hidden bg-muted/40 shrink-0">
@@ -381,9 +427,9 @@
 								<MapPinIcon class="size-3.5 text-primary shrink-0 pointer-events-none" />
 								<span class="truncate font-medium">
 									{#if building.xCoord && building.yCoord}
-										{building.xCoord}, {building.yCoord}
+										Mapped
 									{:else}
-										Unmapped
+										<span class='text-destructive'>Unmapped</span>
 									{/if}
 								</span>
 							</div>
@@ -415,7 +461,11 @@
 				</Card.Root>
 			{:else}
 				<div class="text-center py-12 text-sm text-muted-foreground/80 font-semibold bg-card border border-dashed border-border rounded-2xl col-span-full">
-					No campus landmarks configured yet. Get started by clicking "Add Building / Landmark".
+					{#if buildingSearchQuery.trim()}
+						No building landmarks match your search "{buildingSearchQuery}".
+					{:else}
+						No campus landmarks configured yet. Get started by clicking "Add Building / Landmark".
+					{/if}
 				</div>
 			{/each}
 		</div>
@@ -552,7 +602,31 @@
 				<div class="grid grid-cols-3 gap-2">
 					<div class="flex flex-col gap-1.5">
 						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Pin Color</label>
-						<Input name="color" type="color" value="#3b82f6" class="h-9 w-full rounded-lg p-0 border border-border cursor-pointer bg-transparent" />
+						<input type="hidden" name="color" value={createColor} />
+						<Select.Root
+							type="single"
+							value={createColor}
+							onValueChange={(val) => createColor = val}
+						>
+							<Select.Trigger class="h-9 w-full rounded-lg cursor-pointer truncate">
+								<span class="text-xs font-semibold flex items-center gap-2">
+									<span class="size-3 rounded-full border border-border shrink-0" style="background-color: {createColor};"></span>
+									<span>{RAINBOW_COLORS.find(c => c.value === createColor)?.label || "Select"}</span>
+								</span>
+							</Select.Trigger>
+							<Select.Content class="rounded-xl border border-border bg-card">
+								<Select.Group>
+									{#each RAINBOW_COLORS as colorOpt}
+										<Select.Item value={colorOpt.value} label={colorOpt.label}>
+											<div class="flex items-center gap-2">
+												<span class="size-3 rounded-full border border-border shrink-0" style="background-color: {colorOpt.value};"></span>
+												<span>{colorOpt.label}</span>
+											</div>
+										</Select.Item>
+									{/each}
+								</Select.Group>
+							</Select.Content>
+						</Select.Root>
 					</div>
 					<div class="flex flex-col gap-1.5">
 						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Latitude</label>
@@ -695,7 +769,31 @@
 				<div class="grid grid-cols-3 gap-2">
 					<div class="flex flex-col gap-1.5">
 						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Pin Color</label>
-						<Input name="color" type="color" bind:value={editColor} class="h-9 w-full rounded-lg p-0 border border-border cursor-pointer bg-transparent" />
+						<input type="hidden" name="color" value={editColor} />
+						<Select.Root
+							type="single"
+							value={editColor}
+							onValueChange={(val) => editColor = val}
+						>
+							<Select.Trigger class="h-9 w-full rounded-lg cursor-pointer truncate">
+								<span class="text-xs font-semibold flex items-center gap-2">
+									<span class="size-3 rounded-full border border-border shrink-0" style="background-color: {editColor};"></span>
+									<span>{RAINBOW_COLORS.find(c => c.value === editColor)?.label || "Select"}</span>
+								</span>
+							</Select.Trigger>
+							<Select.Content class="rounded-xl border border-border bg-card">
+								<Select.Group>
+									{#each RAINBOW_COLORS as colorOpt}
+										<Select.Item value={colorOpt.value} label={colorOpt.label}>
+											<div class="flex items-center gap-2">
+												<span class="size-3 rounded-full border border-border shrink-0" style="background-color: {colorOpt.value};"></span>
+												<span>{colorOpt.label}</span>
+											</div>
+										</Select.Item>
+									{/each}
+								</Select.Group>
+							</Select.Content>
+						</Select.Root>
 					</div>
 					<div class="flex flex-col gap-1.5">
 						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Latitude</label>
