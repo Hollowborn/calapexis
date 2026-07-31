@@ -1,11 +1,16 @@
 <script lang="ts">
 	import { MOCK_BUILDINGS } from '$lib/supabase';
+
+// Icons
 	import CompassIcon from '@lucide/svelte/icons/compass';
 	import UserCheckIcon from '@lucide/svelte/icons/user-check';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
 	import SparklesIcon from '@lucide/svelte/icons/sparkles';
+	import ArrowUpRightIcon from '@lucide/svelte/icons/arrow-up-right';
+
+// shadcn-svelte and sv-animations components
 	import AnimatedShinyText from '$lib/components/magic/animated-shiny-text/animated-shiny-text.svelte';
 	import AuroraText from '$lib/components/magic/aurora-text/aurora-text.svelte';
 	import { AnimatedThemeToggler } from "$lib/components/magic/animated-theme-toggler";
@@ -91,24 +96,24 @@
 		<div class="flex flex-wrap items-center justify-center gap-3">
 			<Button href="/checkin" variant="outline" class="rounded-full text-xs font-extrabold h-11 px-6 gap-2 border-border/80 bg-card hover:bg-muted/40 transition-all hover:scale-[1.02]">
 				<UserCheckIcon class="size-4 text-primary pointer-events-none" />
-				<span>Visitor Check-In</span>
+				<span class='flex flex-row items-center'>Visitor Check-In <ArrowUpRightIcon class='ml-1'/></span>
 			</Button>
 
 			<Button href="/map" variant="outline" class="rounded-full text-xs font-extrabold h-11 px-6 gap-2 border-border/80 bg-card hover:bg-muted/40 transition-all hover:scale-[1.02]">
 				<CompassIcon class="size-4 text-blue-500 pointer-events-none" />
-				<span>Campus Map</span>
+				<span class='flex flex-row items-center'>Campus Map <ArrowUpRightIcon class='ml-1'/></span>
 			</Button>
 
 			<Button href="/login" variant="outline" class="rounded-full text-xs font-extrabold h-11 px-6 gap-2 border-border/80 bg-card hover:bg-muted/40 transition-all hover:scale-[1.02]">
 				<ShieldCheckIcon class="size-4 text-emerald-500 pointer-events-none" />
-				<span>Console Gateways</span>
+				<span class='flex flex-row items-center'>Console Gateways <ArrowUpRightIcon class='ml-1'/></span>
 			</Button>
 		</div>
 
 		<!-- Footnotes -->
 		<div class="text-center text-[10px] text-muted-foreground/60 font-semibold flex items-center justify-center gap-2">
 			<span>Press</span>
-			<Kbd class="h-5 px-1 bg-muted shadow-xs text-[9px] border border-border">Ctrl</Kbd>
+			<Kbd class="h-5 px-1 bg-muted shadow-xs text-[9px] border border-border">Ctrl</Kbd> +
 			<Kbd class="h-5 px-1 bg-muted shadow-xs text-[9px] border border-border">K</Kbd>
 			<span>to query location</span>
 		</div>
