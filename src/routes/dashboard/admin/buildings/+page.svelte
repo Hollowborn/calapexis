@@ -291,13 +291,13 @@
 			<p class="text-xs text-muted-foreground leading-relaxed font-semibold">Manage campus building layouts, classroom spaces, and generate door QR codes.</p>
 		</div>
 		<div class="flex items-center gap-2">
-			<a 
+			<!-- <a 
 				href="/dashboard/admin/buildings/test-upload" 
 				class="px-3 py-2 border border-border bg-card hover:bg-muted/40 text-xs font-extrabold rounded-xl h-10 flex items-center gap-1.5 transition-colors"
 			>
 				<UploadCloudIcon class="size-4 pointer-events-none" />
 				<span>Storage Test</span>
-			</a>
+			</a> -->
 			<Button onclick={() => (isCreatingBuilding = true)} class="text-xs font-extrabold gap-1.5 rounded-xl h-10 shadow-md shadow-primary/10 cursor-pointer">
 				<PlusIcon class="size-4 pointer-events-none" />
 				<span>Add Building / Landmark</span>
