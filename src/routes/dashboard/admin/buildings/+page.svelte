@@ -19,6 +19,11 @@
 	import XIcon from "@lucide/svelte/icons/x";
 	import UploadCloudIcon from "@lucide/svelte/icons/upload-cloud";
 	import PencilIcon from "@lucide/svelte/icons/pencil";
+	import LayersIcon from "@lucide/svelte/icons/layers";
+	import UserIcon from "@lucide/svelte/icons/user";
+	import MailIcon from "@lucide/svelte/icons/mail";
+	import MapPinIcon from "@lucide/svelte/icons/map-pin";
+	import AlertTriangleIcon from "@lucide/svelte/icons/alert-triangle";
 
 	import { supabase, isSupabaseConfigured } from '$lib/supabase';
 
@@ -33,6 +38,10 @@
 	let activeQrBuilding = $state<Building | null>(null);
 	let activeManageRoomsBuilding = $state<Building | null>(null);
 	let activeEditingBuilding = $state<Building | null>(null);
+
+	// Deletion Confirmation Target States
+	let deletingBuildingTarget = $state<Building | null>(null);
+	let deletingRoomTarget = $state<Room | null>(null);
 
 	// Edit Building Form States
 	let editCode = $state("");
@@ -205,6 +214,7 @@
 		return async ({ result, update }: { result: any; update: any }) => {
 			if (result.type === "success") {
 				resolveDelete();
+				deletingBuildingTarget = null;
 				await update();
 			} else if (result.type === "failure") {
 				rejectDelete(new Error((result.data as any)?.message || "Failed to delete building."));
@@ -262,6 +272,7 @@
 		return async ({ result, update }) => {
 			if (result.type === "success") {
 				resolveDeleteRoom();
+				deletingRoomTarget = null;
 				await update();
 			} else if (result.type === "failure") {
 				rejectDeleteRoom(new Error((result.data as any)?.message || "Failed to delete room."));
@@ -301,81 +312,109 @@
 			<span class="text-xs text-muted-foreground font-semibold">{buildings.length} buildings loaded.</span>
 		</div>
 
-		<div class="grid grid-cols-1 gap-6">
+		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 			{#each buildings as building (building.id)}
-				<Card.Root class="border-border shadow-xs rounded-2xl bg-card overflow-hidden transition-all">
-					<Card.Header class="pb-3 border-b border-border/45 bg-muted/20">
-						<div class="flex items-center justify-between flex-wrap gap-2">
-							<div class="flex items-center gap-2">
-								<Badge variant="secondary" class="font-mono font-black text-xs px-2 py-0.5 rounded-lg">{building.code}</Badge>
-								{#if building.color}
-									<span class="size-3 rounded-full border border-border" style="background-color: {building.color};"></span>
-								{/if}
-							</div>
-						</div>
-						<Card.Title class="text-base font-extrabold text-foreground pt-1.5 leading-tight">{building.name}</Card.Title>
-						<Card.Description class="text-xs leading-relaxed text-muted-foreground font-semibold">{building.description}</Card.Description>
-					</Card.Header>
-					
-					<Card.Content class="py-4 text-xs font-semibold border-b border-border/40 flex flex-col md:flex-row gap-4 items-start md:items-center">
+				<Card.Root class="border-border shadow-xs hover:shadow-md rounded-2xl bg-card overflow-hidden transition-all flex flex-col group">
+					<!-- Hero Image Cover Header -->
+					<div class="relative w-full h-44 overflow-hidden bg-muted/40 shrink-0">
 						{#if building.imageUrl}
-							<div class="size-16 rounded-xl overflow-hidden border border-border/80 shrink-0">
-								<img src={building.imageUrl} alt={building.name} class="size-full object-cover" />
+							<img src={building.imageUrl} alt={building.name} class="size-full object-cover group-hover:scale-105 transition-transform duration-500" />
+							<div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+						{:else}
+							<div 
+								class="size-full flex flex-col items-center justify-center p-4 text-center"
+								style="background: linear-gradient(135deg, {building.color || '#3b82f6'}25 0%, {building.color || '#3b82f6'}08 100%);"
+							>
+								<SchoolIcon class="size-10 text-muted-foreground/30 mb-1" />
+								<span class="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Landmark Image Unset</span>
 							</div>
+							<div class="absolute inset-0 bg-gradient-to-t from-background/90 via-transparent to-transparent"></div>
 						{/if}
-						<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-muted-foreground flex-grow w-full">
-							<div><span class="font-bold text-foreground">Total Floors:</span> {building.floors} Floors</div>
-							<div><span class="font-bold text-foreground">Landmark Head:</span> {building.headPerson || 'N/A'}</div>
-							<div><span class="font-bold text-foreground">Contact Email:</span> {building.contactEmail || 'N/A'}</div>
-							<div>
-								<span class="font-bold text-foreground">Coords:</span> 
-								{#if building.xCoord && building.yCoord}
-									{building.xCoord}, {building.yCoord}
-								{:else}
-									Unmapped
-								{/if}
+
+						<!-- Floating Badges Top Left -->
+						<div class="absolute top-3 left-3 flex items-center gap-2 z-10">
+							<Badge class="backdrop-blur-md bg-background/85 text-foreground border-border/80 font-mono font-black text-xs px-2.5 py-1 rounded-xl shadow-xs">
+								{building.code}
+							</Badge>
+							{#if building.color}
+								<span class="size-3.5 rounded-full border border-white/40 shadow-xs" style="background-color: {building.color};"></span>
+							{/if}
+						</div>
+
+						<!-- Floating Classrooms Count Top Right -->
+						<div class="absolute top-3 right-3 z-10">
+							<Badge variant="secondary" class="backdrop-blur-md bg-background/85 text-foreground font-extrabold text-[10px] px-2.5 py-1 rounded-xl shadow-xs gap-1">
+								<SchoolIcon class="size-3 pointer-events-none" />
+								<span>{rooms.filter(r => r.buildingId === building.id).length} Rooms</span>
+							</Badge>
+						</div>
+
+						<!-- Building Title overlaid at bottom of cover -->
+						<div class="absolute bottom-3 left-3 right-3 z-10">
+							<h3 class="text-base font-black text-white dark:text-foreground line-clamp-1 leading-snug drop-shadow-sm">
+								{building.name}
+							</h3>
+						</div>
+					</div>
+
+					<!-- Card Body Details -->
+					<Card.Content class="p-5 flex-grow flex flex-col gap-4 text-xs font-semibold">
+						<p class="text-muted-foreground text-xs leading-relaxed line-clamp-2 min-h-[2.5rem]">
+							{building.description || "No description provided for this campus landmark."}
+						</p>
+
+						<!-- 2x2 Grid Info Stats -->
+						<div class="grid grid-cols-2 gap-3 text-[11px] pt-3 border-t border-border/60 text-muted-foreground">
+							<div class="flex items-center gap-2">
+								<LayersIcon class="size-3.5 text-primary shrink-0 pointer-events-none" />
+								<span class="truncate"><span class="font-bold text-foreground">{building.floors}</span> Floors</span>
+							</div>
+							<div class="flex items-center gap-2">
+								<UserIcon class="size-3.5 text-primary shrink-0 pointer-events-none" />
+								<span class="truncate font-medium">{building.headPerson || 'Head N/A'}</span>
+							</div>
+							<div class="flex items-center gap-2">
+								<MailIcon class="size-3.5 text-primary shrink-0 pointer-events-none" />
+								<span class="truncate font-medium">{building.contactEmail || 'No Email'}</span>
+							</div>
+							<div class="flex items-center gap-2">
+								<MapPinIcon class="size-3.5 text-primary shrink-0 pointer-events-none" />
+								<span class="truncate font-medium">
+									{#if building.xCoord && building.yCoord}
+										{building.xCoord}, {building.yCoord}
+									{:else}
+										Unmapped
+									{/if}
+								</span>
 							</div>
 						</div>
 					</Card.Content>
 
-					<!-- Footer Actions Panel -->
-					<Card.Footer class="pt-3 flex gap-2 flex-wrap sm:flex-nowrap">
-						<Button onclick={() => (activeQrBuilding = building)} variant="outline" size="sm" class="w-full sm:w-auto text-xs font-bold gap-1.5 rounded-xl h-9 cursor-pointer border-border/80">
-							<QrCodeIcon class="size-4 pointer-events-none" />
-							<span>Generate Door QR Sign</span>
+					<!-- Footer Actions Grid -->
+					<Card.Footer class="p-3 border-t border-border/60 bg-muted/20 grid grid-cols-2 gap-2">
+						<Button onclick={() => (activeQrBuilding = building)} variant="outline" size="sm" class="text-xs font-bold gap-1.5 rounded-xl h-8 cursor-pointer border-border/80">
+							<QrCodeIcon class="size-3.5 pointer-events-none" />
+							<span>Door QR</span>
 						</Button>
 
-						<Button 
-							onclick={() => (activeManageRoomsBuilding = building)} 
-							variant="outline" 
-							size="sm" 
-							class="w-full sm:w-auto text-xs font-bold gap-1.5 rounded-xl h-9 cursor-pointer border-border/80"
-						>
-							<SchoolIcon class="size-4 pointer-events-none" />
-							<span>Manage Classrooms ({rooms.filter(r => r.buildingId === building.id).length})</span>
+						<Button onclick={() => (activeManageRoomsBuilding = building)} variant="outline" size="sm" class="text-xs font-bold gap-1.5 rounded-xl h-8 cursor-pointer border-border/80">
+							<SchoolIcon class="size-3.5 pointer-events-none" />
+							<span>Classrooms</span>
 						</Button>
 
-						<Button 
-							onclick={() => startEditBuilding(building)} 
-							variant="outline" 
-							size="sm" 
-							class="w-full sm:w-auto text-xs font-bold gap-1.5 rounded-xl h-9 cursor-pointer border-border/80"
-						>
-							<PencilIcon class="size-4 pointer-events-none" />
+						<Button onclick={() => startEditBuilding(building)} variant="outline" size="sm" class="text-xs font-bold gap-1.5 rounded-xl h-8 cursor-pointer border-border/80">
+							<PencilIcon class="size-3.5 pointer-events-none" />
 							<span>Edit</span>
 						</Button>
 
-						<form method="POST" action="?/deleteBuilding" use:enhance={handleDeleteBuildingEnhance} class="w-full sm:w-auto shrink-0">
-							<input type="hidden" name="id" value={building.id} />
-							<Button type="submit" variant="destructive" size="sm" class="w-full sm:w-auto text-xs font-bold gap-1.5 rounded-xl h-9 cursor-pointer">
-								<Trash2Icon class="size-4 pointer-events-none" />
-								<span>Delete</span>
-							</Button>
-						</form>
+						<Button onclick={() => (deletingBuildingTarget = building)} variant="destructive" size="sm" class="text-xs font-bold gap-1.5 rounded-xl h-8 cursor-pointer">
+							<Trash2Icon class="size-3.5 pointer-events-none" />
+							<span>Delete</span>
+						</Button>
 					</Card.Footer>
 				</Card.Root>
 			{:else}
-				<div class="text-center py-12 text-sm text-muted-foreground/80 font-semibold bg-card border border-dashed border-border rounded-2xl">
+				<div class="text-center py-12 text-sm text-muted-foreground/80 font-semibold bg-card border border-dashed border-border rounded-2xl col-span-full">
 					No campus landmarks configured yet. Get started by clicking "Add Building / Landmark".
 				</div>
 			{/each}
@@ -754,12 +793,15 @@
 								</div>
 							</div>
 
-							<form method="POST" action="?/deleteRoom" use:enhance={handleDeleteRoomEnhance}>
-								<input type="hidden" name="id" value={room.id} />
-								<Button type="submit" variant="ghost" size="icon" class="size-8 rounded-lg hover:bg-destructive/15 text-muted-foreground hover:text-destructive shrink-0 cursor-pointer">
-									<Trash2Icon class="size-3.5" />
-								</Button>
-							</form>
+							<Button 
+								type="button" 
+								onclick={() => (deletingRoomTarget = room)} 
+								variant="ghost" 
+								size="icon" 
+								class="size-8 rounded-lg hover:bg-destructive/15 text-muted-foreground hover:text-destructive shrink-0 cursor-pointer"
+							>
+								<Trash2Icon class="size-3.5 pointer-events-none" />
+							</Button>
 						</div>
 					{:else}
 						<div class="text-center py-8 text-xs text-muted-foreground/80 font-semibold bg-muted/10 border border-dashed border-border rounded-xl">
@@ -861,3 +903,60 @@
 		{/if}
 	</Sheet.Content>
 </Sheet.Root>
+
+<!-- Delete Building Confirmation Dialog -->
+<Dialog.Root open={!!deletingBuildingTarget} onOpenChange={(open) => { if (!open) deletingBuildingTarget = null; }}>
+	<Dialog.Content class="sm:max-w-md rounded-2xl p-6">
+		<Dialog.Header class="space-y-2">
+			<div class="flex items-center gap-2 text-destructive">
+				<AlertTriangleIcon class="size-5 pointer-events-none" />
+				<Dialog.Title class="text-base font-black">Delete Building Landmark?</Dialog.Title>
+			</div>
+			<Dialog.Description class="text-xs leading-relaxed font-medium">
+				Are you sure you want to delete <strong class="text-foreground">{deletingBuildingTarget?.name} ({deletingBuildingTarget?.code})</strong>?
+				
+				This action cannot be undone and will permanently remove the landmark and all associated classrooms.
+			</Dialog.Description>
+		</Dialog.Header>
+
+		<Dialog.Footer class="pt-4 flex items-center justify-end gap-2">
+			<Button variant="outline" onclick={() => (deletingBuildingTarget = null)} class="text-xs font-bold rounded-xl h-9">
+				Cancel
+			</Button>
+			<form method="POST" action="?/deleteBuilding" use:enhance={handleDeleteBuildingEnhance}>
+				<input type="hidden" name="id" value={deletingBuildingTarget?.id} />
+				<Button type="submit" variant="destructive" class="text-xs font-bold rounded-xl h-9 cursor-pointer">
+					Confirm Delete
+				</Button>
+			</form>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<!-- Delete Room Confirmation Dialog -->
+<Dialog.Root open={!!deletingRoomTarget} onOpenChange={(open) => { if (!open) deletingRoomTarget = null; }}>
+	<Dialog.Content class="sm:max-w-md rounded-2xl p-6">
+		<Dialog.Header class="space-y-2">
+			<div class="flex items-center gap-2 text-destructive">
+				<AlertTriangleIcon class="size-5 pointer-events-none" />
+				<Dialog.Title class="text-base font-black">Delete Classroom / Lab?</Dialog.Title>
+			</div>
+			<Dialog.Description class="text-xs leading-relaxed font-medium">
+				Are you sure you want to delete <strong class="text-foreground">{deletingRoomTarget?.roomNumber} - {deletingRoomTarget?.roomName}</strong>?
+				This will permanently remove the room from the building layout.
+			</Dialog.Description>
+		</Dialog.Header>
+
+		<Dialog.Footer class="pt-4 flex items-center justify-end gap-2">
+			<Button variant="outline" onclick={() => (deletingRoomTarget = null)} class="text-xs font-bold rounded-xl h-9">
+				Cancel
+			</Button>
+			<form method="POST" action="?/deleteRoom" use:enhance={handleDeleteRoomEnhance}>
+				<input type="hidden" name="id" value={deletingRoomTarget?.id} />
+				<Button type="submit" variant="destructive" class="text-xs font-bold rounded-xl h-9 cursor-pointer">
+					Confirm Delete
+				</Button>
+			</form>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
