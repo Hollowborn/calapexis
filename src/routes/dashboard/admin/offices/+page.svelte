@@ -19,7 +19,7 @@
 	import UserIcon from "@lucide/svelte/icons/user";
 	import MailIcon from "@lucide/svelte/icons/mail";
 	import ClockIcon from "@lucide/svelte/icons/clock";
-	import Building2Icon from "@lucide/svelte/icons/building-2";
+	import MonitorCheck from "@lucide/svelte/icons/monitor-check";
 	import AlertTriangleIcon from "@lucide/svelte/icons/alert-triangle";
 	import SearchIcon from "@lucide/svelte/icons/search";
 
@@ -175,7 +175,7 @@
 	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border/60">
 		<div class="flex items-center gap-3">
 			<div class="p-3 rounded-2xl bg-primary/10 border border-primary/20 text-primary">
-				<Building2Icon class="size-6 pointer-events-none" />
+				<MonitorCheck class="size-6 pointer-events-none" />
 			</div>
 			<div>
 				<h1 class="text-xl md:text-2xl font-black text-foreground tracking-tight">Check-In Offices & Reception Desks</h1>
@@ -228,7 +228,7 @@
 					<Card.Content class="p-5 flex-grow flex flex-col gap-4 text-xs font-semibold">
 						<div class="grid grid-cols-1 gap-2.5 text-[11px] text-muted-foreground">
 							<div class="flex items-center gap-2">
-								<Building2Icon class="size-3.5 text-primary shrink-0 pointer-events-none" />
+								<MonitorCheck class="size-3.5 text-primary shrink-0 pointer-events-none" />
 								<span class="truncate"><strong class="text-foreground">Building:</strong> {office.buildingName || 'Main Building'}</span>
 							</div>
 
