@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import type {
 	Building,
 	Room,
+	Office,
 	Visitor,
 	MapNode,
 	VerificationStatus,
@@ -626,13 +627,71 @@ export async function addLocalProfile(
 		return profile;
 	}
 
-	localProfilesStore = [...localProfilesStore, newProfile];
+localProfilesStore = [...localProfilesStore, newProfile];
 	return newProfile;
 }
 
 // Buildings local store fallback
-let localBuildingsStore = [...MOCK_BUILDINGS];
-let localRoomsStore = [...MOCK_ROOMS];
+export const MOCK_OFFICES: Office[] = [
+	{
+		id: "of-101",
+		name: "Registrar & Admissions Desk",
+		code: "OFF-REG",
+		buildingId: "off-1",
+		buildingName: "Administration Building",
+		roomId: "rm-101",
+		roomNumber: "Room 101",
+		headPerson: "Dr. Maria Santos",
+		contactEmail: "registrar@university.edu",
+		operatingHours: "8:00 AM - 5:00 PM",
+		description: "Official check-in desk for student transcripts, enrollment, and records inquiries.",
+		isActive: true,
+	},
+	{
+		id: "of-102",
+		name: "Cashier & Finance Counter",
+		code: "OFF-CASH",
+		buildingId: "off-1",
+		buildingName: "Administration Building",
+		roomId: "rm-102",
+		roomNumber: "Room 102",
+		headPerson: "Mr. Juan Delgado",
+		contactEmail: "cashier@university.edu",
+		operatingHours: "8:00 AM - 4:00 PM",
+		description: "Payment and tuition assessment desk.",
+		isActive: true,
+	},
+	{
+		id: "of-301",
+		name: "College of Computer Studies Dean's Office",
+		code: "OFF-CCS",
+		buildingId: "off-3",
+		buildingName: "Technology Complex",
+		roomId: "rm-301",
+		roomNumber: "Room 301",
+		headPerson: "Engr. Robert Lee",
+		contactEmail: "ccs@university.edu",
+		operatingHours: "8:00 AM - 5:00 PM",
+		description: "Faculty consultation and dean transaction reception desk.",
+		isActive: true,
+	},
+	{
+		id: "of-401",
+		name: "Guidance & Student Services Counter",
+		code: "OFF-GUIDE",
+		buildingId: "off-4",
+		buildingName: "Student Activity Center",
+		headPerson: "Prof. Ana Reyes",
+		contactEmail: "sds@university.edu",
+		operatingHours: "8:00 AM - 5:00 PM",
+		description: "Student welfare, counseling, and organizational permit desk.",
+		isActive: true,
+	},
+];
+
+let localBuildingsStore: Building[] = [...MOCK_BUILDINGS];
+let localRoomsStore: Room[] = [...MOCK_ROOMS];
+let localOfficesStore: Office[] = [...MOCK_OFFICES];
 
 export async function getLocalBuildings(): Promise<Building[]> {
 	if (isSupabaseConfigured && supabase) {
@@ -850,5 +909,143 @@ export async function uploadLocalImage(
 
 	// Fallback mock image URL during offline development
 	return `https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=600&auto=format&fit=crop&q=60`;
+}
+
+// Offices Database Mappers & Store Operations
+function mapDbOfficeToOffice(row: any): Office {
+	return {
+		id: row.id,
+		name: row.name,
+		code: row.code,
+		buildingId: row.building_id,
+		buildingName: row.buildings?.name,
+		roomId: row.room_id || undefined,
+		roomNumber: row.rooms?.room_number || undefined,
+		headPerson: row.head_person || undefined,
+		contactEmail: row.contact_email || undefined,
+		operatingHours: row.operating_hours || undefined,
+		description: row.description || undefined,
+		isActive: row.is_active ?? true,
+	};
+}
+
+export async function getLocalOffices(): Promise<Office[]> {
+	if (isSupabaseConfigured && supabase) {
+		const { data, error } = await getDbClient()
+			.from("offices")
+			.select("*, buildings(name), rooms(room_number)")
+			.order("name", { ascending: true });
+		if (!error && data) {
+			return data.map(mapDbOfficeToOffice);
+		}
+		console.warn("Supabase fetch offices error, using mock fallback:", error);
+	}
+	return [...localOfficesStore];
+}
+
+export async function addLocalOffice(office: Omit<Office, "id">): Promise<Office> {
+	const building = localBuildingsStore.find((b) => b.id === office.buildingId);
+	const room = localRoomsStore.find((r) => r.id === office.roomId);
+
+	const newOffice: Office = {
+		...office,
+		id: "of-" + Math.floor(1000 + Math.random() * 9000),
+		buildingName: building?.name,
+		roomNumber: room?.roomNumber,
+	};
+
+	if (isSupabaseConfigured && supabase) {
+		const dbRow = {
+			name: office.name,
+			code: office.code,
+			building_id: office.buildingId,
+			room_id: office.roomId || null,
+			head_person: office.headPerson || null,
+			contact_email: office.contactEmail || null,
+			operating_hours: office.operatingHours || null,
+			description: office.description || null,
+			is_active: office.isActive ?? true,
+		};
+
+		const { data, error } = await getDbClient()
+			.from("offices")
+			.insert([dbRow])
+			.select("*, buildings(name), rooms(room_number)");
+
+		if (!error && data && data.length > 0) {
+			return mapDbOfficeToOffice(data[0]);
+		}
+		console.warn("Supabase insert office error, using mock fallback:", error);
+	}
+
+	localOfficesStore = [...localOfficesStore, newOffice];
+	return newOffice;
+}
+
+export async function updateLocalOffice(
+	id: string,
+	updates: Partial<Office>
+): Promise<Office | null> {
+	if (isSupabaseConfigured && supabase) {
+		const dbRow: any = {};
+		if (updates.name !== undefined) dbRow.name = updates.name;
+		if (updates.code !== undefined) dbRow.code = updates.code;
+		if (updates.buildingId !== undefined) dbRow.building_id = updates.buildingId;
+		if (updates.roomId !== undefined) dbRow.room_id = updates.roomId || null;
+		if (updates.headPerson !== undefined) dbRow.head_person = updates.headPerson || null;
+		if (updates.contactEmail !== undefined) dbRow.contact_email = updates.contactEmail || null;
+		if (updates.operatingHours !== undefined) dbRow.operating_hours = updates.operatingHours || null;
+		if (updates.description !== undefined) dbRow.description = updates.description || null;
+		if (updates.isActive !== undefined) dbRow.is_active = updates.isActive;
+
+		const { data, error } = await getDbClient()
+			.from("offices")
+			.update(dbRow)
+			.eq("id", id)
+			.select("*, buildings(name), rooms(room_number)");
+
+		if (!error && data && data.length > 0) {
+			return mapDbOfficeToOffice(data[0]);
+		}
+		if (error) {
+			console.warn("Supabase update office error, using mock fallback:", error);
+		}
+	}
+
+	let target: Office | null = null;
+	localOfficesStore = localOfficesStore.map((o) => {
+		if (o.id === id) {
+			const building = updates.buildingId
+				? localBuildingsStore.find((b) => b.id === updates.buildingId)
+				: undefined;
+			const room = updates.roomId
+				? localRoomsStore.find((r) => r.id === updates.roomId)
+				: undefined;
+
+			target = {
+				...o,
+				...updates,
+				buildingName: building?.name || o.buildingName,
+				roomNumber: room?.roomNumber || o.roomNumber,
+			};
+			return target;
+		}
+		return o;
+	});
+	return target;
+}
+
+export async function deleteLocalOffice(id: string): Promise<boolean> {
+	if (isSupabaseConfigured && supabase) {
+		const { error } = await getDbClient().from("offices").delete().eq("id", id);
+		if (!error) {
+			return true;
+		}
+		console.warn("Supabase delete office error, using mock fallback:", error);
+	}
+
+	const initialLength = localOfficesStore.length;
+	localOfficesStore = localOfficesStore.filter((o) => o.id !== id);
+	return localOfficesStore.length < initialLength;
 }
 
