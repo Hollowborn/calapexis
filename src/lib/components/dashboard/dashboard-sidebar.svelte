@@ -23,6 +23,7 @@
 		'security-desk': '/dashboard/security',
 		'staff-desk': '/dashboard/staff',
 		'user-accounts': '/dashboard/admin/users',
+		'offices-config': '/dashboard/admin/offices',
 		'office-config': '/dashboard/admin/buildings'
 	};
 
@@ -56,7 +57,8 @@
 			icon: SettingsIcon,
 			items: [
 				{ id: "user-accounts", title: "User Accounts", roles: ["admin"], description: "Provision security and staff portals access" },
-				{ id: "office-config", title: "Office Config", roles: ["admin"], description: "Manage rooms and printable QR passes" }
+				{ id: "offices-config", title: "Check-In Offices", roles: ["admin"], description: "Designate official reception counters and desks" },
+				{ id: "office-config", title: "Buildings & Rooms", roles: ["admin"], description: "Manage campus layouts and printable QR passes" }
 			]
 		}
 	];

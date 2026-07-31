@@ -24,6 +24,21 @@ export interface Room {
 	imageUrl?: string;
 }
 
+export interface Office {
+	id: string;
+	name: string;
+	code: string;
+	buildingId: string;
+	buildingName?: string;
+	roomId?: string;
+	roomNumber?: string;
+	headPerson?: string;
+	contactEmail?: string;
+	operatingHours?: string;
+	description?: string;
+	isActive: boolean;
+}
+
 export type VisitorStatus = 'checked_in' | 'checked_out' | 'expired';
 export type VerificationStatus = 'pending' | 'approved' | 'rejected';
 
