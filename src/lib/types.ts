@@ -10,6 +10,8 @@ export interface Building {
 	yCoord?: number;
 	color?: string;
 	imageUrl?: string;
+	lat?: number;
+	lng?: number;
 }
 
 export interface Room {
@@ -42,6 +44,39 @@ export interface Office {
 export type VisitorStatus = 'checked_in' | 'checked_out' | 'expired';
 export type VerificationStatus = 'pending' | 'approved' | 'rejected';
 
+export interface RegisteredVisitor {
+	id: string;
+	fullName: string;
+	firstName?: string;
+	middleName?: string;
+	lastName?: string;
+	email: string;
+	phone: string;
+	photoUrl?: string;
+	createdAt?: string;
+	updatedAt?: string;
+}
+
+export interface VisitorLog {
+	id: string;
+	visitorId: string;
+	purpose: string;
+	officeId?: string;
+	officeName?: string;
+	buildingId?: string;
+	buildingName?: string;
+	roomId?: string;
+	roomNumber?: string;
+	hostPerson?: string;
+	checkInTime: string;
+	checkOutTime?: string | null;
+	roomCheckInTime?: string | null;
+	status: VisitorStatus;
+	verificationStatus: VerificationStatus;
+	rejectionReason?: string;
+	passCode: string;
+}
+
 export interface Visitor {
 	id: string;
 	fullName: string;
@@ -51,6 +86,8 @@ export interface Visitor {
 	email: string;
 	phone: string;
 	purpose: string;
+	officeId?: string;
+	officeName?: string;
 	buildingId: string;
 	buildingName?: string;
 	roomId?: string;
@@ -64,6 +101,9 @@ export interface Visitor {
 	verificationStatus: VerificationStatus;
 	rejectionReason?: string;
 	passCode: string;
+	lat?: number;
+	lng?: number;
+	visitorId?: string;
 }
 
 export interface MapNode {
@@ -87,6 +127,7 @@ export interface Profile {
 	id: string;
 	email: string;
 	role: 'admin' | 'security' | 'staff';
+	officeId?: string;
 	roomId?: string;
 	createdAt?: string;
 }
