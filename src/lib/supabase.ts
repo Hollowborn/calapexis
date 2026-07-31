@@ -21,18 +21,24 @@ const supabaseAnonKey = PUBLIC_SUPABASE_PUBLISHABLE_KEY || "";
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
 export const supabase = isSupabaseConfigured
-	? createClient(supabaseUrl, supabaseAnonKey)
+	? createClient(supabaseUrl, supabaseAnonKey, {
+			auth: {
+				persistSession: true,
+				autoRefreshToken: true,
+				detectSessionInUrl: true,
+			},
+	  })
 	: null;
 
 let cachedServerClient: any = null;
 
 // Get the appropriate database client (elevated service role on server if key exists, else anon key)
-export function getDbClient() {
+export function getDbClient(overrideServiceKey?: string) {
 	if (typeof window === "undefined" && isSupabaseConfigured) {
-		if (cachedServerClient) return cachedServerClient;
 		const processEnv = (globalThis as any).process?.env;
-		const serviceKey = processEnv?.SUPABASE_SERVICE_ROLE_KEY || "";
+		const serviceKey = overrideServiceKey || processEnv?.SUPABASE_SERVICE_ROLE_KEY || "";
 		if (serviceKey) {
+			if (cachedServerClient) return cachedServerClient;
 			cachedServerClient = createClient(supabaseUrl, serviceKey, {
 				auth: {
 					persistSession: false,
@@ -57,6 +63,8 @@ export const MOCK_BUILDINGS: Building[] = [
 		contactEmail: "registrar@university.edu",
 		xCoord: 450,
 		yCoord: 350,
+		lat: 9.894414,
+		lng: 123.882580,
 	},
 	{
 		id: "off-3",
@@ -68,28 +76,34 @@ export const MOCK_BUILDINGS: Building[] = [
 		contactEmail: "ccs@university.edu",
 		xCoord: 300,
 		yCoord: 600,
+		lat: 9.893920,
+		lng: 123.882040,
 	},
 	{
 		id: "off-4",
 		name: "Student Activity Center",
 		code: "SAC",
 		floors: 2,
-		description: "Student organizations, services, and guidance counseling suites.",
+		description: "Student organization offices, cafeteria, and guidance services.",
 		headPerson: "Prof. Ana Reyes",
 		contactEmail: "sds@university.edu",
-		xCoord: 720,
-		yCoord: 480,
+		xCoord: 700,
+		yCoord: 450,
+		lat: 9.894850,
+		lng: 123.883120,
 	},
 	{
 		id: "off-5",
 		name: "Academic Hall A",
 		code: "ACAD-A",
 		floors: 3,
-		description: "Lecture halls, classrooms, and teacher education faculty offices.",
-		headPerson: "Dr. Elizabeth Cruz",
-		contactEmail: "cte@university.edu",
-		xCoord: 220,
-		yCoord: 250,
+		description: "Lecture halls, general education classrooms, and faculty lounges.",
+		headPerson: "Dr. Elena Cruz",
+		contactEmail: "academic@university.edu",
+		xCoord: 200,
+		yCoord: 200,
+		lat: 9.895120,
+		lng: 123.882250,
 	},
 ];
 
@@ -214,7 +228,7 @@ export const MOCK_MAP_NODES: MapNode[] = [
 ];
 
 // Initial Visitors Dataset
-let localVisitorsStore: Visitor[] = [
+export const MOCK_VISITORS: Visitor[] = [
 	{
 		id: "vis-1001",
 		fullName: "Alex Morgan",
@@ -233,6 +247,8 @@ let localVisitorsStore: Visitor[] = [
 		status: "checked_in",
 		verificationStatus: "approved",
 		passCode: "VP-8921",
+		lat: 9.894450,
+		lng: 123.882610,
 	},
 	{
 		id: "vis-1002",
@@ -252,6 +268,8 @@ let localVisitorsStore: Visitor[] = [
 		status: "checked_out",
 		verificationStatus: "approved",
 		passCode: "VP-3412",
+		lat: 9.894380,
+		lng: 123.882480,
 	},
 	{
 		id: "vis-1003",
@@ -271,11 +289,12 @@ let localVisitorsStore: Visitor[] = [
 		status: "checked_in",
 		verificationStatus: "approved",
 		passCode: "VP-7561",
+		lat: 9.893960,
+		lng: 123.882080,
 	},
 ];
 
-// Mock Profiles Database Store for offline RBAC
-export let localProfilesStore: (Profile & { password?: string })[] = [
+export const MOCK_PROFILES: (Profile & { password?: string })[] = [
 	{
 		id: "usr-1",
 		email: "admin",
@@ -295,10 +314,26 @@ export let localProfilesStore: (Profile & { password?: string })[] = [
 		email: "staff",
 		role: "staff",
 		password: "staff123",
-		roomId: "rm-105",
+		officeId: "of-101",
+		roomId: "rm-101",
 		createdAt: new Date().toISOString(),
 	},
 ];
+
+// Global HMR-persistent state store (survives Vite code re-evaluations during development)
+const g = globalThis as any;
+export function getCalapexisStore() {
+	if (!g.__CALAPEXIS_STORE__) {
+		g.__CALAPEXIS_STORE__ = {
+			buildings: [...MOCK_BUILDINGS],
+			rooms: [...MOCK_ROOMS],
+			offices: [...MOCK_OFFICES],
+			visitors: [...MOCK_VISITORS],
+			profiles: [...MOCK_PROFILES],
+		};
+	}
+	return g.__CALAPEXIS_STORE__;
+}
 
 // --- DB-to-Frontend Converter Mappers ---
 
@@ -337,6 +372,7 @@ function mapDbProfileToProfile(db: any): Profile {
 		id: db.id,
 		email: db.email,
 		role: db.role,
+		officeId: db.office_id,
 		roomId: db.room_id,
 		createdAt: db.created_at,
 	};
@@ -352,7 +388,9 @@ function mapDbVisitorToVisitor(db: any): Visitor {
 		email: db.email,
 		phone: db.phone,
 		purpose: db.purpose,
-		buildingId: db.building_id,
+		officeId: db.office_id || "",
+		officeName: db.office_name || "",
+		buildingId: db.building_id || "",
 		buildingName: db.building_name || "",
 		roomId: db.room_id || "",
 		roomNumber: db.room_number || "",
@@ -365,6 +403,7 @@ function mapDbVisitorToVisitor(db: any): Visitor {
 		verificationStatus: db.verification_status,
 		rejectionReason: db.rejection_reason || "",
 		passCode: db.pass_code,
+		visitorId: db.visitor_id || "",
 	};
 }
 
@@ -378,6 +417,8 @@ function mapVisitorToDbVisitor(v: any): any {
 		email: v.email,
 		phone: v.phone,
 		purpose: v.purpose,
+		office_id: v.officeId || null,
+		office_name: v.officeName || null,
 		building_id: v.buildingId || null,
 		building_name: v.buildingName || null,
 		room_id: v.roomId || null,
@@ -391,6 +432,7 @@ function mapVisitorToDbVisitor(v: any): any {
 		verification_status: v.verificationStatus,
 		rejection_reason: v.rejectionReason || null,
 		pass_code: v.passCode,
+		visitor_id: v.visitorId || null,
 	};
 }
 
@@ -406,7 +448,7 @@ export async function getLocalVisitors(): Promise<Visitor[]> {
 		}
 		console.warn("Supabase fetch visitors error, using mock fallback:", error);
 	}
-	return [...localVisitorsStore];
+	return [...getCalapexisStore().visitors];
 }
 
 export async function addLocalVisitor(
@@ -426,19 +468,56 @@ export async function addLocalVisitor(
 	};
 
 	if (isSupabaseConfigured && supabase) {
-		const dbRow = mapVisitorToDbVisitor(newVisitor);
-		const { data, error } = await getDbClient()
-			.from("visitors")
-			.insert([dbRow])
-			.select()
-			.single();
-		if (!error && data) {
-			return mapDbVisitorToVisitor(data);
+		try {
+			const dbClient = getDbClient();
+			// 1. Upsert Registered Visitor profile by email
+			const { data: regData, error: regErr } = await dbClient
+				.from("registered_visitors")
+				.upsert({
+					full_name: newVisitor.fullName,
+					first_name: newVisitor.firstName || null,
+					middle_name: newVisitor.middleName || null,
+					last_name: newVisitor.lastName || null,
+					email: newVisitor.email,
+					phone: newVisitor.phone,
+					photo_url: newVisitor.photoUrl || null,
+					updated_at: new Date().toISOString()
+				}, { onConflict: "email" })
+				.select()
+				.single();
+
+			if (!regErr && regData) {
+				newVisitor.visitorId = regData.id;
+				// 2. Insert Visitor Log entry referencing visitor_id and office_id
+				const { data: logData, error: logErr } = await dbClient
+					.from("visitor_logs")
+					.insert([{
+						id: newVisitor.id,
+						visitor_id: regData.id,
+						office_id: newVisitor.officeId || null,
+						purpose: newVisitor.purpose,
+						host_person: newVisitor.hostPerson || null,
+						check_in_time: newVisitor.checkInTime,
+						status: newVisitor.status,
+						verification_status: newVisitor.verificationStatus,
+						pass_code: newVisitor.passCode
+					}])
+					.select()
+					.single();
+
+				if (!logErr && logData) {
+					return {
+						...newVisitor,
+						...mapDbVisitorToVisitor({ ...logData, ...regData })
+					};
+				}
+			}
+		} catch (e) {
+			console.warn("Supabase normalized visitor insert error, using fallback:", e);
 		}
-		console.warn("Supabase insert visitor error, using mock fallback:", error);
 	}
 
-	localVisitorsStore = [newVisitor, ...localVisitorsStore];
+	getCalapexisStore().visitors = [newVisitor, ...getCalapexisStore().visitors];
 	return newVisitor;
 }
 
@@ -465,7 +544,7 @@ export async function verifyVisitor(
 	}
 
 	let target: Visitor | null = null;
-	localVisitorsStore = localVisitorsStore.map((v) => {
+	getCalapexisStore().visitors = getCalapexisStore().visitors.map((v: Visitor) => {
 		if (v.id === id) {
 			target = {
 				...v,
@@ -482,6 +561,8 @@ export async function verifyVisitor(
 export async function updateOfficeCheckIn(
 	id: string,
 	checkIn: boolean,
+	roomId?: string,
+	roomNumber?: string,
 ): Promise<Visitor | null> {
 	if (isSupabaseConfigured && supabase) {
 		const { data, error } = await getDbClient()
@@ -503,11 +584,13 @@ export async function updateOfficeCheckIn(
 	}
 
 	let target: Visitor | null = null;
-	localVisitorsStore = localVisitorsStore.map((v) => {
+	getCalapexisStore().visitors = getCalapexisStore().visitors.map((v: Visitor) => {
 		if (v.id === id) {
 			target = {
 				...v,
-				roomCheckInTime: checkIn ? new Date().toISOString() : null,
+				roomId: roomId || undefined,
+				roomNumber: roomNumber || undefined,
+				roomCheckInTime: new Date().toISOString(),
 			};
 			return target;
 		}
@@ -539,7 +622,7 @@ export async function checkoutLocalVisitor(
 	}
 
 	let target: Visitor | null = null;
-	localVisitorsStore = localVisitorsStore.map((v) => {
+	getCalapexisStore().visitors = getCalapexisStore().visitors.map((v: Visitor) => {
 		if (
 			(v.id === idOrPassCode || v.passCode === idOrPassCode) &&
 			v.status === "checked_in"
@@ -570,13 +653,14 @@ export async function getLocalProfiles(): Promise<
 		}
 		console.warn("Supabase fetch profiles error, using mock fallback:", error);
 	}
-	return [...localProfilesStore];
+	return [...getCalapexisStore().profiles];
 }
 
 export async function addLocalProfile(
 	email: string,
 	role: "admin" | "security" | "staff",
 	password?: string,
+	officeId?: string,
 	roomId?: string,
 ): Promise<Profile> {
 	const newProfile: Profile & { password?: string } = {
@@ -584,12 +668,12 @@ export async function addLocalProfile(
 		email,
 		role,
 		password,
+		officeId,
 		roomId,
 		createdAt: new Date().toISOString(),
 	};
 
 	if (isSupabaseConfigured && supabase) {
-		// 1. Create a non-session-persisting temporary client to sign up the new user
 		const tempSupabase = createClient(supabaseUrl, supabaseAnonKey, {
 			auth: {
 				persistSession: false,
@@ -604,6 +688,7 @@ export async function addLocalProfile(
 				options: {
 					data: {
 						role,
+						office_id: officeId || null,
 						room_id: roomId || null
 					}
 				}
@@ -620,6 +705,7 @@ export async function addLocalProfile(
 			id: authData.user.id,
 			email: authData.user.email || email,
 			role,
+			officeId,
 			roomId,
 			createdAt: authData.user.created_at,
 		};
@@ -627,8 +713,61 @@ export async function addLocalProfile(
 		return profile;
 	}
 
-localProfilesStore = [...localProfilesStore, newProfile];
+	getCalapexisStore().profiles = [...getCalapexisStore().profiles, newProfile];
 	return newProfile;
+}
+
+export async function updateLocalProfile(
+	id: string,
+	updates: Partial<Profile> & { password?: string }
+): Promise<Profile | null> {
+	if (isSupabaseConfigured && supabase) {
+		const dbRow: any = {};
+		if (updates.email !== undefined) dbRow.email = updates.email;
+		if (updates.role !== undefined) dbRow.role = updates.role;
+		if (updates.officeId !== undefined) dbRow.office_id = updates.officeId || null;
+		if (updates.roomId !== undefined) dbRow.room_id = updates.roomId || null;
+
+		const { data, error } = await getDbClient()
+			.from("profiles")
+			.update(dbRow)
+			.eq("id", id)
+			.select();
+
+		if (!error && data && data.length > 0) {
+			return mapDbProfileToProfile(data[0]);
+		}
+		if (error) {
+			console.warn("Supabase update profile error, using mock fallback:", error);
+		}
+	}
+
+	let target: Profile | null = null;
+	getCalapexisStore().profiles = getCalapexisStore().profiles.map((p: Profile) => {
+		if (p.id === id) {
+			target = {
+				...p,
+				...updates,
+			};
+			return target;
+		}
+		return p;
+	});
+	return target;
+}
+
+export async function deleteLocalProfile(id: string): Promise<boolean> {
+	if (isSupabaseConfigured && supabase) {
+		const { error } = await getDbClient().from("profiles").delete().eq("id", id);
+		if (!error) {
+			return true;
+		}
+		console.warn("Supabase delete profile error, using mock fallback:", error);
+	}
+
+	const initialLength = getCalapexisStore().profiles.length;
+	getCalapexisStore().profiles = getCalapexisStore().profiles.filter((p: Profile) => p.id !== id);
+	return getCalapexisStore().profiles.length < initialLength;
 }
 
 // Buildings local store fallback
@@ -689,10 +828,6 @@ export const MOCK_OFFICES: Office[] = [
 	},
 ];
 
-let localBuildingsStore: Building[] = [...MOCK_BUILDINGS];
-let localRoomsStore: Room[] = [...MOCK_ROOMS];
-let localOfficesStore: Office[] = [...MOCK_OFFICES];
-
 export async function getLocalBuildings(): Promise<Building[]> {
 	if (isSupabaseConfigured && supabase) {
 		const { data, error } = await getDbClient()
@@ -704,7 +839,7 @@ export async function getLocalBuildings(): Promise<Building[]> {
 		}
 		console.warn("Supabase fetch buildings error, using mock fallback:", error);
 	}
-	return [...localBuildingsStore];
+	return [...getCalapexisStore().buildings];
 }
 
 export async function addLocalBuilding(
@@ -741,26 +876,26 @@ export async function addLocalBuilding(
 		console.warn("Supabase insert building error, using mock fallback:", error);
 	}
 
-	localBuildingsStore = [...localBuildingsStore, newBuilding];
+	getCalapexisStore().buildings = [...getCalapexisStore().buildings, newBuilding];
 	return newBuilding;
 }
 
 export async function updateLocalBuilding(
 	id: string,
-	building: Partial<Omit<Building, "id">>,
+	updates: Partial<Omit<Building, "id">>,
 ): Promise<Building | null> {
 	if (isSupabaseConfigured && supabase) {
 		const dbRow: any = {};
-		if (building.name !== undefined) dbRow.name = building.name;
-		if (building.code !== undefined) dbRow.code = building.code;
-		if (building.floors !== undefined) dbRow.floors = building.floors;
-		if (building.description !== undefined) dbRow.description = building.description;
-		if (building.headPerson !== undefined) dbRow.head_person = building.headPerson || null;
-		if (building.contactEmail !== undefined) dbRow.contact_email = building.contactEmail || null;
-		if (building.xCoord !== undefined) dbRow.x_coord = building.xCoord || null;
-		if (building.yCoord !== undefined) dbRow.y_coord = building.yCoord || null;
-		if (building.color !== undefined) dbRow.color = building.color || null;
-		if (building.imageUrl !== undefined) dbRow.image_url = building.imageUrl || null;
+		if (updates.name !== undefined) dbRow.name = updates.name;
+		if (updates.code !== undefined) dbRow.code = updates.code;
+		if (updates.floors !== undefined) dbRow.floors = updates.floors;
+		if (updates.description !== undefined) dbRow.description = updates.description;
+		if (updates.headPerson !== undefined) dbRow.head_person = updates.headPerson || null;
+		if (updates.contactEmail !== undefined) dbRow.contact_email = updates.contactEmail || null;
+		if (updates.xCoord !== undefined) dbRow.x_coord = updates.xCoord || null;
+		if (updates.yCoord !== undefined) dbRow.y_coord = updates.yCoord || null;
+		if (updates.color !== undefined) dbRow.color = updates.color || null;
+		if (updates.imageUrl !== undefined) dbRow.image_url = updates.imageUrl || null;
 
 		const { data, error } = await getDbClient()
 			.from("buildings")
@@ -777,11 +912,11 @@ export async function updateLocalBuilding(
 	}
 
 	let target: Building | null = null;
-	localBuildingsStore = localBuildingsStore.map((b) => {
+	getCalapexisStore().buildings = getCalapexisStore().buildings.map((b: Building) => {
 		if (b.id === id) {
 			target = {
 				...b,
-				...building,
+				...updates,
 			};
 			return target;
 		}
@@ -799,9 +934,9 @@ export async function deleteLocalBuilding(id: string): Promise<boolean> {
 		console.warn("Supabase delete building error, using mock fallback:", error);
 	}
 
-	const initialLength = localBuildingsStore.length;
-	localBuildingsStore = localBuildingsStore.filter((o) => o.id !== id);
-	return localBuildingsStore.length < initialLength;
+	const initialLength = getCalapexisStore().buildings.length;
+	getCalapexisStore().buildings = getCalapexisStore().buildings.filter((b: Building) => b.id !== id);
+	return getCalapexisStore().buildings.length < initialLength;
 }
 
 export async function getLocalRooms(): Promise<Room[]> {
@@ -815,7 +950,7 @@ export async function getLocalRooms(): Promise<Room[]> {
 		}
 		console.warn("Supabase fetch rooms error, using mock fallback:", error);
 	}
-	return [...localRoomsStore];
+	return [...getCalapexisStore().rooms];
 }
 
 export async function addLocalRoom(room: Omit<Room, "id">): Promise<Room> {
@@ -848,8 +983,51 @@ export async function addLocalRoom(room: Omit<Room, "id">): Promise<Room> {
 		console.warn("Supabase insert room error, using mock fallback:", error);
 	}
 
-	localRoomsStore = [...localRoomsStore, newRoom];
+	getCalapexisStore().rooms = [...getCalapexisStore().rooms, newRoom];
 	return newRoom;
+}
+
+export async function updateLocalRoom(
+	id: string,
+	updates: Partial<Room>
+): Promise<Room | null> {
+	if (isSupabaseConfigured && supabase) {
+		const dbRow: any = {};
+		if (updates.buildingId !== undefined) dbRow.building_id = updates.buildingId;
+		if (updates.roomNumber !== undefined) dbRow.room_number = updates.roomNumber;
+		if (updates.roomName !== undefined) dbRow.room_name = updates.roomName;
+		if (updates.floor !== undefined) dbRow.floor = updates.floor;
+		if (updates.xCoord !== undefined) dbRow.x_coord = updates.xCoord;
+		if (updates.yCoord !== undefined) dbRow.y_coord = updates.yCoord;
+		if (updates.description !== undefined) dbRow.description = updates.description || null;
+		if (updates.imageUrl !== undefined) dbRow.image_url = updates.imageUrl || null;
+
+		const { data, error } = await getDbClient()
+			.from("rooms")
+			.update(dbRow)
+			.eq("id", id)
+			.select();
+
+		if (!error && data && data.length > 0) {
+			return mapDbRoomToRoom(data[0]);
+		}
+		if (error) {
+			console.warn("Supabase update room error, using mock fallback:", error);
+		}
+	}
+
+	let target: Room | null = null;
+	getCalapexisStore().rooms = getCalapexisStore().rooms.map((r: Room) => {
+		if (r.id === id) {
+			target = {
+				...r,
+				...updates,
+			};
+			return target;
+		}
+		return r;
+	});
+	return target;
 }
 
 export async function deleteLocalRoom(id: string): Promise<boolean> {
@@ -861,9 +1039,9 @@ export async function deleteLocalRoom(id: string): Promise<boolean> {
 		console.warn("Supabase delete room error, using mock fallback:", error);
 	}
 
-	const initialLength = localRoomsStore.length;
-	localRoomsStore = localRoomsStore.filter((r) => r.id !== id);
-	return localRoomsStore.length < initialLength;
+	const initialLength = getCalapexisStore().rooms.length;
+	getCalapexisStore().rooms = getCalapexisStore().rooms.filter((r: Room) => r.id !== id);
+	return getCalapexisStore().rooms.length < initialLength;
 }
 
 export async function uploadLocalImage(
@@ -940,12 +1118,12 @@ export async function getLocalOffices(): Promise<Office[]> {
 		}
 		console.warn("Supabase fetch offices error, using mock fallback:", error);
 	}
-	return [...localOfficesStore];
+	return [...getCalapexisStore().offices];
 }
 
 export async function addLocalOffice(office: Omit<Office, "id">): Promise<Office> {
-	const building = localBuildingsStore.find((b) => b.id === office.buildingId);
-	const room = localRoomsStore.find((r) => r.id === office.roomId);
+	const building = getCalapexisStore().buildings.find((b: Building) => b.id === office.buildingId);
+	const room = getCalapexisStore().rooms.find((r: Room) => r.id === office.roomId);
 
 	const newOffice: Office = {
 		...office,
@@ -978,7 +1156,7 @@ export async function addLocalOffice(office: Omit<Office, "id">): Promise<Office
 		console.warn("Supabase insert office error, using mock fallback:", error);
 	}
 
-	localOfficesStore = [...localOfficesStore, newOffice];
+	getCalapexisStore().offices = [...getCalapexisStore().offices, newOffice];
 	return newOffice;
 }
 
@@ -1013,13 +1191,13 @@ export async function updateLocalOffice(
 	}
 
 	let target: Office | null = null;
-	localOfficesStore = localOfficesStore.map((o) => {
+	getCalapexisStore().offices = getCalapexisStore().offices.map((o: Office) => {
 		if (o.id === id) {
 			const building = updates.buildingId
-				? localBuildingsStore.find((b) => b.id === updates.buildingId)
+				? getCalapexisStore().buildings.find((b: Building) => b.id === updates.buildingId)
 				: undefined;
 			const room = updates.roomId
-				? localRoomsStore.find((r) => r.id === updates.roomId)
+				? getCalapexisStore().rooms.find((r: Room) => r.id === updates.roomId)
 				: undefined;
 
 			target = {
@@ -1044,8 +1222,8 @@ export async function deleteLocalOffice(id: string): Promise<boolean> {
 		console.warn("Supabase delete office error, using mock fallback:", error);
 	}
 
-	const initialLength = localOfficesStore.length;
-	localOfficesStore = localOfficesStore.filter((o) => o.id !== id);
-	return localOfficesStore.length < initialLength;
+	const initialLength = getCalapexisStore().offices.length;
+	getCalapexisStore().offices = getCalapexisStore().offices.filter((o: Office) => o.id !== id);
+	return getCalapexisStore().offices.length < initialLength;
 }
 
