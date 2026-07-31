@@ -49,14 +49,24 @@
 	);
 
 	async function handlePerformCheckout(id: string) {
-		const updated = await checkoutLocalVisitor(id);
-		if (updated) {
-			lastCheckedOutVisitor = updated;
-			toast.info(`Visitor ${updated.fullName} checked out successfully.`, {
-				description: `Pass Code: ${updated.passCode}`
+		try {
+			const updated = await checkoutLocalVisitor(id);
+			if (updated) {
+				lastCheckedOutVisitor = updated;
+				toast.info(`Visitor ${updated.fullName} checked out successfully.`, {
+					description: `Pass Code: ${updated.passCode}`
+				});
+				await loadAll();
+				if (onUpdate) onUpdate();
+			} else {
+				toast.error("Check-Out Failed", {
+					description: "Visitor pass code not found or already checked out."
+				});
+			}
+		} catch (err: any) {
+			toast.error("Check-Out Error", {
+				description: err.message || "Failed to complete visitor check-out."
 			});
-			await loadAll();
-			if (onUpdate) onUpdate();
 		}
 	}
 </script>

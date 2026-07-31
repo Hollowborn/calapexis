@@ -64,29 +64,36 @@
 		const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
 		const middleName = parts.length > 2 ? parts.slice(1, parts.length - 1).join(' ') : '';
 
-		const visitor = await addLocalVisitor({
-			fullName,
-			firstName,
-			middleName,
-			lastName,
-			email: email || 'walkin@campus.visitor',
-			phone: phone || 'No Mobile Phone',
-			purpose,
-			buildingId: selectedBuildingId,
-			buildingName: targetBuilding?.name,
-			roomId: selectedRoomId || undefined,
-			roomNumber: targetRoom?.roomNumber || undefined,
-			hostPerson: hostPerson || targetBuilding?.headPerson,
-			photoUrl: undefined, // No photo for manual staff desk assisted walk-ins
-			verificationStatus: 'approved' // Staff entries are automatically verified
-		});
+		try {
+			const visitor = await addLocalVisitor({
+				fullName,
+				firstName,
+				middleName,
+				lastName,
+				email: email || 'walkin@campus.visitor',
+				phone: phone || 'No Mobile Phone',
+				purpose,
+				buildingId: selectedBuildingId,
+				buildingName: targetBuilding?.name,
+				roomId: selectedRoomId || undefined,
+				roomNumber: targetRoom?.roomNumber || undefined,
+				hostPerson: hostPerson || targetBuilding?.headPerson,
+				photoUrl: undefined, // No photo for manual staff desk assisted walk-ins
+				verificationStatus: 'approved' // Staff entries are automatically verified
+			});
 
-		generatedPass = visitor;
-		isSubmitting = false;
-		toast.success('Assisted visitor pass issued successfully!', {
-			description: `Pass Code: ${visitor.passCode}`
-		});
-		onSuccess(visitor);
+			generatedPass = visitor;
+			isSubmitting = false;
+			toast.success('Assisted visitor pass issued successfully!', {
+				description: `Pass Code: ${visitor.passCode}`
+			});
+			onSuccess(visitor);
+		} catch (err: any) {
+			isSubmitting = false;
+			toast.error('Check-In Failed', {
+				description: err.message || 'Unable to issue visitor pass.'
+			});
+		}
 	}
 
 	function handleReset() {
