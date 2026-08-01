@@ -62,9 +62,9 @@ CREATE TABLE IF NOT EXISTS public.registered_visitors (
     first_name TEXT,
     middle_name TEXT,
     last_name TEXT,
-    email TEXT NOT NULL UNIQUE,
-    phone TEXT NOT NULL,
-    photo_url TEXT, -- Visitor face snapshot URL
+    email TEXT UNIQUE, -- Optional email
+    phone TEXT,        -- Optional phone
+    photo_url TEXT,    -- Visitor face snapshot / image upload URL
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );

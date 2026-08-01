@@ -378,7 +378,7 @@ function mapDbProfileToProfile(db: any): Profile {
 	};
 }
 
-function mapDbVisitorToVisitor(db: any): Visitor {
+export function mapDbVisitorToVisitor(db: any): Visitor {
 	return {
 		id: db.id,
 		fullName: db.full_name,
@@ -470,21 +470,45 @@ export async function addLocalVisitor(
 	if (isSupabaseConfigured && supabase) {
 		try {
 			const dbClient = getDbClient();
-			// 1. Upsert Registered Visitor profile by email
-			const { data: regData, error: regErr } = await dbClient
-				.from("registered_visitors")
-				.upsert({
-					full_name: newVisitor.fullName,
-					first_name: newVisitor.firstName || null,
-					middle_name: newVisitor.middleName || null,
-					last_name: newVisitor.lastName || null,
-					email: newVisitor.email,
-					phone: newVisitor.phone,
-					photo_url: newVisitor.photoUrl || null,
-					updated_at: new Date().toISOString()
-				}, { onConflict: "email" })
-				.select()
-				.single();
+			// 1. Upsert / Insert into registered_visitors
+			let regData: any = null;
+			let regErr: any = null;
+
+			if (newVisitor.email && newVisitor.email.trim()) {
+				const res = await dbClient
+					.from("registered_visitors")
+					.upsert({
+						full_name: newVisitor.fullName,
+						first_name: newVisitor.firstName || null,
+						middle_name: newVisitor.middleName || null,
+						last_name: newVisitor.lastName || null,
+						email: newVisitor.email,
+						phone: newVisitor.phone || null,
+						photo_url: newVisitor.photoUrl || null,
+						updated_at: new Date().toISOString()
+					}, { onConflict: "email" })
+					.select()
+					.single();
+				regData = res.data;
+				regErr = res.error;
+			} else {
+				const res = await dbClient
+					.from("registered_visitors")
+					.insert([{
+						full_name: newVisitor.fullName,
+						first_name: newVisitor.firstName || null,
+						middle_name: newVisitor.middleName || null,
+						last_name: newVisitor.lastName || null,
+						email: null,
+						phone: newVisitor.phone || null,
+						photo_url: newVisitor.photoUrl || null,
+						updated_at: new Date().toISOString()
+					}])
+					.select()
+					.single();
+				regData = res.data;
+				regErr = res.error;
+			}
 
 			if (!regErr && regData) {
 				newVisitor.visitorId = regData.id;
