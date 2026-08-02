@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { getContext, onMount } from 'svelte';
+	import { getContext, onMount, onDestroy } from 'svelte';
 	import { enhance } from '$app/forms';
 	import * as Card from "$lib/components/ui/card/index.js";
 	import * as Dialog from "$lib/components/ui/dialog/index.js";
+	import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
 	import * as Field from "$lib/components/ui/field/index.js";
 	import * as Tabs from "$lib/components/ui/tabs/index.js";
 	import * as Table from "$lib/components/ui/table/index.js";
@@ -11,8 +12,10 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
+	import { Separator } from '$lib/components/ui/separator/index.js';
+	import { Switch } from '$lib/components/ui/switch/index.js';
 	import { toast } from 'svelte-sonner';
-	import { MOCK_BUILDINGS, MOCK_OFFICES, verifyVisitor, checkoutLocalVisitor } from '$lib/supabase';
+	import { MOCK_BUILDINGS, MOCK_OFFICES, verifyVisitor, checkoutLocalVisitor, isSupabaseConfigured, supabase, getDbClient } from '$lib/supabase';
 	
 	// Lucide Icons
 	import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
@@ -32,11 +35,16 @@
 	import ChevronsUpDownIcon from "@lucide/svelte/icons/chevrons-up-down";
 	import CheckIcon from "@lucide/svelte/icons/check";
 	import PhoneOffIcon from "@lucide/svelte/icons/phone-off";
+	import PlusIcon from "@lucide/svelte/icons/plus";
+	import MinusIcon from "@lucide/svelte/icons/minus";
+	import LayersIcon from "@lucide/svelte/icons/layers";
 
 	let { data } = $props();
 
 	const dashboardContext = getContext<any>("dashboard-state");
-	let visitors = $derived(dashboardContext.visitors);
+	let visitors = $derived(
+		dashboardContext.visitors?.length ? dashboardContext.visitors : (data?.visitors || [])
+	);
 
 	let officesList = $derived(data?.offices?.length ? data.offices : MOCK_OFFICES);
 	let buildingsList = $derived(data?.buildings?.length ? data.buildings : MOCK_BUILDINGS);
@@ -45,10 +53,24 @@
 	let activeTab = $state<'map' | 'visitors'>('map');
 	let searchQuery = $state('');
 
+	// Map Layer & Tile states
+	let selectedBaseTile = $state<'osm' | 'satellite'>('osm');
+	let showCampusOverlay = $state(true);
+	let isLayerPopoverOpen = $state(false);
+
+	let osmLayerInstance: any = null;
+	let satelliteLayerInstance: any = null;
+	let campusOverlayInstance: any = null;
+
 	// Rejection Dialog state
 	let isRejecting = $state(false);
 	let rejectingVisitorId = $state('');
 	let rejectionReason = $state('');
+
+	// Checkout Confirmation AlertDialog state
+	let isCheckoutDialogOpen = $state(false);
+	let checkoutTargetVisitor = $state<any | null>(null);
+	let isCheckingOut = $state(false);
 
 	// Assisted Registration Modal state (for Visitors without phones)
 	let isAssistModalOpen = $state(false);
@@ -202,22 +224,91 @@
 			maxZoom: 22
 		}).setView([9.894414742474977, 123.88258093049176], 19);
 
-		L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+		const osmTile = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 			attribution: '&copy; OpenStreetMap',
 			maxNativeZoom: 19,
 			maxZoom: 22
-		}).addTo(map);
+		});
 
-		L.imageOverlay("/campusMap-adjusted.png", bounds, {
+		const satTile = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+			attribution: '&copy; Esri',
+			maxNativeZoom: 19,
+			maxZoom: 22
+		});
+
+		const overlay = L.imageOverlay("/campusMap-adjusted.png", bounds, {
 			opacity: 0.95,
 			interactive: false
-		}).addTo(map);
+		});
+
+		osmLayerInstance = osmTile;
+		satelliteLayerInstance = satTile;
+		campusOverlayInstance = overlay;
+
+		if (selectedBaseTile === 'osm') osmTile.addTo(map);
+		else satTile.addTo(map);
+
+		if (showCampusOverlay) overlay.addTo(map);
 
 		leafMap = map;
 
 		plotVisitorNodesOnMap();
 
 		setTimeout(() => map.invalidateSize(), 300);
+
+		// Supabase Realtime Subscription for Visitor Logs
+		if (isSupabaseConfigured && supabase) {
+			const dbClient = getDbClient();
+			const channel = dbClient
+				.channel('realtime:security-visitor-logs')
+				.on('postgres_changes', { event: '*', schema: 'public', table: 'visitor_logs' }, () => {
+					if (dashboardContext?.loadData) dashboardContext.loadData();
+				})
+				.subscribe();
+
+			onDestroy(() => {
+				dbClient.removeChannel(channel);
+			});
+		}
+	});
+
+	// Tile Layer Watcher
+	$effect(() => {
+		if (!leafMap) return;
+
+		if (selectedBaseTile === 'osm') {
+			if (satelliteLayerInstance && leafMap.hasLayer(satelliteLayerInstance)) {
+				leafMap.removeLayer(satelliteLayerInstance);
+			}
+			if (osmLayerInstance && !leafMap.hasLayer(osmLayerInstance)) {
+				osmLayerInstance.addTo(leafMap);
+			}
+		} else {
+			if (osmLayerInstance && leafMap.hasLayer(osmLayerInstance)) {
+				leafMap.removeLayer(osmLayerInstance);
+			}
+			if (satelliteLayerInstance && !leafMap.hasLayer(satelliteLayerInstance)) {
+				satelliteLayerInstance.addTo(leafMap);
+			}
+		}
+
+		if (campusOverlayInstance) {
+			if (showCampusOverlay) {
+				if (!leafMap.hasLayer(campusOverlayInstance)) campusOverlayInstance.addTo(leafMap);
+			} else {
+				if (leafMap.hasLayer(campusOverlayInstance)) leafMap.removeLayer(campusOverlayInstance);
+			}
+		}
+	});
+
+	// Re-calc Leaflet dimensions when switching back to Live Map tab
+	$effect(() => {
+		if (activeTab === 'map' && leafMap) {
+			setTimeout(() => {
+				leafMap.invalidateSize();
+				plotVisitorNodesOnMap();
+			}, 100);
+		}
 	});
 
 	$effect(() => {
@@ -239,13 +330,13 @@
 			const nearestNode = findNearestBuildingName(lat, lng);
 			const duration = calculateVisitDuration(v.checkInTime, null);
 
+			const avatarSrc = v.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(v.fullName || 'Visitor')}&background=0284c7&color=ffffff&bold=true&size=128`;
+
 			const iconHtml = `
 				<div class="group relative flex items-center justify-center cursor-pointer">
 					<span class="animate-ping absolute inline-flex size-9 rounded-full bg-emerald-500/40"></span>
 					<div class="relative size-9 rounded-full bg-card border-2 border-emerald-500 shadow-xl overflow-hidden flex items-center justify-center">
-						${v.photoUrl 
-							? `<img src="${v.photoUrl}" class="size-full object-cover" />` 
-							: `<span class="text-[10px] font-black text-foreground">${v.firstName ? v.firstName[0] : 'V'}</span>`}
+						<img src="${avatarSrc}" class="size-full object-cover" />
 					</div>
 				</div>
 			`;
@@ -341,7 +432,7 @@
 				isAssistModalOpen = false;
 				toast.success(result.data?.message || "Visitor registered successfully!");
 				assistFirstName = ''; assistMiddleName = ''; assistLastName = ''; assistEmail = ''; assistPhone = ''; assistOfficeId = ''; assistPurpose = ''; assistPhotoUrl = '';
-				if (dashboardContext?.refreshData) dashboardContext.refreshData();
+				if (dashboardContext?.loadData) dashboardContext.loadData();
 			} else if (result.type === 'failure') {
 				toast.error(result.data?.message || "Manual registration failed.");
 			}
@@ -351,7 +442,7 @@
 	function handleApprove(visitorId: string) {
 		verifyVisitor(visitorId, 'approved');
 		toast.success("Visitor verification approved!");
-		if (dashboardContext?.refreshData) dashboardContext.refreshData();
+		if (dashboardContext?.loadData) dashboardContext.loadData();
 	}
 
 	function openRejectModal(visitorId: string) {
@@ -365,17 +456,32 @@
 		verifyVisitor(rejectingVisitorId, 'rejected', rejectionReason || 'Failed security desk verification');
 		toast.error("Visitor entry rejected.");
 		isRejecting = false;
-		if (dashboardContext?.refreshData) dashboardContext.refreshData();
+		if (dashboardContext?.loadData) dashboardContext.loadData();
 	}
 
-	function handleCheckout(visitorId: string) {
-		checkoutLocalVisitor(visitorId);
-		toast.info("Visitor checked out of campus.");
-		if (dashboardContext?.refreshData) dashboardContext.refreshData();
+	function promptCheckout(visitor: any) {
+		checkoutTargetVisitor = visitor;
+		isCheckoutDialogOpen = true;
+	}
+
+	async function confirmCheckout() {
+		if (!checkoutTargetVisitor) return;
+		isCheckingOut = true;
+		try {
+			const res = await checkoutLocalVisitor(checkoutTargetVisitor.id);
+			toast.info(`Visitor ${checkoutTargetVisitor.fullName} checked out of campus.`);
+			if (dashboardContext?.loadData) dashboardContext.loadData();
+		} catch (e) {
+			toast.error("Failed to check out visitor.");
+		} finally {
+			isCheckingOut = false;
+			isCheckoutDialogOpen = false;
+			checkoutTargetVisitor = null;
+		}
 	}
 </script>
-<div class='m-16'>
-<div class="space-y-6">
+
+<div class="m-8 space-y-6">
 
 	<!-- TOP PAGE HEADER (Unencased - Matching Admin Offices Layout 1-to-1) -->
 	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border/60">
@@ -424,11 +530,7 @@
 					{#each pendingVerificationQueue as p}
 						<div class="p-3 rounded-xl border border-amber-500/30 bg-card flex items-center justify-between text-xs">
 							<div class="flex items-center gap-2">
-								{#if p.photoUrl}
-									<img src={p.photoUrl} alt={p.fullName} class="size-9 rounded-full object-cover border border-primary/30" />
-								{:else}
-									<div class="size-9 rounded-full bg-muted flex items-center justify-center font-bold text-xs">{p.fullName[0]}</div>
-								{/if}
+								<img src={p.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.fullName || 'Visitor')}&background=0284c7&color=ffffff&bold=true&size=128`} alt={p.fullName} class="size-9 rounded-full object-cover border border-primary/30 shrink-0" />
 								<div>
 									<div class="font-extrabold text-foreground">{p.fullName}</div>
 									<div class="text-[10px] text-muted-foreground font-mono">{p.passCode} • {p.officeName || 'Campus'}</div>
@@ -445,155 +547,243 @@
 		</Card.Root>
 	{/if}
 
-	<!-- MAIN CONTENT TAB 1: LIVE MAP PORTAL -->
-	{#if activeTab === 'map'}
-		<div class="flex flex-col gap-4">
-			<!-- SUB-HEADER BAR (Matching Admin Offices sub-header) -->
-			<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-				<div>
-					<h2 class="text-xs font-black text-foreground uppercase tracking-wider">Active Campus GIS Tracking ({liveMonitorList.length})</h2>
-					<span class="text-xs text-muted-foreground font-semibold">{liveMonitorList.length} active visitor check-in sessions monitored across campus.</span>
-				</div>
-
-				<div class="relative w-full sm:w-64">
-					<SearchIcon class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-					<Input 
-						type="text" 
-						placeholder="Search visitor, pass code..." 
-						bind:value={searchQuery} 
-						class="pl-9 h-9 text-xs rounded-xl"
-					/>
-				</div>
+	<!-- MAIN CONTENT TAB 1: LIVE MAP PORTAL (Kept persistently mounted with CSS visibility) -->
+	<div class={activeTab === 'map' ? 'flex flex-col gap-4' : 'hidden'}>
+		<!-- SUB-HEADER BAR -->
+		<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+			<div>
+				<h2 class="text-xs font-black text-foreground uppercase tracking-wider">Active Campus GIS Tracking ({liveMonitorList.length})</h2>
+				<span class="text-xs text-muted-foreground font-semibold">{liveMonitorList.length} active visitor check-in sessions monitored across campus.</span>
 			</div>
 
-			<!-- MAP & AUDIT LOG GRID -->
-			<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-				<!-- MAP CANVAS CONTAINER -->
-				<div class="lg:col-span-3 relative h-[560px] rounded-2xl overflow-hidden border border-border shadow-xs bg-card">
-					<div bind:this={mapContainer} class="absolute inset-0 z-0"></div>
-				</div>
-
-				<!-- SIDE SECURITY AUDIT FEED CARD -->
-				<Card.Root class="rounded-2xl border-border bg-card shadow-xs flex flex-col">
-					<Card.Header class="pb-3 border-b border-border/50 bg-muted/20">
-						<div class="flex items-center justify-between gap-2">
-							<Card.Title class="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
-								<ActivityIcon class="size-4 text-primary pointer-events-none" />
-								<span>Security Audit Log</span>
-							</Card.Title>
-							<Badge class="bg-primary/15 text-primary font-mono text-[9px] px-2 py-0.5 rounded-lg border border-primary/25">Live</Badge>
-						</div>
-					</Card.Header>
-					<Card.Content class="p-4 flex-1 overflow-y-auto max-h-[480px]">
-						<div class="flex flex-col gap-2.5">
-							{#each securityAuditLog as log}
-								<div class="p-3 rounded-xl border border-border/60 bg-muted/20 text-xs font-semibold flex items-start gap-3 hover:bg-muted/40 transition-colors">
-									<div class="size-2 rounded-full mt-1.5 shrink-0 {log.type === 'entry' ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' : 'bg-rose-500 shadow-xs shadow-rose-500/50'}"></div>
-									<div class="flex-1 text-start">
-										<div class="flex items-center justify-between gap-2">
-											<span class="font-extrabold text-foreground">{log.title}</span>
-											<span class="text-[9px] font-mono text-muted-foreground shrink-0">{log.time}</span>
-										</div>
-										<div class="text-[10px] text-muted-foreground font-mono mt-0.5">{log.detail}</div>
-									</div>
-								</div>
-							{/each}
-						</div>
-					</Card.Content>
-				</Card.Root>
+			<div class="relative w-full sm:w-64">
+				<SearchIcon class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+				<Input 
+					type="text" 
+					placeholder="Search visitor, pass code..." 
+					bind:value={searchQuery} 
+					class="pl-9 h-9 text-xs rounded-xl"
+				/>
 			</div>
 		</div>
 
-	{:else}
-		<!-- TAB 2: VISITOR LOGBOOK DATA TABLE -->
-		<div class="flex flex-col gap-4">
-			<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-				<div>
-					<h2 class="text-xs font-black text-foreground uppercase tracking-wider">Visitor Logbook Directory ({filteredVisitorsList.length})</h2>
-					<span class="text-xs text-muted-foreground font-semibold">Complete registry of campus entry passes, check-in durations, and status logs.</span>
-				</div>
+		<!-- MAP & AUDIT LOG GRID -->
+		<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+			<!-- MAP CANVAS CONTAINER -->
+			<div class="lg:col-span-3 relative h-[560px] rounded-2xl overflow-hidden border border-border shadow-xs bg-card">
+				<div bind:this={mapContainer} class="absolute inset-0 z-0"></div>
 
-				<div class="relative w-full sm:w-64">
-					<SearchIcon class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-					<Input 
-						type="text" 
-						placeholder="Filter by name, pass code, office..." 
-						bind:value={searchQuery} 
-						class="pl-9 h-9 text-xs rounded-xl"
-					/>
+				<!-- FLOATING MAP CONTROLS (Zoom ButtonGroup & Layers Popover) -->
+				<div class="absolute top-4 right-4 z-50 flex items-center gap-2 pointer-events-auto">
+					<!-- ZOOM BUTTON GROUP (+ and -) -->
+					<div class="flex items-center rounded-2xl border border-border bg-card/90 backdrop-blur-xl shadow-xl overflow-hidden p-0.5">
+						<Button 
+							onclick={() => leafMap?.zoomIn()} 
+							variant="ghost" 
+							size="icon" 
+							class="size-8 rounded-xl text-foreground hover:bg-muted cursor-pointer"
+							title="Zoom In"
+						>
+							<PlusIcon class="size-4 pointer-events-none" />
+						</Button>
+						<Separator orientation="vertical" class="h-4 bg-border/60" />
+						<Button 
+							onclick={() => leafMap?.zoomOut()} 
+							variant="ghost" 
+							size="icon" 
+							class="size-8 rounded-xl text-foreground hover:bg-muted cursor-pointer"
+							title="Zoom Out"
+						>
+							<MinusIcon class="size-4 pointer-events-none" />
+						</Button>
+					</div>
+
+					<!-- MAP LAYERS & OVERLAY POPOVER -->
+					<Popover.Root bind:open={isLayerPopoverOpen}>
+						<Popover.Trigger>
+							<Button variant="default" size="icon" class="size-9 rounded-2xl border-border bg-card/90 backdrop-blur-xl shadow-xl text-foreground cursor-pointer" title="Map Layers">
+								<LayersIcon class="size-4 pointer-events-none" />
+							</Button>
+						</Popover.Trigger>
+						<Popover.Content align="end" sideOffset={8} class="w-64 p-3 rounded-2xl border-border bg-popover text-popover-foreground shadow-2xl z-[2600] flex flex-col gap-3">
+							<div class="flex items-center justify-between border-b border-border/60 pb-2">
+								<span class="text-xs font-black uppercase tracking-wider text-foreground">Map Layers</span>
+								<Badge variant="outline" class="text-[9px] font-mono">Leaflet</Badge>
+							</div>
+
+							<!-- Base Tile Map -->
+							<div class="flex flex-col gap-1.5">
+								<span class="text-[10px] font-extrabold uppercase text-muted-foreground tracking-wider">Base Tile Map</span>
+								<div class="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-muted/60 border border-border">
+									<button 
+										onclick={() => selectedBaseTile = 'osm'}
+										class="px-2 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer {selectedBaseTile === 'osm' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}"
+									>
+										Standard
+									</button>
+									<button 
+										onclick={() => selectedBaseTile = 'satellite'}
+										class="px-2 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer {selectedBaseTile === 'satellite' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}"
+									>
+										Satellite
+									</button>
+								</div>
+							</div>
+
+							<Separator class="bg-border/60" />
+
+							<!-- 3D Campus Overlay Switch -->
+							<div class="flex items-center justify-between">
+								<div>
+									<span class="text-xs font-extrabold text-foreground block">Campus Overlay</span>
+									<span class="text-[10px] text-muted-foreground font-semibold">3D structure layer</span>
+								</div>
+								<Switch bind:checked={showCampusOverlay} />
+							</div>
+						</Popover.Content>
+					</Popover.Root>
 				</div>
 			</div>
 
-			<Card.Root class="border-border shadow-xs rounded-2xl bg-card overflow-hidden">
-				<Card.Content class="p-0 overflow-x-auto">
-					<Table.Root>
-						<Table.Header class="bg-muted/30 text-[10px] uppercase font-black tracking-wider">
-							<Table.Row class="border-b border-border/60">
-								<Table.Head class="pl-5 py-3">Visitor Profile</Table.Head>
-								<Table.Head>Pass Code</Table.Head>
-								<Table.Head>Destination Office</Table.Head>
-								<Table.Head>Nearest Landmark / Node</Table.Head>
-								<Table.Head>Duration</Table.Head>
-								<Table.Head>Status</Table.Head>
-								<Table.Head class="pr-5 text-end">Actions</Table.Head>
-							</Table.Row>
-						</Table.Header>
-						<Table.Body class="text-xs font-semibold divide-y divide-border/40">
-							{#each filteredVisitorsList as v}
-								<Table.Row class="hover:bg-muted/30 transition-colors">
-									<Table.Cell class="pl-5 py-3">
-										<div class="flex items-center gap-3">
-											{#if v.photoUrl}
-												<img src={v.photoUrl} alt={v.fullName} class="size-9 rounded-full object-cover border border-border shrink-0" />
-											{:else}
-												<div class="size-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">{v.fullName[0]}</div>
-											{/if}
-											<div>
-												<div class="font-extrabold text-foreground">{v.fullName}</div>
-												<div class="text-[10px] text-muted-foreground">{v.phone || v.email || 'No contact'}</div>
-											</div>
-										</div>
-									</Table.Cell>
-									<Table.Cell class="font-mono text-xs font-black text-primary">{v.passCode}</Table.Cell>
-									<Table.Cell>{v.officeName || 'Campus'}</Table.Cell>
-									<Table.Cell>
-										<Badge variant="outline" class="text-[10px] font-mono gap-1 rounded-lg">
-											<MapPinIcon class="size-3 text-primary" />
-											<span>{findNearestBuildingName(v.lastLatitude || v.lat, v.lastLongitude || v.lng)}</span>
-										</Badge>
-									</Table.Cell>
-									<Table.Cell class="font-mono text-xs font-bold text-foreground">
-										{calculateVisitDuration(v.checkInTime, v.checkOutTime)}
-									</Table.Cell>
-									<Table.Cell>
-										{#if v.status === 'checked_in'}
-											<Badge class="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-extrabold rounded-lg">Active Pass</Badge>
-										{:else}
-											<Badge variant="secondary" class="text-[10px] font-bold rounded-lg">Checked Out</Badge>
-										{/if}
-									</Table.Cell>
-									<Table.Cell class="pr-5 text-end">
-										{#if v.status === 'checked_in'}
-											<Button onclick={() => handleCheckout(v.id)} variant="destructive" size="sm" class="h-8 text-xs font-bold rounded-xl cursor-pointer gap-1">
-												<LogOutIcon class="size-3.5 pointer-events-none" />
-												<span>Check Out</span>
-											</Button>
-										{:else}
-											<span class="text-[10px] text-muted-foreground font-mono">Archived</span>
-										{/if}
-									</Table.Cell>
-								</Table.Row>
-							{/each}
-						</Table.Body>
-					</Table.Root>
+			<!-- SIDE SECURITY AUDIT FEED CARD -->
+			<Card.Root class="rounded-2xl border-border bg-card shadow-xs flex flex-col">
+				<Card.Header class="pb-3 border-b border-border/50 bg-muted/20">
+					<div class="flex items-center justify-between gap-2">
+						<Card.Title class="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
+							<ActivityIcon class="size-4 text-primary pointer-events-none" />
+							<span>Security Audit Log</span>
+						</Card.Title>
+						<Badge class="bg-primary/15 text-primary font-mono text-[9px] px-2 py-0.5 rounded-lg border border-primary/25">Live</Badge>
+					</div>
+				</Card.Header>
+				<Card.Content class="p-4 flex-1 overflow-y-auto max-h-[480px]">
+					<div class="flex flex-col gap-2.5">
+						{#each securityAuditLog as log}
+							<div class="p-3 rounded-xl border border-border/60 bg-muted/20 text-xs font-semibold flex items-start gap-3 hover:bg-muted/40 transition-colors">
+								<div class="size-2 rounded-full mt-1.5 shrink-0 {log.type === 'entry' ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' : 'bg-rose-500 shadow-xs shadow-rose-500/50'}"></div>
+								<div class="flex-1 text-start">
+									<div class="flex items-center justify-between gap-2">
+										<span class="font-extrabold text-foreground">{log.title}</span>
+										<span class="text-[9px] font-mono text-muted-foreground shrink-0">{log.time}</span>
+									</div>
+									<div class="text-[10px] text-muted-foreground font-mono mt-0.5">{log.detail}</div>
+								</div>
+							</div>
+						{/each}
+					</div>
 				</Card.Content>
 			</Card.Root>
 		</div>
-	{/if}
-</div>
+	</div>
+
+	<!-- TAB 2: VISITOR LOGBOOK DATA TABLE (Kept persistently mounted with CSS visibility) -->
+	<div class={activeTab === 'visitors' ? 'flex flex-col gap-4' : 'hidden'}>
+		<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+			<div>
+				<h2 class="text-xs font-black text-foreground uppercase tracking-wider">Visitor Logbook Directory ({filteredVisitorsList.length})</h2>
+				<span class="text-xs text-muted-foreground font-semibold">Complete registry of campus entry passes, check-in durations, and status logs.</span>
+			</div>
+
+			<div class="relative w-full sm:w-64">
+				<SearchIcon class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+				<Input 
+					type="text" 
+					placeholder="Filter by name, pass code, office..." 
+					bind:value={searchQuery} 
+					class="pl-9 h-9 text-xs rounded-xl"
+				/>
+			</div>
+		</div>
+
+		<Card.Root class="border-border shadow-xs rounded-2xl bg-card overflow-hidden">
+			<Card.Content class="p-0 overflow-x-auto">
+				<Table.Root>
+					<Table.Header class="bg-muted/30 text-[10px] uppercase font-black tracking-wider">
+						<Table.Row class="border-b border-border/60">
+							<Table.Head class="pl-5 py-3">Visitor Profile</Table.Head>
+							<Table.Head>Pass Code</Table.Head>
+							<Table.Head>Destination Office</Table.Head>
+							<Table.Head>Nearest Landmark / Node</Table.Head>
+							<Table.Head>Duration</Table.Head>
+							<Table.Head>Status</Table.Head>
+							<Table.Head class="pr-5 text-end">Actions</Table.Head>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body class="text-xs font-semibold divide-y divide-border/40">
+						{#each filteredVisitorsList as v}
+							<Table.Row class="hover:bg-muted/30 transition-colors">
+								<Table.Cell class="pl-5 py-3">
+									<div class="flex items-center gap-3">
+										<img src={v.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(v.fullName || 'Visitor')}&background=0284c7&color=ffffff&bold=true&size=128`} alt={v.fullName} class="size-9 rounded-full object-cover border border-border shrink-0" />
+										<div>
+											<div class="font-extrabold text-foreground">{v.fullName}</div>
+											<div class="text-[10px] text-muted-foreground">{v.phone || v.email || 'No contact'}</div>
+										</div>
+									</div>
+								</Table.Cell>
+								<Table.Cell class="font-mono text-xs font-black text-primary">{v.passCode}</Table.Cell>
+								<Table.Cell>{v.officeName || 'Campus'}</Table.Cell>
+								<Table.Cell>
+									<Badge variant="outline" class="text-[10px] font-mono gap-1 rounded-lg">
+										<MapPinIcon class="size-3 text-primary" />
+										<span>{findNearestBuildingName(v.lastLatitude || v.lat, v.lastLongitude || v.lng)}</span>
+									</Badge>
+								</Table.Cell>
+								<Table.Cell class="font-mono text-xs font-bold text-foreground">
+									{calculateVisitDuration(v.checkInTime, v.checkOutTime)}
+								</Table.Cell>
+								<Table.Cell>
+									{#if v.status === 'checked_in'}
+										<Badge class="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-extrabold rounded-lg">Active Pass</Badge>
+									{:else}
+										<Badge variant="secondary" class="text-[10px] font-bold rounded-lg">Checked Out</Badge>
+									{/if}
+								</Table.Cell>
+								<Table.Cell class="pr-5 text-end">
+									{#if v.status === 'checked_in'}
+										<Button onclick={() => promptCheckout(v)} variant="destructive" size="sm" class="h-8 text-xs font-bold rounded-xl cursor-pointer gap-1">
+											<LogOutIcon class="size-3.5 pointer-events-none" />
+											<span>Check Out</span>
+										</Button>
+									{:else}
+										<span class="text-[10px] text-muted-foreground font-mono">Archived</span>
+									{/if}
+								</Table.Cell>
+							</Table.Row>
+						{/each}
+					</Table.Body>
+				</Table.Root>
+			</Card.Content>
+		</Card.Root>
+	</div>
 </div>
 
-<!-- ASSISTED MANUAL VISITOR REGISTRATION MODAL (For Visitors without smartphones) -->
+<!-- CHECK OUT CONFIRMATION ALERT DIALOG -->
+<AlertDialog.Root bind:open={isCheckoutDialogOpen}>
+	<AlertDialog.Portal>
+		<AlertDialog.Content class="z-[2600] max-w-sm border-border bg-card text-card-foreground shadow-2xl rounded-3xl">
+			<AlertDialog.Header>
+				<AlertDialog.Title class="text-base font-black text-foreground flex items-center gap-2">
+					<LogOutIcon class="size-5 text-destructive pointer-events-none" />
+					<span>Confirm Visitor Check Out</span>
+				</AlertDialog.Title>
+				<AlertDialog.Description class="text-xs text-muted-foreground leading-relaxed">
+					Are you sure you want to check out <strong class="text-foreground">{checkoutTargetVisitor?.fullName}</strong> ({checkoutTargetVisitor?.passCode})? This will mark their pass as completed and calculate their total visit duration.
+				</AlertDialog.Description>
+			</AlertDialog.Header>
+			<AlertDialog.Footer class="pt-2 border-t border-border/60">
+				<AlertDialog.Cancel onclick={() => isCheckoutDialogOpen = false} class="text-xs font-semibold rounded-xl h-9 cursor-pointer">
+					Cancel
+				</AlertDialog.Cancel>
+				<AlertDialog.Action onclick={confirmCheckout} disabled={isCheckingOut} class="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs font-extrabold rounded-xl h-9 cursor-pointer">
+					{isCheckingOut ? 'Checking Out...' : 'Check Out Visitor'}
+				</AlertDialog.Action>
+			</AlertDialog.Footer>
+		</AlertDialog.Content>
+	</AlertDialog.Portal>
+</AlertDialog.Root>
+
+<!-- ASSISTED MANUAL VISITOR REGISTRATION MODAL -->
 <Dialog.Root bind:open={isAssistModalOpen}>
 	<Dialog.Portal>
 		<Dialog.Content class="z-[2500] max-w-md border-border bg-card text-card-foreground shadow-2xl rounded-3xl max-h-[90vh] overflow-y-auto">
@@ -760,4 +950,3 @@
 		</Dialog.Content>
 	</Dialog.Portal>
 </Dialog.Root>
-

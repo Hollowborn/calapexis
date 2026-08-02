@@ -17,16 +17,30 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw redirect(303, "/dashboard?error=unauthorized_role");
 	}
 
+	let visitors: any[] = [];
 	let offices = MOCK_OFFICES;
 	let buildings = MOCK_BUILDINGS;
 
 	if (isSupabaseConfigured && supabase) {
 		try {
 			const dbClient = getDbClient();
-			const [officesRes, buildingsRes] = await Promise.all([
+			const startOfToday = new Date();
+			startOfToday.setHours(0, 0, 0, 0);
+			const todayStartIso = startOfToday.toISOString();
+
+			const [visitorsRes, officesRes, buildingsRes] = await Promise.all([
+				dbClient
+					.from("visitors")
+					.select("*")
+					.or(`status.eq.checked_in,check_in_time.gte.${todayStartIso}`)
+					.order("check_in_time", { ascending: false }),
 				dbClient.from("offices").select("*").eq("is_active", true),
 				dbClient.from("buildings").select("*")
 			]);
+
+			if (!visitorsRes.error && visitorsRes.data) {
+				visitors = visitorsRes.data.map(mapDbVisitorToVisitor);
+			}
 
 			if (!officesRes.error && officesRes.data && officesRes.data.length > 0) {
 				offices = officesRes.data.map((o: any) => ({
@@ -63,6 +77,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	return {
+		visitors,
 		offices,
 		buildings
 	};
@@ -111,6 +126,10 @@ export const actions: Actions = {
 							if (publicUrlData?.publicUrl) storedPhotoUrl = publicUrlData.publicUrl;
 						}
 					} catch (e) {}
+				}
+
+				if (!storedPhotoUrl) {
+					storedPhotoUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=0284c7&color=ffffff&bold=true&size=256`;
 				}
 
 				// Deduplication by first_name and last_name
