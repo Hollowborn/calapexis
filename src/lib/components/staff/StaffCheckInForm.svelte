@@ -1,228 +1,290 @@
 <script lang="ts">
-	import type { Building, Room, Visitor } from '$lib/types';
-	import { addLocalVisitor } from '$lib/supabase';
-	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
-	import { Badge } from '$lib/components/ui/badge';
-	import * as Card from '$lib/components/ui/card';
-	import * as Field from '$lib/components/ui/field';
-	import * as Select from '$lib/components/ui/select';
+	import { enhance } from '$app/forms';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Badge } from '$lib/components/ui/badge/index.js';
+	import * as Card from '$lib/components/ui/card/index.js';
+	import * as Field from '$lib/components/ui/field/index.js';
+	import * as Popover from '$lib/components/ui/popover/index.js';
+	import * as Command from '$lib/components/ui/command/index.js';
 	import { toast } from 'svelte-sonner';
+	
+	// Lucide Icons
 	import PrinterIcon from '@lucide/svelte/icons/printer';
 	import UserCheckIcon from '@lucide/svelte/icons/user-check';
+	import CameraIcon from '@lucide/svelte/icons/camera';
+	import UploadIcon from '@lucide/svelte/icons/upload';
+	import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw';
+	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
+	import CheckIcon from '@lucide/svelte/icons/check';
+	import Building2Icon from '@lucide/svelte/icons/building-2';
+	import LockIcon from '@lucide/svelte/icons/lock';
 
 	interface Props {
-		buildings: Building[];
-		rooms: Room[];
-		activeRoomId?: string;
-		onSuccess: (visitor: Visitor) => void;
+		offices?: any[];
+		role?: string;
+		assignedOfficeId?: string | null;
+		onSuccess?: (visitor: any) => void;
 	}
 
-	let { buildings = [], rooms = [], activeRoomId = '', onSuccess }: Props = $props();
+	let { offices = [], role = 'staff', assignedOfficeId = null, onSuccess }: Props = $props();
 
-	let fullName = $state('');
+	let firstName = $state('');
+	let middleName = $state('');
+	let lastName = $state('');
 	let email = $state('');
 	let phone = $state('');
 	let purpose = $state('');
-	let selectedBuildingId = $state('');
-	let selectedRoomId = $state('');
-	let hostPerson = $state('');
+	let selectedOfficeId = $state(assignedOfficeId || (offices.length > 0 ? offices[0].id : ''));
+	let photoUrl = $state('');
+
+	let isOfficeComboOpen = $state(false);
+	let isCameraActive = $state(false);
 	let isSubmitting = $state(false);
-	let generatedPass: Visitor | null = $state(null);
+	let videoElement = $state<HTMLVideoElement | null>(null);
+	let canvasElement = $state<HTMLCanvasElement | null>(null);
+	let generatedPass = $state<any | null>(null);
 
 	$effect(() => {
-		if (activeRoomId) {
-			selectedRoomId = activeRoomId;
-			const parentRoom = rooms.find((r) => r.id === activeRoomId);
-			if (parentRoom) {
-				selectedBuildingId = parentRoom.buildingId;
-			}
+		if (assignedOfficeId) {
+			selectedOfficeId = assignedOfficeId;
+		} else if (!selectedOfficeId && offices.length > 0) {
+			selectedOfficeId = offices[0].id;
 		}
 	});
 
-	let availableRooms = $derived(
-		selectedBuildingId ? rooms.filter((r) => r.buildingId === selectedBuildingId) : []
-	);
+	let selectedOffice = $derived(offices.find(o => o.id === selectedOfficeId));
 
-	let activeBuilding = $derived(buildings.find((b) => b.id === selectedBuildingId));
-	let selectedRoomName = $derived(
-		selectedRoomId ? rooms.find((r) => r.id === selectedRoomId)?.roomName : ''
-	);
-
-	async function handleSubmit(e: SubmitEvent) {
-		e.preventDefault();
-		if (!fullName || !selectedBuildingId || !purpose) return;
-
-		isSubmitting = true;
-
-		const targetBuilding = buildings.find((b) => b.id === selectedBuildingId);
-		const targetRoom = rooms.find((r) => r.id === selectedRoomId);
-
-		// Determine first, middle, last name from fullName
-		const parts = fullName.trim().split(/\s+/);
-		const firstName = parts[0] || '';
-		const lastName = parts.length > 1 ? parts[parts.length - 1] : '';
-		const middleName = parts.length > 2 ? parts.slice(1, parts.length - 1).join(' ') : '';
-
+	// Camera Handlers
+	async function startCamera() {
 		try {
-			const visitor = await addLocalVisitor({
-				fullName,
-				firstName,
-				middleName,
-				lastName,
-				email: email || 'walkin@campus.visitor',
-				phone: phone || 'No Mobile Phone',
-				purpose,
-				buildingId: selectedBuildingId,
-				buildingName: targetBuilding?.name,
-				roomId: selectedRoomId || undefined,
-				roomNumber: targetRoom?.roomNumber || undefined,
-				hostPerson: hostPerson || targetBuilding?.headPerson,
-				photoUrl: undefined, // No photo for manual staff desk assisted walk-ins
-				verificationStatus: 'approved' // Staff entries are automatically verified
-			});
-
-			generatedPass = visitor;
-			isSubmitting = false;
-			toast.success('Assisted visitor pass issued successfully!', {
-				description: `Pass Code: ${visitor.passCode}`
-			});
-			onSuccess(visitor);
-		} catch (err: any) {
-			isSubmitting = false;
-			toast.error('Check-In Failed', {
-				description: err.message || 'Unable to issue visitor pass.'
-			});
+			isCameraActive = true;
+			const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+			if (videoElement) videoElement.srcObject = stream;
+		} catch (err) {
+			toast.error("Unable to access desk camera.");
+			isCameraActive = false;
 		}
+	}
+
+	function stopCamera() {
+		if (videoElement && videoElement.srcObject) {
+			const stream = videoElement.srcObject as MediaStream;
+			stream.getTracks().forEach(track => track.stop());
+			videoElement.srcObject = null;
+		}
+		isCameraActive = false;
+	}
+
+	function captureSelfie() {
+		if (!videoElement || !canvasElement) return;
+		const ctx = canvasElement.getContext('2d');
+		if (ctx) {
+			canvasElement.width = 250;
+			canvasElement.height = 250;
+			ctx.drawImage(videoElement, 0, 0, 250, 250);
+			photoUrl = canvasElement.toDataURL('image/jpeg', 0.6);
+			stopCamera();
+			toast.success("Visitor photo captured!");
+		}
+	}
+
+	function handleFileUpload(e: Event) {
+		const target = e.target as HTMLInputElement;
+		if (target.files && target.files[0]) {
+			const reader = new FileReader();
+			reader.onload = (event) => {
+				const img = new Image();
+				img.onload = () => {
+					const tempCanvas = document.createElement('canvas');
+					tempCanvas.width = 250; tempCanvas.height = 250;
+					const ctx = tempCanvas.getContext('2d');
+					if (ctx) {
+						ctx.drawImage(img, 0, 0, 250, 250);
+						photoUrl = tempCanvas.toDataURL('image/jpeg', 0.6);
+						toast.success("Visitor photo uploaded!");
+					}
+				};
+				img.src = event.target?.result as string;
+			};
+			reader.readAsDataURL(target.files[0]);
+		}
+	}
+
+	function handleEnhance() {
+		isSubmitting = true;
+		return async ({ result }: { result: any }) => {
+			isSubmitting = false;
+			if (result.type === 'success') {
+				const visitor = result.data?.visitor;
+				generatedPass = visitor || {
+					fullName: `${firstName} ${lastName}`,
+					passCode: 'VP-' + Math.floor(1000 + Math.random() * 9000),
+					officeName: selectedOffice?.name || 'Campus Desk',
+					purpose,
+					checkInTime: new Date().toISOString()
+				};
+				toast.success(result.data?.message || "Visitor pass issued successfully!");
+				if (onSuccess) onSuccess(generatedPass);
+			} else if (result.type === 'failure') {
+				toast.error(result.data?.message || "Assisted check-in failed.");
+			}
+		};
 	}
 
 	function handleReset() {
 		generatedPass = null;
-		fullName = '';
+		firstName = '';
+		middleName = '';
+		lastName = '';
 		email = '';
 		phone = '';
 		purpose = '';
-		hostPerson = '';
-		selectedRoomId = '';
+		photoUrl = '';
 	}
 </script>
 
 {#if !generatedPass}
-	<Card.Root class="max-w-xl mx-auto shadow-md border-border">
+	<Card.Root class="max-w-xl mx-auto shadow-md border-border rounded-2xl">
 		<Card.Header class="pb-4">
 			<Card.Title class="text-xl font-bold text-foreground">Assisted Visitor Check-In</Card.Title>
 			<Card.Description class="text-xs text-muted-foreground font-semibold">
-				Manually register visitors who do not have a mobile phone or mobile data.
+				Register and check in visitors who do not have a mobile device directly from the reception desk.
 			</Card.Description>
 		</Card.Header>
 		<Card.Content>
-			<form onsubmit={handleSubmit} class="flex flex-col gap-4 font-semibold text-xs">
-				<Field.FieldGroup class="flex flex-col gap-4">
+			<form action="?/registerVisitorManual" method="POST" use:enhance={handleEnhance} class="flex flex-col gap-4 font-semibold text-xs">
+				<input type="hidden" name="firstName" value={firstName} />
+				<input type="hidden" name="middleName" value={middleName} />
+				<input type="hidden" name="lastName" value={lastName} />
+				<input type="hidden" name="email" value={email} />
+				<input type="hidden" name="phone" value={phone} />
+				<input type="hidden" name="officeId" value={selectedOfficeId} />
+				<input type="hidden" name="purpose" value={purpose} />
+				<input type="hidden" name="photoUrl" value={photoUrl} />
+
+				<!-- Name Details -->
+				<div class="grid grid-cols-3 gap-3">
 					<Field.Field>
-						<Field.FieldLabel for="staff-fullName">Visitor Full Name *</Field.FieldLabel>
-						<Input
-							id="staff-fullName"
-							type="text"
-							placeholder="e.g. Maria Clara"
-							bind:value={fullName}
-							required
-							class="rounded-xl h-10 text-xs"
-						/>
+						<Field.FieldLabel for="staff-fn">First Name *</Field.FieldLabel>
+						<Input id="staff-fn" bind:value={firstName} placeholder="Juan" required class="rounded-xl h-9 text-xs" />
 					</Field.Field>
-
-					<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-						<Field.Field>
-							<Field.FieldLabel for="staff-phone">Contact Phone (Optional)</Field.FieldLabel>
-							<Input
-								id="staff-phone"
-								type="tel"
-								placeholder="No phone or +63 900 000 0000"
-								bind:value={phone}
-								class="rounded-xl h-10 text-xs"
-							/>
-						</Field.Field>
-						<Field.Field>
-							<Field.FieldLabel for="staff-email">Email Address (Optional)</Field.FieldLabel>
-							<Input
-								id="staff-email"
-								type="email"
-								placeholder="Optional email"
-								bind:value={email}
-								class="rounded-xl h-10 text-xs"
-							/>
-						</Field.Field>
-					</div>
-
 					<Field.Field>
-						<Field.FieldLabel for="staff-purpose">Purpose of Visit *</Field.FieldLabel>
-						<Input
-							id="staff-purpose"
-							type="text"
-							placeholder="e.g. Inquiry, Document Submission, Consultation"
-							bind:value={purpose}
-							required
-							class="rounded-xl h-10 text-xs"
-						/>
+						<Field.FieldLabel for="staff-mn">Middle</Field.FieldLabel>
+						<Input id="staff-mn" bind:value={middleName} placeholder="D." class="rounded-xl h-9 text-xs" />
 					</Field.Field>
+					<Field.Field>
+						<Field.FieldLabel for="staff-ln">Last Name *</Field.FieldLabel>
+						<Input id="staff-ln" bind:value={lastName} placeholder="Cruz" required class="rounded-xl h-9 text-xs" />
+					</Field.Field>
+				</div>
 
-					<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-						<Field.Field>
-							<Field.FieldLabel for="staff-building">Destination Building *</Field.FieldLabel>
-							<Select.Root type="single" bind:value={selectedBuildingId}>
-								<Select.Trigger id="staff-building" class="w-full h-10 rounded-xl cursor-pointer">
-									<span class="text-xs font-semibold">
-										{activeBuilding?.name || "Select a Building..."}
+				<!-- Contact Details -->
+				<div class="grid grid-cols-2 gap-3">
+					<Field.Field>
+						<Field.FieldLabel for="staff-em">Email Address</Field.FieldLabel>
+						<Input id="staff-em" type="email" bind:value={email} placeholder="juan@example.com" class="rounded-xl h-9 text-xs" />
+					</Field.Field>
+					<Field.Field>
+						<Field.FieldLabel for="staff-ph">Phone Number</Field.FieldLabel>
+						<Input id="staff-ph" type="tel" bind:value={phone} placeholder="+63 9..." class="rounded-xl h-9 text-xs" />
+					</Field.Field>
+				</div>
+
+				<!-- Designated Office (Role Validation: Selectable if Admin, Locked if Staff) -->
+				<Field.Field>
+					<Field.FieldLabel for="staff-office">Designated Office *</Field.FieldLabel>
+					{#if role === 'admin'}
+						<Popover.Root bind:open={isOfficeComboOpen}>
+							<Popover.Trigger>
+								<Button variant="outline" type="button" role="combobox" class="w-full justify-between rounded-xl h-10 text-xs font-bold border-border bg-background cursor-pointer">
+									<span class="truncate">
+										{selectedOffice ? `${selectedOffice.name} (${selectedOffice.code})` : "-- Select Office --"}
 									</span>
-								</Select.Trigger>
-								<Select.Content class="rounded-xl border border-border bg-card">
-									<Select.Group>
-										{#each buildings as building}
-											<Select.Item value={building.id} label={building.name}>
-												{building.name} ({building.code})
-											</Select.Item>
-										{/each}
-									</Select.Group>
-								</Select.Content>
-							</Select.Root>
-						</Field.Field>
-
-						{#if availableRooms.length > 0}
-							<Field.Field>
-								<Field.FieldLabel for="staff-room">Specific Room</Field.FieldLabel>
-								<Select.Root type="single" bind:value={selectedRoomId}>
-									<Select.Trigger id="staff-room" class="w-full h-10 rounded-xl cursor-pointer">
-										<span class="text-xs font-semibold">
-											{selectedRoomName || "Any / Reception Counter"}
-										</span>
-									</Select.Trigger>
-									<Select.Content class="rounded-xl border border-border bg-card">
-										<Select.Group>
-											<Select.Item value="" label="Any / Reception Counter">
-												Any / Reception Counter
-											</Select.Item>
-											{#each availableRooms as room}
-												<Select.Item value={room.id} label={`${room.roomNumber} - ${room.roomName}`}>
-													{room.roomNumber} - {room.roomName}
-												</Select.Item>
+									<ChevronsUpDownIcon class="size-4 opacity-50 ml-2 shrink-0 pointer-events-none" />
+								</Button>
+							</Popover.Trigger>
+							<Popover.Content align="start" sideOffset={6} class="w-[var(--bits-popover-anchor-width)] max-w-xs p-0 max-h-60 overflow-y-auto z-[2600] border-border bg-popover text-popover-foreground rounded-2xl shadow-2xl">
+								<Command.Root class="w-full">
+									<Command.Input placeholder="Search office..." class="h-10 text-xs px-3 border-b border-border/60" />
+									<Command.List class="p-1 max-h-48 overflow-y-auto">
+										<Command.Empty class="p-3 text-xs text-muted-foreground text-center">No office found.</Command.Empty>
+										<Command.Group>
+											{#each offices as office}
+												<Command.Item
+													value={office.name}
+													onSelect={() => {
+														selectedOfficeId = office.id;
+														isOfficeComboOpen = false;
+													}}
+													class="text-xs font-semibold cursor-pointer rounded-xl px-3 py-2 flex items-center justify-between hover:bg-muted/60"
+												>
+													<span>{office.name} ({office.code})</span>
+													{#if selectedOfficeId === office.id}
+														<CheckIcon class="size-4 text-primary shrink-0 ml-2" />
+													{/if}
+												</Command.Item>
 											{/each}
-										</Select.Group>
-									</Select.Content>
-								</Select.Root>
-							</Field.Field>
-						{/if}
-					</div>
+										</Command.Group>
+									</Command.List>
+								</Command.Root>
+							</Popover.Content>
+						</Popover.Root>
+					{:else}
+						<!-- Locked Badge Display for Staff Role -->
+						<div class="flex items-center justify-between p-3 rounded-xl border border-border bg-muted/30">
+							<div class="flex items-center gap-2">
+								<Building2Icon class="size-4 text-primary shrink-0" />
+								<span class="font-extrabold text-foreground">{selectedOffice ? selectedOffice.name : 'Assigned Reception Desk'}</span>
+								{#if selectedOffice?.code}
+									<Badge variant="outline" class="font-mono text-[10px]">{selectedOffice.code}</Badge>
+								{/if}
+							</div>
+							<Badge variant="secondary" class="text-[9px] gap-1 font-bold">
+								<LockIcon class="size-3 text-muted-foreground" />
+								<span>Locked to Assigned Desk</span>
+							</Badge>
+						</div>
+					{/if}
+				</Field.Field>
 
-					<Field.Field>
-						<Field.FieldLabel for="staff-host">Staff / Host Person to Visit</Field.FieldLabel>
-						<Input
-							id="staff-host"
-							type="text"
-							placeholder={activeBuilding?.headPerson || 'Office Staff'}
-							bind:value={hostPerson}
-							class="rounded-xl h-10 text-xs"
-						/>
-					</Field.Field>
-				</Field.FieldGroup>
+				<!-- Purpose of Visit -->
+				<Field.Field>
+					<Field.FieldLabel for="staff-purp">Purpose of Visit *</Field.FieldLabel>
+					<Input id="staff-purp" bind:value={purpose} placeholder="e.g. Document Inquiry / Consultation" required class="rounded-xl h-9 text-xs" />
+				</Field.Field>
+
+				<!-- Visitor Photo Capture / Upload / Auto-Avatar -->
+				<div class="flex flex-col gap-2 items-center p-3 rounded-2xl border border-border bg-muted/30 text-center">
+					{#if photoUrl}
+						<img src={photoUrl} alt="Visitor Snapshot" class="size-24 rounded-full object-cover border-2 border-primary/30 shadow-md" />
+						<Button type="button" onclick={startCamera} variant="outline" size="sm" class="text-xs font-bold rounded-xl h-7 gap-1 mt-1">
+							<RefreshCwIcon class="size-3 pointer-events-none" />
+							<span>Retake Photo</span>
+						</Button>
+					{:else if isCameraActive}
+						<div class="relative size-36 rounded-2xl overflow-hidden bg-black border border-primary/40">
+							<video bind:this={videoElement} autoplay playsinline class="size-full object-cover"></video>
+						</div>
+						<canvas bind:this={canvasElement} class="hidden"></canvas>
+						<Button type="button" onclick={captureSelfie} class="bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-8 gap-1 cursor-pointer mt-1">
+							<CameraIcon class="size-3.5 pointer-events-none" />
+							<span>Capture Photo</span>
+						</Button>
+					{:else}
+						<div class="flex gap-2 w-full pt-1">
+							<Button type="button" onclick={startCamera} variant="outline" class="flex-1 text-xs font-bold rounded-xl h-9 gap-1 cursor-pointer">
+								<CameraIcon class="size-3.5 pointer-events-none" />
+								<span>Desk Camera</span>
+							</Button>
+							<label class="flex-1 flex items-center justify-center gap-1 px-3 h-9 rounded-xl border border-border bg-card hover:bg-muted/40 font-bold text-xs cursor-pointer">
+								<UploadIcon class="size-3.5 text-primary pointer-events-none" />
+								<span>Upload File</span>
+								<input type="file" accept="image/*" onchange={handleFileUpload} class="hidden" />
+							</label>
+						</div>
+					{/if}
+				</div>
 
 				<div class="pt-2">
 					<Button
@@ -231,7 +293,7 @@
 						class="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs py-2.5 rounded-xl shadow-md flex items-center justify-center gap-2 h-10 cursor-pointer"
 					>
 						<UserCheckIcon class="size-4 pointer-events-none" />
-						<span>{isSubmitting ? 'Issuing Pass...' : 'Issue Visitor Pass & Register'}</span>
+						<span>{isSubmitting ? 'Issuing Pass...' : 'Issue Visitor Pass & Check In'}</span>
 					</Button>
 				</div>
 			</form>
@@ -239,7 +301,7 @@
 	</Card.Root>
 {:else}
 	<!-- Printable Physical Visitor Pass Slip View -->
-	<Card.Root class="max-w-md mx-auto border-2 border-primary/60 shadow-2xl bg-card text-center">
+	<Card.Root class="max-w-md mx-auto border-2 border-primary/60 shadow-2xl bg-card text-center rounded-3xl">
 		<Card.Header class="pb-3 border-b border-border">
 			<div class="flex items-center justify-between">
 				<Badge variant="outline" class="border-primary text-primary font-bold text-[10px] rounded-full">STAFF ASSISTED ENTRY</Badge>
@@ -258,21 +320,17 @@
 
 			<div class="grid grid-cols-2 gap-2 text-left text-xs bg-card p-3 rounded-lg border border-border">
 				<div>
-					<span class="text-muted-foreground text-[10px]">Building Destination:</span>
-					<div class="font-bold text-foreground">{generatedPass.buildingName}</div>
+					<span class="text-muted-foreground text-[10px]">Destination Office:</span>
+					<div class="font-bold text-foreground">{generatedPass.officeName || selectedOffice?.name || 'General Desk'}</div>
 				</div>
 				<div>
-					<span class="text-muted-foreground text-[10px]">Room / Host:</span>
-					<div class="font-bold text-foreground">{generatedPass.roomNumber || generatedPass.hostPerson || 'General'}</div>
-				</div>
-				<div class="col-span-2">
 					<span class="text-muted-foreground text-[10px]">Purpose:</span>
-					<div class="font-medium text-foreground">{generatedPass.purpose}</div>
+					<div class="font-bold text-foreground">{generatedPass.purpose}</div>
 				</div>
 			</div>
 		</Card.Content>
 
-		<Card.Footer class="flex flex-col gap-2 pt-0">
+		<Card.Footer class="flex flex-col gap-2 pt-0 pb-6 px-6">
 			<Button onclick={() => window.print()} variant="outline" class="w-full text-xs font-semibold flex items-center justify-center gap-2 rounded-xl h-10 cursor-pointer border-border">
 				<PrinterIcon class="size-4 pointer-events-none" />
 				<span>Print Physical Visitor Slip</span>
