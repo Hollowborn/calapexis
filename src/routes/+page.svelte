@@ -99,7 +99,7 @@
 				<span class='flex flex-row items-center'>Visitor Check-In <ArrowUpRightIcon class='ml-1'/></span>
 			</Button>
 
-			<Button href="/map" variant="outline" class="rounded-full text-xs font-extrabold h-11 px-6 gap-2 border-border/80 bg-card hover:bg-muted/40 transition-all hover:scale-[1.02]">
+			<Button href="/v?skipSetup=true" variant="outline" class="rounded-full text-xs font-extrabold h-11 px-6 gap-2 border-border/80 bg-card hover:bg-muted/40 transition-all hover:scale-[1.02]">
 				<CompassIcon class="size-4 text-blue-500 pointer-events-none" />
 				<span class='flex flex-row items-center'>Campus Map <ArrowUpRightIcon class='ml-1'/></span>
 			</Button>
@@ -138,7 +138,7 @@
 				<Command.Shortcut class="text-[9px] font-bold">Check-In</Command.Shortcut>
 			</Command.LinkItem>
 			
-			<Command.LinkItem href="/map" class="rounded-xl flex items-center gap-2 px-3 py-2 cursor-pointer">
+			<Command.LinkItem href="/v?skipSetup=true" class="rounded-xl flex items-center gap-2 px-3 py-2 cursor-pointer">
 				<CompassIcon class="size-4 text-blue-500 pointer-events-none" />
 				<span class="font-semibold text-xs text-foreground">Campus Map</span>
 				<Command.Shortcut class="text-[9px] font-bold">Map</Command.Shortcut>
