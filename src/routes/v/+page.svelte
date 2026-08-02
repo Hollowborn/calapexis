@@ -753,14 +753,30 @@
 		}
 
 		if (targetBuilding && targetBuilding.xCoord && targetBuilding.yCoord) {
+			const lat = targetBuilding.xCoord;
+			const lng = targetBuilding.yCoord;
+
 			updateVisitorMarkerOnMap(
-				targetBuilding.xCoord,
-				targetBuilding.yCoord,
+				lat,
+				lng,
 				`${passOrPrePass.fullName || 'Checked-In Visitor'} @ ${targetOffice?.name || targetBuilding.name}`
 			);
 
 			if (leafMap) {
-				leafMap.flyTo([targetBuilding.xCoord, targetBuilding.yCoord], 20, { duration: 1.2 });
+				leafMap.flyTo([lat, lng], 20, { duration: 1.2 });
+			}
+
+			// Sync last_latitude and last_longitude in public.visitor_logs database table
+			const targetLogId = passOrPrePass.id || passOrPrePass.logId;
+			if (targetLogId) {
+				const bodyData = new FormData();
+				bodyData.append("logId", targetLogId);
+				bodyData.append("lat", lat.toString());
+				bodyData.append("lng", lng.toString());
+				fetch("?/updateLocation", {
+					method: "POST",
+					body: bodyData
+				}).catch(err => console.warn("Database location sync error:", err));
 			}
 		}
 	}

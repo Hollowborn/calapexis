@@ -225,8 +225,24 @@ export const actions: Actions = {
 					registeredVisitorId = regData.id;
 
 					const validOfficeUuid = await resolveValidOfficeUuid(dbClient, officeId);
+					let officeLat = lat;
+					let officeLng = lng;
 
-					// 3. Create initial Session Log in visitor_logs with initial GPS location
+					if (validOfficeUuid) {
+						const { data: officeWithBuilding } = await dbClient
+							.from("offices")
+							.select("id, building_id, buildings(x_coord, y_coord, lat, lng)")
+							.eq("id", validOfficeUuid)
+							.maybeSingle();
+
+						if (officeWithBuilding?.buildings) {
+							const b = officeWithBuilding.buildings;
+							officeLat = b.x_coord || b.lat || lat;
+							officeLng = b.y_coord || b.lng || lng;
+						}
+					}
+
+					// 3. Create initial Session Log in visitor_logs with office building coordinates
 					const { data: initialLog, error: initialLogErr } = await dbClient
 						.from("visitor_logs")
 						.insert([{
@@ -237,8 +253,8 @@ export const actions: Actions = {
 							status: "checked_in",
 							verification_status: "approved",
 							pass_code: passCode,
-							last_latitude: lat,
-							last_longitude: lng,
+							last_latitude: officeLat,
+							last_longitude: officeLng,
 							last_located_at: new Date().toISOString()
 						}])
 						.select()
@@ -305,14 +321,90 @@ export const actions: Actions = {
 		const photoUrl = (formData.get("photoUrl") as string) || "";
 		const latStr = (formData.get("lat") as string) || "";
 		const lngStr = (formData.get("lng") as string) || "";
-		const lat = latStr ? parseFloat(latStr) : null;
-		const lng = lngStr ? parseFloat(lngStr) : null;
+		let lat = latStr ? parseFloat(latStr) : null;
+		let lng = lngStr ? parseFloat(lngStr) : null;
 
 		if (!registeredVisitorId && !fullName) {
 			return fail(400, { message: "Visitor profile details missing." });
 		}
 
-		const newVisitor: Visitor = {
+		let finalPassCode = "VP-" + Math.floor(1000 + Math.random() * 9000);
+
+		if (isSupabaseConfigured && supabase) {
+			try {
+				const dbClient = getDbClient();
+				const validOfficeUuid = await resolveValidOfficeUuid(dbClient, officeId || officeCode);
+
+				if (validOfficeUuid) {
+					const { data: officeWithBuilding } = await dbClient
+						.from("offices")
+						.select("id, building_id, buildings(x_coord, y_coord, lat, lng)")
+						.eq("id", validOfficeUuid)
+						.maybeSingle();
+
+					if (officeWithBuilding?.buildings) {
+						const b = officeWithBuilding.buildings;
+						lat = b.x_coord || b.lat || lat || 9.894144489361919;
+						lng = b.y_coord || b.lng || lng || 123.88273758838274;
+					}
+				}
+
+				const newVisitorLog = {
+					visitor_id: registeredVisitorId || null,
+					office_id: validOfficeUuid,
+					purpose: purpose || "Campus Visit",
+					check_in_time: new Date().toISOString(),
+					status: "checked_in",
+					verification_status: "approved",
+					pass_code: finalPassCode,
+					last_latitude: lat || 9.894144489361919,
+					last_longitude: lng || 123.88273758838274,
+					last_located_at: new Date().toISOString()
+				};
+
+				const { data: logData, error: logErr } = await dbClient
+					.from("visitor_logs")
+					.insert([newVisitorLog])
+					.select()
+					.single();
+
+				if (logErr) {
+					console.error("visitor_logs checkIn insert error:", logErr.message);
+				} else if (logData) {
+					const mappedVisitor = mapDbVisitorToVisitor({ ...logData });
+					return {
+						success: true,
+						activeOfficialPass: {
+							id: logData.id,
+							visitorId: registeredVisitorId,
+							fullName,
+							firstName,
+							middleName,
+							lastName,
+							email,
+							phone,
+							purpose,
+							officeId: validOfficeUuid || officeId,
+							officeName: mappedVisitor.officeName || "Designated Office",
+							buildingId: mappedVisitor.buildingId || "off-1",
+							photoUrl,
+							checkInTime: logData.check_in_time,
+							checkOutTime: null,
+							status: "checked_in",
+							verificationStatus: "approved",
+							passCode: logData.pass_code,
+							lastLatitude: lat || undefined,
+							lastLongitude: lng || undefined,
+							lastLocatedAt: logData.last_located_at
+						}
+					};
+				}
+			} catch (e) {
+				console.warn("Supabase visitor_logs insert error:", e);
+			}
+		}
+
+		const fallbackVisitor: Visitor = {
 			id: "vis-" + Math.floor(100000 + Math.random() * 900000),
 			visitorId: registeredVisitorId,
 			fullName,
@@ -330,53 +422,15 @@ export const actions: Actions = {
 			checkOutTime: null,
 			status: "checked_in",
 			verificationStatus: "approved",
-			passCode: "VP-" + Math.floor(1000 + Math.random() * 9000),
+			passCode: finalPassCode,
 			lastLatitude: lat || undefined,
 			lastLongitude: lng || undefined,
 			lastLocatedAt: new Date().toISOString()
 		};
 
-		if (isSupabaseConfigured && supabase) {
-			try {
-				const dbClient = getDbClient();
-				const validOfficeUuid = await resolveValidOfficeUuid(dbClient, officeId || officeCode);
-
-				const { data: logData, error: logErr } = await dbClient
-					.from("visitor_logs")
-					.insert([{
-						visitor_id: registeredVisitorId || null,
-						office_id: validOfficeUuid,
-						purpose: purpose || "Campus Visit",
-						check_in_time: newVisitor.checkInTime,
-						status: "checked_in",
-						verification_status: "approved",
-						pass_code: newVisitor.passCode,
-						last_latitude: lat,
-						last_longitude: lng,
-						last_located_at: new Date().toISOString()
-					}])
-					.select()
-					.single();
-
-				if (logErr) {
-					console.error("visitor_logs checkIn insert error:", logErr.message);
-				} else if (logData) {
-					return {
-						success: true,
-						activeOfficialPass: {
-							...newVisitor,
-							...mapDbVisitorToVisitor({ ...logData })
-						}
-					};
-				}
-			} catch (e) {
-				console.warn("Supabase visitor_logs insert error:", e);
-			}
-		}
-
 		return {
 			success: true,
-			activeOfficialPass: newVisitor
+			activeOfficialPass: fallbackVisitor
 		};
 	},
 
