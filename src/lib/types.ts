@@ -75,6 +75,9 @@ export interface VisitorLog {
 	verificationStatus: VerificationStatus;
 	rejectionReason?: string;
 	passCode: string;
+	lastLatitude?: number;
+	lastLongitude?: number;
+	lastLocatedAt?: string;
 }
 
 export interface Visitor {
@@ -104,6 +107,9 @@ export interface Visitor {
 	lat?: number;
 	lng?: number;
 	visitorId?: string;
+	lastLatitude?: number;
+	lastLongitude?: number;
+	lastLocatedAt?: string;
 }
 
 export interface MapNode {

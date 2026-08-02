@@ -404,6 +404,11 @@ export function mapDbVisitorToVisitor(db: any): Visitor {
 		rejectionReason: db.rejection_reason || "",
 		passCode: db.pass_code,
 		visitorId: db.visitor_id || "",
+		lastLatitude: db.last_latitude !== undefined && db.last_latitude !== null ? Number(db.last_latitude) : undefined,
+		lastLongitude: db.last_longitude !== undefined && db.last_longitude !== null ? Number(db.last_longitude) : undefined,
+		lastLocatedAt: db.last_located_at || undefined,
+		lat: db.last_latitude !== undefined && db.last_latitude !== null ? Number(db.last_latitude) : db.lat,
+		lng: db.last_longitude !== undefined && db.last_longitude !== null ? Number(db.last_longitude) : db.lng,
 	};
 }
 

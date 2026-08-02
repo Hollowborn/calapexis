@@ -81,7 +81,10 @@ CREATE TABLE IF NOT EXISTS public.visitor_logs (
     status TEXT NOT NULL DEFAULT 'checked_in' CHECK (status IN ('checked_in', 'checked_out', 'expired')),
     verification_status TEXT NOT NULL DEFAULT 'approved' CHECK (verification_status IN ('pending', 'approved', 'rejected')),
     rejection_reason TEXT,
-    pass_code TEXT UNIQUE NOT NULL
+    pass_code TEXT UNIQUE NOT NULL,
+    last_latitude NUMERIC,
+    last_longitude NUMERIC,
+    last_located_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
 -- 4.2 Backward Compatibility View (Derives building, office, and room metadata via JOINs)
@@ -109,7 +112,10 @@ SELECT
     vl.verification_status,
     vl.rejection_reason,
     vl.pass_code,
-    vl.visitor_id
+    vl.visitor_id,
+    vl.last_latitude,
+    vl.last_longitude,
+    vl.last_located_at
 FROM public.visitor_logs vl
 JOIN public.registered_visitors rv ON vl.visitor_id = rv.id
 LEFT JOIN public.offices o ON vl.office_id = o.id
@@ -249,3 +255,12 @@ USING (
     bucket_id = 'campus-assets' AND
     public.get_user_role(auth.uid()) = 'admin'
 );
+
+-- ==========================================================
+-- Supabase Realtime Publication Configuration
+-- ==========================================================
+
+-- Enable Realtime for dynamic session & location tracking tables
+ALTER PUBLICATION supabase_realtime ADD TABLE public.visitor_logs;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.offices;
+
