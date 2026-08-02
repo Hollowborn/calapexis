@@ -94,7 +94,7 @@
 
 		<!-- Action Portals Pills layout with premium highlight hover tags -->
 		<div class="flex flex-wrap items-center justify-center gap-3">
-			<Button href="/checkin" variant="outline" class="rounded-full text-xs font-extrabold h-11 px-6 gap-2 border-border/80 bg-card hover:bg-muted/40 transition-all hover:scale-[1.02]">
+			<Button href="/v" variant="outline" class="rounded-full text-xs font-extrabold h-11 px-6 gap-2 border-border/80 bg-card hover:bg-muted/40 transition-all hover:scale-[1.02]">
 				<UserCheckIcon class="size-4 text-primary pointer-events-none" />
 				<span class='flex flex-row items-center'>Visitor Check-In <ArrowUpRightIcon class='ml-1'/></span>
 			</Button>
