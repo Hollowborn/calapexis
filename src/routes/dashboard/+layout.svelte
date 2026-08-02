@@ -21,8 +21,9 @@
 
 		async loadData() {
 			try {
+				const isSecurityRoute = page.url.pathname === '/dashboard/security';
 				const [loadedVisitors, loadedProfiles] = await Promise.all([
-					getLocalVisitors(),
+					getLocalVisitors(isSecurityRoute),
 					getLocalProfiles()
 				]);
 				this.visitors = loadedVisitors;
