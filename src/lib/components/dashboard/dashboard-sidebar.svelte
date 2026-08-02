@@ -103,8 +103,8 @@
 	class="overflow-hidden [&>[data-sidebar=sidebar]]:flex-row"
 	{...restProps}
 >
-	<!-- Primary Icon Rail Sidebar -->
-	<Sidebar.Root collapsible="none" class="!w-[calc(var(--sidebar-width-icon)_+_1px)] border-e bg-sidebar text-sidebar-foreground">
+	<!-- Primary Icon Rail Sidebar (Renders inline submenus below corresponding menus on mobile) -->
+	<Sidebar.Root collapsible="none" class="w-full md:!w-[calc(var(--sidebar-width-icon)_+_1px)] border-e bg-sidebar text-sidebar-foreground">
 		<Sidebar.Header class="border-b border-sidebar-border bg-sidebar/30">
 			<Sidebar.Menu>
 				<Sidebar.MenuItem>
@@ -121,7 +121,7 @@
 			</Sidebar.Menu>
 		</Sidebar.Header>
 
-		<Sidebar.Content class="bg-sidebar/10">
+		<Sidebar.Content class="bg-sidebar/10 overflow-y-auto">
 			<Sidebar.Group>
 				<Sidebar.GroupContent class="px-1.5 md:px-0">
 					<Sidebar.Menu class="gap-2">
@@ -134,7 +134,7 @@
 										sidebar.setOpen(true);
 									}}
 									isActive={activeGroup?.id === group.id}
-									class="px-2.5 md:px-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+									class="px-2.5 md:px-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors font-bold"
 								>
 									{#snippet tooltipContent()}
 										{group.title}
@@ -142,6 +142,20 @@
 									<group.icon class="size-5 pointer-events-none" />
 									<span>{group.title}</span>
 								</Sidebar.MenuButton>
+
+								<!-- Nested Submenus appearing directly below corresponding menu on Mobile view -->
+								<div class="flex flex-col gap-1 pl-6 py-1 md:hidden">
+									{#each group.items as item (item.id)}
+										<a
+											href={routeMap[item.id]}
+											onclick={() => sidebar.setOpenMobile(false)}
+											class="text-start flex flex-col items-start gap-0.5 p-2  text-xs transition-all cursor-pointer {activeView === item.id ? 'bg-sidebar-accent text-sidebar-accent-foreground font-bold border-s-2 border-primary' : 'text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
+										>
+											<span class="font-bold text-foreground text-xs">{item.title}</span>
+											<span class="text-[10px] text-muted-foreground line-clamp-1 leading-tight">{item.description}</span>
+										</a>
+									{/each}
+								</div>
 							</Sidebar.MenuItem>
 
 						{/each}
