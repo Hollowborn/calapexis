@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { enhance } from '$app/forms';
+	import { Html5Qrcode } from 'html5-qrcode';
 	import * as Card from "$lib/components/ui/card/index.js";
 	import * as Dialog from "$lib/components/ui/dialog/index.js";
 	import * as Field from "$lib/components/ui/field/index.js";
@@ -126,6 +127,78 @@
 
 	// Manual QR Scanner Fallback Code Input
 	let manualScanCode = $state('');
+	let qrScannerInstance: Html5Qrcode | null = $state(null);
+	let isQrScanning = $state(false);
+	let qrScanError = $state<string | null>(null);
+	let checkInFormElement = $state<HTMLFormElement | null>(null);
+	let hiddenOfficeCodeInput = $state<HTMLInputElement | null>(null);
+
+	async function startQrScanner() {
+		if (typeof window === 'undefined') return;
+		qrScanError = null;
+		isQrScanning = true;
+
+		try {
+			await new Promise((r) => setTimeout(r, 150));
+			const container = document.getElementById('qr-reader');
+			if (!container) return;
+
+			if (qrScannerInstance) {
+				try {
+					await qrScannerInstance.stop();
+				} catch (e) {}
+			}
+
+			qrScannerInstance = new Html5Qrcode('qr-reader');
+			await qrScannerInstance.start(
+				{ facingMode: 'environment' },
+				{
+					fps: 10,
+					qrbox: { width: 200, height: 200 }
+				},
+				(decodedText) => {
+					handleQrScannedCode(decodedText);
+				},
+				() => {}
+			);
+		} catch (err: any) {
+			console.warn('QR Scanner camera error:', err);
+			isQrScanning = false;
+			qrScanError = 'Camera access unavailable or denied. Please enter the office code manually below.';
+		}
+	}
+
+	async function stopQrScanner() {
+		if (qrScannerInstance) {
+			try {
+				await qrScannerInstance.stop();
+				qrScannerInstance.clear();
+			} catch (e) {}
+			qrScannerInstance = null;
+		}
+		isQrScanning = false;
+	}
+
+	function handleQrScannedCode(code: string) {
+		stopQrScanner();
+		isScannerModalOpen = false;
+		toast.success('Office QR Code Scanned!', {
+			description: `Scanned Code: ${code.toUpperCase()}`
+		});
+
+		if (hiddenOfficeCodeInput && checkInFormElement) {
+			hiddenOfficeCodeInput.value = code.trim().toUpperCase();
+			checkInFormElement.requestSubmit();
+		}
+	}
+
+	$effect(() => {
+		if (isScannerModalOpen) {
+			startQrScanner();
+		} else {
+			stopQrScanner();
+		}
+	});
 
 	// Campus Bounds from static/prev-proj/map.js
 	const campusBoundsCoords = [
@@ -1168,18 +1241,29 @@
 					<span>Scan Office QR Code</span>
 				</Dialog.Title>
 				<Dialog.Description class="text-xs text-muted-foreground">
-					Scan the QR code displayed on the office door/desk to complete your check-in.
+					Point your camera at the QR code displayed on the office door or reception desk.
 				</Dialog.Description>
 			</Dialog.Header>
 
 			<div class="flex flex-col gap-4 py-3 items-center text-center font-semibold text-xs">
-				<div class="relative size-48 rounded-2xl bg-muted/60 border-2 border-dashed border-primary/50 flex flex-col items-center justify-center p-4">
-					<QrCodeIcon class="size-16 text-primary/40 animate-pulse" />
-					<span class="text-[10px] text-muted-foreground font-mono mt-2 uppercase tracking-wider">Point Camera at QR Code</span>
+				<!-- Live Active Camera Feed Container -->
+				<div class="relative w-full max-w-[280px] aspect-square rounded-2xl overflow-hidden bg-black border-2 border-primary/50 shadow-inner flex items-center justify-center">
+					<div id="qr-reader" class="w-full h-full object-cover"></div>
+					{#if !isQrScanning && !qrScanError}
+						<div class="absolute inset-0 flex flex-col items-center justify-center bg-card p-4">
+							<QrCodeIcon class="size-12 text-primary/50 animate-pulse" />
+							<span class="text-xs font-bold text-muted-foreground mt-2">Starting Camera...</span>
+						</div>
+					{/if}
+					{#if qrScanError}
+						<div class="absolute inset-0 flex flex-col items-center justify-center bg-card/95 p-4 text-center">
+							<span class="text-xs font-bold text-destructive">{qrScanError}</span>
+						</div>
+					{/if}
 				</div>
 
-				<!-- SvelteKit Server Action Form for Quick QR Scan -->
-				<form action="?/checkIn" method="POST" use:enhance={handleCheckInEnhance} class="w-full flex flex-col gap-2 text-start pt-2">
+				<!-- Hidden Programmatic Auto-Submission Form for QR Scanner -->
+				<form bind:this={checkInFormElement} action="?/checkIn" method="POST" use:enhance={handleCheckInEnhance} class="hidden">
 					<input type="hidden" name="registeredVisitorId" value={prePassData?.registeredVisitorId || ''} />
 					<input type="hidden" name="fullName" value={prePassData?.fullName || ''} />
 					<input type="hidden" name="firstName" value={prePassData?.firstName || ''} />
@@ -1190,15 +1274,7 @@
 					<input type="hidden" name="officeId" value={prePassData?.officeId || ''} />
 					<input type="hidden" name="purpose" value={prePassData?.purpose || ''} />
 					<input type="hidden" name="photoUrl" value={prePassData?.photoUrl || ''} />
-
-					<span class="text-[10px] font-extrabold uppercase text-muted-foreground tracking-wider">Simulate Office Scan:</span>
-					<div class="flex flex-wrap gap-1.5">
-						{#each officesList as o}
-							<button type="submit" name="officeCode" value={o.code} class="text-xs font-mono rounded-xl h-8 px-3 border border-border/80 bg-card hover:bg-muted/40 cursor-pointer">
-								{o.code}
-							</button>
-						{/each}
-					</div>
+					<input bind:this={hiddenOfficeCodeInput} type="hidden" name="officeCode" value="" />
 				</form>
 
 				<Separator />
