@@ -1098,6 +1098,9 @@
 	<!-- TOP FLOATING MAP SEARCH BAR (`InputGroup`) -->
 	<div class="absolute top-4 left-4 right-4 z-50 max-w-xl mx-auto pointer-events-auto">
 		<InputGroup.Root class="shadow-2xl rounded-2xl bg-card/95 backdrop-blur-xl border border-border transition-all flex items-center">
+		<InputGroup.Addon>
+		<SearchIcon class="size-4 text-primary opacity-80" />
+		</InputGroup.Addon>
 			<InputGroup.Input 
 				placeholder="Search building, office, or room..." 
 				bind:value={searchQuery}
@@ -1158,7 +1161,7 @@
 				</Button>
 
 				<!-- Theme Toggler -->
-				<AnimatedThemeToggler />
+				<!-- <AnimatedThemeToggler /> -->
 			</InputGroup.Addon>
 		</InputGroup.Root>
 
