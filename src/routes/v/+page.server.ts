@@ -5,6 +5,7 @@ import {
 	supabase,
 	MOCK_OFFICES,
 	MOCK_BUILDINGS,
+	MOCK_ROOMS,
 	mapDbVisitorToVisitor
 } from "$lib/supabase";
 import type { Actions, PageServerLoad } from "./$types";
@@ -13,13 +14,15 @@ import type { Visitor } from "$lib/types";
 export const load: PageServerLoad = async () => {
 	let offices = MOCK_OFFICES;
 	let buildings = MOCK_BUILDINGS;
+	let rooms = MOCK_ROOMS;
 
 	if (isSupabaseConfigured && supabase) {
 		try {
 			const dbClient = getDbClient();
-			const [officesRes, buildingsRes] = await Promise.all([
+			const [officesRes, buildingsRes, roomsRes] = await Promise.all([
 				dbClient.from("offices").select("*").eq("is_active", true),
-				dbClient.from("buildings").select("*")
+				dbClient.from("buildings").select("*"),
+				dbClient.from("rooms").select("*")
 			]);
 
 			if (!officesRes.error && officesRes.data && officesRes.data.length > 0) {
@@ -44,17 +47,36 @@ export const load: PageServerLoad = async () => {
 					floors: b.floors,
 					description: b.description || "",
 					headPerson: b.head_person || "",
-					contactEmail: b.contact_email || ""
+					contactEmail: b.contact_email || "",
+					imageUrl: b.image_url || "",
+					color: b.color || "#3b82f6",
+					lat: b.lat,
+					lng: b.lng,
+					xCoord: b.x_coord,
+					yCoord: b.y_coord
+				}));
+			}
+
+			if (!roomsRes.error && roomsRes.data && roomsRes.data.length > 0) {
+				rooms = roomsRes.data.map((r: any) => ({
+					id: r.id,
+					buildingId: r.building_id || "",
+					roomNumber: r.room_number || r.number || "",
+					roomName: r.room_name || r.name || "",
+					floor: r.floor || "1st Floor",
+					description: r.description || "",
+					imageUrl: r.image_url || ""
 				}));
 			}
 		} catch (e) {
-			console.warn("Supabase load offices error on /v, using fallback:", e);
+			console.warn("Supabase load offices/buildings/rooms error on /v, using fallback:", e);
 		}
 	}
 
 	return {
 		offices,
-		buildings
+		buildings,
+		rooms
 	};
 };
 
@@ -82,51 +104,95 @@ export const actions: Actions = {
 		const fullName = `${firstName} ${middleName} ${lastName}`.trim().replace(/\s+/g, " ");
 
 		let registeredVisitorId = "reg-" + Math.floor(100000 + Math.random() * 900000);
+		let storedPhotoUrl = photoUrl;
 
 		if (isSupabaseConfigured && supabase) {
 			try {
 				const dbClient = getDbClient();
-				let regData: any = null;
 
-				if (email) {
-					const res = await dbClient
+				// 1. Upload selfie / ID photo to campus-assets bucket under verification-images/
+				if (photoUrl && photoUrl.startsWith("data:image/")) {
+					try {
+						const base64Data = photoUrl.replace(/^data:image\/\w+;base64,/, "");
+						const binaryString = atob(base64Data);
+						const imageBuffer = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+						const filename = `visitor_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.jpg`;
+						const storagePath = `verification-images/${filename}`;
+
+						const { error: uploadError } = await dbClient.storage
+							.from("campus-assets")
+							.upload(storagePath, imageBuffer, {
+								contentType: "image/jpeg",
+								upsert: true
+							});
+
+						if (!uploadError) {
+							const { data: publicUrlData } = dbClient.storage
+								.from("campus-assets")
+								.getPublicUrl(storagePath);
+							if (publicUrlData?.publicUrl) {
+								storedPhotoUrl = publicUrlData.publicUrl;
+							}
+						} else {
+							console.warn("Supabase storage upload error:", uploadError.message);
+						}
+					} catch (err) {
+						console.warn("Failed to process photo upload:", err);
+					}
+				}
+
+				// 2. Name Matching & Deduplication in registered_visitors table
+				let regData: any = null;
+				const { data: existingVisitor } = await dbClient
+					.from("registered_visitors")
+					.select("*")
+					.ilike("first_name", firstName)
+					.ilike("last_name", lastName)
+					.limit(1)
+					.maybeSingle();
+
+				if (existingVisitor) {
+					// Update existing visitor entry to avoid multiple entries of the same visitor
+					const { data: updatedData } = await dbClient
 						.from("registered_visitors")
-						.upsert({
+						.update({
 							full_name: fullName,
-							first_name: firstName || null,
-							middle_name: middleName || null,
-							last_name: lastName || null,
-							email: email,
-							phone: phone || null,
-							photo_url: photoUrl || null,
+							middle_name: middleName || existingVisitor.middle_name,
+							email: email || existingVisitor.email,
+							phone: phone || existingVisitor.phone,
+							photo_url: storedPhotoUrl || existingVisitor.photo_url,
 							updated_at: new Date().toISOString()
-						}, { onConflict: "email" })
+						})
+						.eq("id", existingVisitor.id)
 						.select()
 						.single();
-					regData = res.data;
+
+					regData = updatedData || existingVisitor;
 				} else {
-					const res = await dbClient
+					// Insert new visitor entry
+					const { data: insertedData } = await dbClient
 						.from("registered_visitors")
 						.insert([{
 							full_name: fullName,
-							first_name: firstName || null,
+							first_name: firstName,
 							middle_name: middleName || null,
-							last_name: lastName || null,
-							email: null,
+							last_name: lastName,
+							email: email || null,
 							phone: phone || null,
-							photo_url: photoUrl || null,
+							photo_url: storedPhotoUrl || null,
 							updated_at: new Date().toISOString()
 						}])
 						.select()
 						.single();
-					regData = res.data;
+
+					regData = insertedData;
 				}
 
 				if (regData) {
 					registeredVisitorId = regData.id;
 				}
 			} catch (e) {
-				console.warn("Supabase registered_visitors insert error:", e);
+				console.warn("Supabase registered_visitors process error:", e);
 			}
 		}
 

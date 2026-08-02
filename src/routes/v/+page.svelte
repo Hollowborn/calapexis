@@ -7,13 +7,15 @@
 	import * as InputGroup from "$lib/components/ui/input-group/index.js";
 	import * as Popover from "$lib/components/ui/popover/index.js";
 	import * as Command from "$lib/components/ui/command/index.js";
+	import { Switch } from "$lib/components/ui/switch/index.js";
+	import { Skeleton } from "$lib/components/ui/skeleton/index.js";
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import { toast } from 'svelte-sonner';
-	import { MOCK_BUILDINGS, MOCK_OFFICES, checkoutLocalVisitor } from '$lib/supabase';
-	import type { Visitor, Office } from '$lib/types';
+	import { MOCK_BUILDINGS, MOCK_OFFICES, MOCK_ROOMS, checkoutLocalVisitor } from '$lib/supabase';
+	import type { Visitor, Office, Building, Room } from '$lib/types';
 	import { AnimatedThemeToggler } from "$lib/components/magic/animated-theme-toggler";
 
 	// Lucide Icons
@@ -38,11 +40,17 @@
 	import ArrowLeftIcon from "@lucide/svelte/icons/arrow-left";
 	import ChevronsUpDownIcon from "@lucide/svelte/icons/chevrons-up-down";
 	import CheckIcon from "@lucide/svelte/icons/check";
-	import HelpCircleIcon from "@lucide/svelte/icons/help-circle";
+	import LayersIcon from "@lucide/svelte/icons/layers";
+	import DoorClosedIcon from "@lucide/svelte/icons/door-closed";
+	import MailIcon from "@lucide/svelte/icons/mail";
+	import UserIcon from "@lucide/svelte/icons/user";
+	import Layers2Icon from "@lucide/svelte/icons/layers-2";
 
 	let { data } = $props();
 
 	let officesList = $derived(data?.offices?.length ? data.offices : MOCK_OFFICES);
+	let buildingsList = $derived(data?.buildings?.length ? data.buildings : MOCK_BUILDINGS);
+	let roomsList = $derived(data?.rooms?.length ? data.rooms : MOCK_ROOMS);
 
 	// Leaflet Map & GPS references
 	let mapContainer: HTMLDivElement;
@@ -50,14 +58,26 @@
 	let leafletInstance: any = $state(null);
 	let visitorMarker: any = null;
 	let pathPolyline: any = null;
+	let buildingMarkers: any[] = [];
+	let osmLayerInstance: any = null;
+	let satelliteLayerInstance: any = null;
+	let campusOverlayInstance: any = null;
+
+	// Layer Control & Map state
+	let activeTileLayer = $state<'osm' | 'esri'>('osm');
+	let showCampusOverlay = $state(true);
+	let isLayersPopoverOpen = $state(false);
 
 	// Floating Search & Filter state
 	let searchQuery = $state('');
 	let isSearchOpen = $state(false);
 
-	// Controlled Gate Setup Overlay & Scanner Modal States
+	// Controlled Gate Setup Overlay, Building Modal, & Scanner Modal States
 	let isGateOverlayOpen = $state(true);
 	let isScannerModalOpen = $state(false);
+	let isBuildingModalOpen = $state(false);
+	let selectedBuildingForModal = $state<any | null>(null);
+	let isBuildingImageLoading = $state(true);
 	let isReturningVisitor = $state(false);
 	let isSubmittingRegister = $state(false);
 	let isSubmittingCheckIn = $state(false);
@@ -122,6 +142,12 @@
 		})
 	);
 
+	let selectedBuildingRooms = $derived(
+		selectedBuildingForModal
+			? roomsList.filter(r => r.buildingId === selectedBuildingForModal.id)
+			: []
+	);
+
 	onMount(async () => {
 		if (typeof window === 'undefined') return;
 
@@ -137,6 +163,7 @@
 				phone = p.phone || '';
 				photoUrl = p.photoUrl || '';
 				isReturningVisitor = true;
+				registrationStep = 3; // Fast-track returning visitor directly to Step 3
 			} catch (e) {
 				console.warn("Failed to parse saved visitor profile:", e);
 			}
@@ -176,36 +203,33 @@
 			maxZoom: 22
 		}).setView([9.894414742474977, 123.88258093049176], 19);
 
-		const osmLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+		osmLayerInstance = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 			attribution: '&copy; OpenStreetMap',
 			maxNativeZoom: 19,
 			maxZoom: 22
 		}).addTo(map);
 
-		const satelliteLayer = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+		satelliteLayerInstance = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
 			attribution: "Esri",
 			maxNativeZoom: 18,
 			maxZoom: 22
 		});
 
-		const campusOverlay = L.imageOverlay("/campusMap-adjusted.png", bounds, {
+		campusOverlayInstance = L.imageOverlay("/campusMap-adjusted.png", bounds, {
 			opacity: 1.0,
 			interactive: false,
 			zIndex: 300
 		}).addTo(map);
 
-		L.control.layers(
-			{ "OpenStreetMap": osmLayer, "ESRI Satellite": satelliteLayer },
-			{ "3D Campus Overlay": campusOverlay },
-			{ position: "topright" }
-		).addTo(map);
-
 		leafMap = map;
+
+		// 4. Plot Interactive Building Nodes on Map
+		plotBuildingNodesOnMap();
 
 		// Initial plot of visitor marker at Main Gate
 		updateVisitorMarkerOnMap(mainGateCoords.lat, mainGateCoords.lng, "Visitor (Main Gate)");
 
-		// 4. Request Device GPS Position
+		// 5. Request Device GPS Position
 		requestDeviceGps();
 
 		setTimeout(() => map.invalidateSize(), 250);
@@ -214,6 +238,99 @@
 	onDestroy(() => {
 		stopSelfieCamera();
 	});
+
+	// Dynamic Tile Layer & Campus Overlay Effect
+	$effect(() => {
+		if (!leafMap || !leafletInstance) return;
+		
+		if (activeTileLayer === 'osm') {
+			if (satelliteLayerInstance && leafMap.hasLayer(satelliteLayerInstance)) {
+				leafMap.removeLayer(satelliteLayerInstance);
+			}
+			if (osmLayerInstance && !leafMap.hasLayer(osmLayerInstance)) {
+				osmLayerInstance.addTo(leafMap);
+			}
+		} else {
+			if (osmLayerInstance && leafMap.hasLayer(osmLayerInstance)) {
+				leafMap.removeLayer(osmLayerInstance);
+			}
+			if (satelliteLayerInstance && !leafMap.hasLayer(satelliteLayerInstance)) {
+				satelliteLayerInstance.addTo(leafMap);
+			}
+		}
+
+		if (campusOverlayInstance) {
+			if (showCampusOverlay) {
+				if (!leafMap.hasLayer(campusOverlayInstance)) campusOverlayInstance.addTo(leafMap);
+			} else {
+				if (leafMap.hasLayer(campusOverlayInstance)) leafMap.removeLayer(campusOverlayInstance);
+			}
+		}
+	});
+
+	function getBuildingLatLng(b: any): [number, number] {
+		// 1. Prioritize explicit latitude and longitude columns from database
+		if (typeof b.lat === 'number' && typeof b.lng === 'number' && b.lat !== 0 && b.lng !== 0) {
+			return [b.lat, b.lng];
+		}
+		// 2. Check if xCoord / yCoord contain lat/lng values
+		if (typeof b.xCoord === 'number' && typeof b.yCoord === 'number' && b.xCoord > 0 && b.yCoord > 0) {
+			const latVal = b.xCoord < 50 ? b.xCoord : b.yCoord;
+			const lngVal = b.xCoord > 50 ? b.xCoord : b.yCoord;
+			if (latVal >= 9.0 && latVal <= 10.5 && lngVal >= 123.0 && lngVal <= 124.5) {
+				return [latVal, lngVal];
+			}
+		}
+		// 3. Fallback coordinates for default mock campus buildings
+		const defaultCoords: Record<string, [number, number]> = {
+			'off-1': [9.894414, 123.882580],
+			'off-2': [9.894720, 123.882350],
+			'off-3': [9.894210, 123.882040],
+			'off-4': [9.894850, 123.883120],
+			'off-5': [9.895120, 123.882250]
+		};
+		return defaultCoords[b.id] || [9.894414, 123.882580];
+	}
+
+	function plotBuildingNodesOnMap() {
+		if (!leafMap || !leafletInstance) return;
+		const L = leafletInstance;
+
+		buildingMarkers.forEach(m => leafMap.removeLayer(m));
+		buildingMarkers = [];
+
+		buildingsList.forEach((b: any) => {
+			const coords = getBuildingLatLng(b);
+			const color = b.color || '#3b82f6';
+			
+			const iconHtml = `
+				<div class="group relative flex items-center justify-center cursor-pointer">
+					<div class="px-2.5 py-1 rounded-xl bg-card/95 backdrop-blur-md border border-border shadow-xl flex items-center gap-1.5 hover:scale-105 transition-transform" style="border-left: 4px solid ${color};">
+						<div class="size-2 rounded-full animate-pulse" style="background-color: ${color};"></div>
+						<span class="text-[11px] font-black text-foreground whitespace-nowrap">${b.code}</span>
+					</div>
+				</div>
+			`;
+
+			const marker = L.marker(coords, {
+				icon: L.divIcon({
+					className: "bg-transparent border-none",
+					html: iconHtml,
+					iconSize: [100, 32],
+					iconAnchor: [50, 16]
+				})
+			}).addTo(leafMap);
+
+			marker.on('click', () => {
+				selectedBuildingForModal = b;
+				isBuildingImageLoading = true;
+				isBuildingModalOpen = true;
+				leafMap.setView(coords, 20, { animate: false });
+			});
+
+			buildingMarkers.push(marker);
+		});
+	}
 
 	function requestDeviceGps() {
 		if (typeof window === 'undefined' || !navigator.geolocation) return;
@@ -377,6 +494,17 @@
 		toast.info("Saved profile cleared.");
 	}
 
+	function resetVisitorProfile() {
+		try {
+			localStorage.removeItem('calapexis_visitor_profile');
+			localStorage.removeItem('calapexis_active_pass');
+		} catch (e) {}
+		firstName = ''; middleName = ''; lastName = ''; email = ''; phone = ''; photoUrl = '';
+		isReturningVisitor = false;
+		registrationStep = 1;
+		toast.info("Visitor profile reset. Register as a new visitor.");
+	}
+
 	// Stepped Wizard Navigation Handlers
 	function goToNextStep() {
 		if (registrationStep === 1) {
@@ -458,6 +586,29 @@
 		};
 	}
 
+	function openGateOverlay() {
+		const savedProfile = localStorage.getItem('calapexis_visitor_profile');
+		if (savedProfile) {
+			try {
+				const p = JSON.parse(savedProfile);
+				firstName = p.firstName || '';
+				middleName = p.middleName || '';
+				lastName = p.lastName || '';
+				email = p.email || '';
+				phone = p.phone || '';
+				photoUrl = p.photoUrl || '';
+				isReturningVisitor = true;
+				registrationStep = 3;
+			} catch (e) {
+				console.warn("Failed to parse saved visitor profile on openGateOverlay:", e);
+			}
+		} else {
+			isReturningVisitor = false;
+			registrationStep = 1;
+		}
+		isGateOverlayOpen = true;
+	}
+
 	function handleSelfCheckout() {
 		if (activeOfficialPass || prePassData) {
 			if (activeOfficialPass) checkoutLocalVisitor(activeOfficialPass.id);
@@ -467,16 +618,16 @@
 			if (pathPolyline && leafMap) {
 				leafMap.removeLayer(pathPolyline);
 			}
-			isGateOverlayOpen = true;
+			openGateOverlay();
 			toast.info("Checked out of campus. Re-opened Campus Gate screen.");
 		} else {
-			isGateOverlayOpen = true;
+			openGateOverlay();
 		}
 	}
 
 	function focusOfficeOnMap(office: Office) {
 		if (leafMap) {
-			leafMap.setView([9.894414, 123.882580], 20, { animate: true });
+			leafMap.setView([9.894414, 123.882580], 20, { animate: false });
 			toast.info(`Camera focused on ${office.name}.`);
 		}
 	}
@@ -548,22 +699,22 @@
 							<div class="grid grid-cols-3 gap-2">
 								<Field.Field>
 									<Field.FieldLabel for="gate-firstName">First Name *</Field.FieldLabel>
-									<Input id="gate-firstName" bind:value={firstName} placeholder="John" required class="rounded-xl h-9 text-xs" />
+									<Input id="gate-firstName" bind:value={firstName} placeholder="Juan" required class="rounded-xl h-9 text-xs" />
 								</Field.Field>
 								<Field.Field>
 									<Field.FieldLabel for="gate-middleName">Middle</Field.FieldLabel>
-									<Input id="gate-middleName" bind:value={middleName} placeholder="Paul" class="rounded-xl h-9 text-xs" />
+									<Input id="gate-middleName" bind:value={middleName} placeholder="de la" class="rounded-xl h-9 text-xs" />
 								</Field.Field>
 								<Field.Field>
 									<Field.FieldLabel for="gate-lastName">Last Name *</Field.FieldLabel>
-									<Input id="gate-lastName" bind:value={lastName} placeholder="Doe" required class="rounded-xl h-9 text-xs" />
+									<Input id="gate-lastName" bind:value={lastName} placeholder="Cruz" required class="rounded-xl h-9 text-xs" />
 								</Field.Field>
 							</div>
 
 							<div class="grid grid-cols-2 gap-2">
 								<Field.Field>
 									<Field.FieldLabel for="gate-email">Email (Optional)</Field.FieldLabel>
-									<Input id="gate-email" type="email" bind:value={email} placeholder="john@example.com" class="rounded-xl h-9 text-xs" />
+									<Input id="gate-email" type="email" bind:value={email} placeholder="juan@gmail.com" class="rounded-xl h-9 text-xs" />
 								</Field.Field>
 								<Field.Field>
 									<Field.FieldLabel for="gate-phone">Phone (Optional)</Field.FieldLabel>
@@ -635,6 +786,19 @@
 
 					{:else if registrationStep === 3}
 						<!-- STEP 3: DESTINATION OFFICE & PURPOSE -->
+						{#if isReturningVisitor}
+							<div class="p-3 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-between text-xs font-semibold mb-1">
+								<div class="flex items-center gap-2">
+									<SparklesIcon class="size-4 text-primary shrink-0" />
+									<div class="text-start">
+										<span class="font-black text-foreground block">Welcome back, {firstName}!</span>
+										<span class="text-[10px] text-muted-foreground font-normal">Using your saved visitor profile.</span>
+									</div>
+								</div>
+								<button type="button" onclick={resetVisitorProfile} class="text-[10px] text-primary font-black uppercase hover:underline cursor-pointer">Not You?</button>
+							</div>
+						{/if}
+
 						<Field.FieldGroup class="flex flex-col gap-3">
 							<Field.Field>
 								<Field.FieldLabel>Designated Office / Desk *</Field.FieldLabel>
@@ -685,10 +849,16 @@
 						</Field.FieldGroup>
 
 						<div class="pt-2 flex gap-2">
-							<Button type="button" onclick={goToPrevStep} variant="outline" class="flex-1 text-xs font-semibold rounded-xl h-10 gap-1.5 cursor-pointer">
-								<ArrowLeftIcon data-icon="inline-start" />
-								<span>Back</span>
-							</Button>
+							{#if isReturningVisitor}
+								<Button type="button" onclick={resetVisitorProfile} variant="outline" class="flex-1 text-xs font-semibold rounded-xl h-10 gap-1.5 cursor-pointer">
+									<span>Not You?</span>
+								</Button>
+							{:else}
+								<Button type="button" onclick={goToPrevStep} variant="outline" class="flex-1 text-xs font-semibold rounded-xl h-10 gap-1.5 cursor-pointer">
+									<ArrowLeftIcon data-icon="inline-start" />
+									<span>Back</span>
+								</Button>
+							{/if}
 							<Button type="submit" disabled={isSubmittingRegister} class="flex-1 bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-10 cursor-pointer shadow-md">
 								<span>{isSubmittingRegister ? 'Saving...' : 'Check In & Unlock Map'}</span>
 							</Button>
@@ -701,16 +871,69 @@
 
 	<!-- 2. INTERACTIVE MAP PORTAL CANVAS & FLOATING OVERLAYS -->
 	<!-- TOP FLOATING MAP SEARCH BAR (`InputGroup`) -->
-	<div class="absolute top-4 left-4 right-4 z-50 max-w-lg mx-auto pointer-events-auto">
-		<InputGroup.Root class="shadow-2xl rounded-2xl bg-card/90 backdrop-blur-xl border border-border transition-all">
+	<div class="absolute top-4 left-4 right-4 z-50 max-w-xl mx-auto pointer-events-auto">
+		<InputGroup.Root class="shadow-2xl rounded-2xl bg-card/95 backdrop-blur-xl border border-border transition-all flex items-center">
 			<InputGroup.Input 
 				placeholder="Search building, office, or room..." 
 				bind:value={searchQuery}
 				onfocus={() => isSearchOpen = true}
 				class="h-12 text-xs font-semibold pl-4 bg-transparent text-foreground placeholder:text-muted-foreground"
 			/>
-			<InputGroup.Addon align="inline-end" class="pr-2">
-				<SearchIcon data-icon="inline-start" class="size-4 text-primary" />
+			<InputGroup.Addon align="inline-end" class="pr-2 flex items-center gap-1">
+				<!-- Map Layer Controls Popover -->
+				<Popover.Root bind:open={isLayersPopoverOpen}>
+					<Popover.Trigger>
+						<Button variant="ghost" size="icon" class="size-8 rounded-xl hover:bg-muted cursor-pointer" title="Map Layers & 3D Overlay">
+							<LayersIcon class="size-4 text-primary" />
+						</Button>
+					</Popover.Trigger>
+					<Popover.Content align="end" sideOffset={8} class="w-64 p-4 z-[2500] border-border bg-popover text-popover-foreground rounded-2xl shadow-2xl flex flex-col gap-3 font-semibold text-xs">
+						<div class="flex items-center gap-1.5 text-xs font-black text-foreground border-b border-border/60 pb-2">
+							<Layers2Icon class="size-4 text-primary" />
+							<span>Map Layer Options</span>
+						</div>
+
+						<!-- Base Tile Layer Selector -->
+						<div class="flex flex-col gap-1.5">
+							<span class="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">Base Satellite / Map</span>
+							<div class="grid grid-cols-2 gap-1.5">
+								<button 
+									type="button" 
+									onclick={() => activeTileLayer = 'osm'}
+									class="p-2 rounded-xl border text-xs font-extrabold cursor-pointer transition-colors flex items-center justify-center gap-1 {activeTileLayer === 'osm' ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted/40 border-border text-foreground hover:bg-muted'}"
+								>
+									<span>Standard</span>
+								</button>
+								<button 
+									type="button" 
+									onclick={() => activeTileLayer = 'esri'}
+									class="p-2 rounded-xl border text-xs font-extrabold cursor-pointer transition-colors flex items-center justify-center gap-1 {activeTileLayer === 'esri' ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted/40 border-border text-foreground hover:bg-muted'}"
+								>
+									<span>Satellite</span>
+								</button>
+							</div>
+						</div>
+
+						<Separator class="my-0.5" />
+
+						<!-- 3D Campus Overlay Switch -->
+						<div class="flex items-center justify-between">
+							<div class="flex flex-col">
+								<span class="text-xs font-bold text-foreground">3D Campus Map</span>
+								<span class="text-[10px] text-muted-foreground">Adjusted Campus Overlay</span>
+							</div>
+							<Switch bind:checked={showCampusOverlay} />
+						</div>
+					</Popover.Content>
+				</Popover.Root>
+
+				<!-- GPS Centering Button -->
+				<Button onclick={requestDeviceGps} variant="ghost" size="icon" class="size-8 rounded-xl hover:bg-muted cursor-pointer" title="Center Device GPS">
+					<NavigationIcon class="size-4 text-primary {gpsStatus === 'locating' ? 'animate-spin' : ''}" />
+				</Button>
+
+				<!-- Theme Toggler -->
+				<AnimatedThemeToggler />
 			</InputGroup.Addon>
 		</InputGroup.Root>
 
@@ -733,19 +956,6 @@
 				</Card.Content>
 			</Card.Root>
 		{/if}
-	</div>
-
-	<!-- TOP RIGHT FLOATING CONTROLS (GPS & Theme) -->
-	<div class="absolute top-4 right-4 z-50 flex flex-col gap-2 pt-16 pointer-events-auto">
-		<Button 
-			onclick={requestDeviceGps} 
-			variant="outline" 
-			size="icon" 
-			class="size-10 rounded-2xl bg-card/90 backdrop-blur-xl border-border shadow-xl cursor-pointer"
-		>
-			<NavigationIcon data-icon="inline-start" class="size-4 text-primary {gpsStatus === 'locating' ? 'animate-spin' : ''}" />
-		</Button>
-		<AnimatedThemeToggler />
 	</div>
 
 	<!-- MAIN LEAFLET MAP CANVAS -->
@@ -806,11 +1016,11 @@
 						<SparklesIcon class="size-4" />
 						<span>Visiting Campus?</span>
 					</div>
-					<Badge variant="outline" class="text-[9px]">Map Unlocked</Badge>
+					<Badge variant="outline" class="text-[9px]">Map Active</Badge>
 				</div>
 
 				<div class="flex gap-2">
-					<Button onclick={() => isGateOverlayOpen = true} class="flex-1 bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-10 gap-1.5 cursor-pointer shadow-md">
+					<Button onclick={openGateOverlay} class="flex-1 bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-10 gap-1.5 cursor-pointer shadow-md">
 						<UserCheckIcon data-icon="inline-start" />
 						<span>Open Registration Gate</span>
 					</Button>
@@ -823,6 +1033,116 @@
 		</div>
 	</div>
 </div>
+
+<!-- 3. BUILDING & ROOMS DETAILS MODAL (`Dialog.Root`) -->
+<Dialog.Root bind:open={isBuildingModalOpen}>
+	<Dialog.Portal>
+		<Dialog.Content class="z-[2500] max-w-lg border-border bg-card text-card-foreground shadow-2xl rounded-3xl max-h-[90vh] overflow-y-auto">
+			{#if selectedBuildingForModal}
+				<Dialog.Header class="pb-2">
+					<div class="flex items-center justify-between">
+						<Badge variant="outline" class="text-[10px] font-mono border-primary/30 text-primary uppercase">
+							{selectedBuildingForModal.code} • {selectedBuildingForModal.floors || 1} Floors
+						</Badge>
+					</div>
+					<Dialog.Title class="text-lg font-black text-foreground mt-1">{selectedBuildingForModal.name}</Dialog.Title>
+					<Dialog.Description class="text-xs text-muted-foreground">
+						{selectedBuildingForModal.description || 'Campus Academic & Administration Landmark'}
+					</Dialog.Description>
+				</Dialog.Header>
+
+				<!-- Building Landmark Photo -->
+				{#if selectedBuildingForModal.imageUrl}
+					<div class="relative w-full h-44 rounded-2xl overflow-hidden border border-border my-2 shadow-inner bg-muted">
+						{#if isBuildingImageLoading}
+							<Skeleton class="absolute inset-0 size-full rounded-2xl z-10" />
+						{/if}
+						<img 
+							src={selectedBuildingForModal.imageUrl} 
+							alt={selectedBuildingForModal.name} 
+							onload={() => isBuildingImageLoading = false}
+							onerror={() => isBuildingImageLoading = false}
+							class="size-full object-cover transition-opacity duration-300 {isBuildingImageLoading ? 'opacity-0' : 'opacity-100'}" 
+						/>
+					</div>
+				{/if}
+
+				<!-- Building Meta Info -->
+				<div class="grid grid-cols-2 gap-2 text-xs bg-muted/40 p-3 rounded-2xl border border-border/60 my-2">
+					<div class="flex items-center gap-2">
+						<UserIcon class="size-4 text-primary shrink-0" />
+						<div>
+							<span class="text-[9px] uppercase font-bold text-muted-foreground block">Building Head</span>
+							<span class="font-extrabold text-foreground">{selectedBuildingForModal.headPerson || 'N/A'}</span>
+						</div>
+					</div>
+					<div class="flex items-center gap-2">
+						<MailIcon class="size-4 text-primary shrink-0" />
+						<div>
+							<span class="text-[9px] uppercase font-bold text-muted-foreground block">Contact Email</span>
+							<span class="font-mono text-[11px] font-bold text-foreground truncate block max-w-[130px]">{selectedBuildingForModal.contactEmail || 'N/A'}</span>
+						</div>
+					</div>
+				</div>
+
+				<!-- Rooms List inside this Building -->
+				<div class="flex flex-col gap-2 pt-2 font-semibold text-xs">
+					<div class="flex items-center justify-between border-b border-border/60 pb-1.5">
+						<span class="font-black text-xs uppercase tracking-wider text-foreground flex items-center gap-1.5">
+							<DoorClosedIcon class="size-4 text-primary" />
+							<span>Building Rooms ({selectedBuildingRooms.length})</span>
+						</span>
+					</div>
+
+					{#if selectedBuildingRooms.length > 0}
+						<div class="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1">
+							{#each selectedBuildingRooms as room}
+								<div class="p-3 rounded-2xl border border-border/80 bg-background/80 hover:bg-muted/30 transition-colors flex items-start gap-3">
+									{#if room.imageUrl}
+										<div class="relative size-12 rounded-xl overflow-hidden border border-border shrink-0 bg-muted">
+											<Skeleton class="absolute inset-0 size-full rounded-xl pointer-events-none" />
+											<img 
+												src={room.imageUrl} 
+												alt={room.roomName} 
+												onload={(e) => { (e.currentTarget as HTMLImageElement).previousElementSibling?.classList.add('hidden'); }}
+												onerror={(e) => { (e.currentTarget as HTMLImageElement).previousElementSibling?.classList.add('hidden'); }}
+												class="relative size-full object-cover z-10" 
+											/>
+										</div>
+									{:else}
+										<div class="size-12 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+											{room.roomNumber.slice(0, 4)}
+										</div>
+									{/if}
+									<div class="flex-1 text-start">
+										<div class="flex items-center justify-between">
+											<span class="font-black text-foreground">{room.roomName}</span>
+											<Badge variant="outline" class="text-[9px] font-mono">{room.floor}</Badge>
+										</div>
+										<div class="text-[10px] text-muted-foreground font-mono font-bold">{room.roomNumber}</div>
+										{#if room.description}
+											<p class="text-[11px] text-muted-foreground mt-1 line-clamp-2 leading-relaxed">{room.description}</p>
+										{/if}
+									</div>
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<div class="p-4 text-center text-xs text-muted-foreground rounded-2xl border border-dashed border-border bg-muted/20">
+							No specific room records logged for this landmark.
+						</div>
+					{/if}
+				</div>
+
+				<Dialog.Footer class="pt-3 border-t border-border/60">
+					<Button onclick={() => isBuildingModalOpen = false} variant="outline" class="w-full text-xs font-semibold rounded-xl h-10 cursor-pointer">
+						Close Building Details
+					</Button>
+				</Dialog.Footer>
+			{/if}
+		</Dialog.Content>
+	</Dialog.Portal>
+</Dialog.Root>
 
 <!-- STEP 4 OFFICE QR CODE SCANNER MODAL (`Dialog.Root`) -->
 <Dialog.Root bind:open={isScannerModalOpen}>
@@ -905,6 +1225,6 @@
 
 <style>
 	:global(.leaflet-marker-icon) {
-		transition: transform 1.5s linear !important;
+		transition: none !important;
 	}
 </style>
