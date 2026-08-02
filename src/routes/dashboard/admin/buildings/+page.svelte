@@ -38,7 +38,6 @@
 
 	// UI states
 	let isCreatingBuilding = $state(false);
-	let activeQrBuilding = $state<Building | null>(null);
 	let activeManageRoomsBuilding = $state<Building | null>(null);
 	let activeEditingBuilding = $state<Building | null>(null);
 
@@ -511,12 +510,7 @@
 					</Card.Content>
 
 					<!-- Footer Actions Grid -->
-					<Card.Footer class="p-3 border-t border-border/60 bg-muted/20 grid grid-cols-2 gap-2">
-						<Button onclick={() => (activeQrBuilding = building)} variant="outline" size="sm" class="text-xs font-bold gap-1.5 rounded-xl h-8 cursor-pointer border-border/80">
-							<QrCodeIcon class="size-3.5 pointer-events-none" />
-							<span>Door QR</span>
-						</Button>
-
+					<Card.Footer class="p-3 border-t border-border/60 bg-muted/20 grid grid-cols-3 gap-2">
 						<Button onclick={() => (activeManageRoomsBuilding = building)} variant="outline" size="sm" class="text-xs font-bold gap-1.5 rounded-xl h-8 cursor-pointer border-border/80">
 							<SchoolIcon class="size-3.5 pointer-events-none" />
 							<span>Classrooms</span>
@@ -545,49 +539,6 @@
 		</div>
 	</div>
 </div>
-
-<!-- Printable QR Code Modal -->
-<Dialog.Root
-	open={!!activeQrBuilding}
-	onOpenChange={(open) => {
-		if (!open) activeQrBuilding = null;
-	}}
->
-	<Dialog.Content class="max-w-sm border-primary/20 shadow-2xl rounded-2xl text-center">
-		<Dialog.Header>
-			<Dialog.Title class="text-left font-black">Building Landmark QR Code</Dialog.Title>
-			<Dialog.Description class="text-left text-xs">
-				{#if activeQrBuilding}{activeQrBuilding.name}{/if}
-			</Dialog.Description>
-		</Dialog.Header>
-
-		{#if activeQrBuilding}
-			<div class="py-4 flex flex-col gap-4 items-center">
-				<div class="p-4 bg-white rounded-2xl shadow-inner border border-border/80 flex items-center justify-center size-52">
-					<svg class="size-40 text-black" fill="currentColor" viewBox="0 0 24 24">
-						<path d="M2 2h8v8H2V2zm2 2v4h4V4H4zm9-2h8v8h-8V2zm2 2v4h4V4h-4zM2 14h8v8H2v-8zm2 2v4h4v-4H4zm13-2h3v3h-3v-3zm0 5h3v3h-3v-3zm-5-5h3v8h-3v-8zM14 17h2v2h-2v-2zm3-3h2v2h-2v-2zm-3 6h2v2h-2v-2zm3-3h2v2h-2v-2z"/>
-					</svg>
-				</div>
-
-				<div class="text-center space-y-1">
-					<Badge class="bg-primary text-primary-foreground font-black font-mono text-[10px] tracking-wider uppercase rounded-full">
-						{activeQrBuilding.code} DOOR QR CODE
-					</Badge>
-					<p class="text-[11px] text-muted-foreground leading-relaxed max-w-xs mx-auto font-semibold">
-						Visitors scan this code with their digital passes to automatically confirm arrival or check-out of this department.
-					</p>
-				</div>
-			</div>
-		{/if}
-
-		<Dialog.Footer class="border-t border-border/60 pt-3">
-			<Button onclick={() => window.print()} class="w-full bg-primary hover:bg-primary/95 text-primary-foreground font-extrabold text-xs py-2.5 rounded-xl gap-2 shadow-sm cursor-pointer">
-				<PrinterIcon class="size-4 pointer-events-none" />
-				<span>Print Door QR Sign</span>
-			</Button>
-		</Dialog.Footer>
-	</Dialog.Content>
-</Dialog.Root>
 
 <!-- Add Building Side Sheet -->
 <Sheet.Root bind:open={isCreatingBuilding} onOpenChange={(open) => { if (!open) clearBuildingImage(); }}>
