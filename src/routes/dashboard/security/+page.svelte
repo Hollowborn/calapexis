@@ -1,71 +1,83 @@
 <script lang="ts">
-	import { getContext, onMount, onDestroy } from 'svelte';
+	import { getContext, onMount } from 'svelte';
+	import { enhance } from '$app/forms';
 	import * as Card from "$lib/components/ui/card/index.js";
 	import * as Dialog from "$lib/components/ui/dialog/index.js";
 	import * as Field from "$lib/components/ui/field/index.js";
 	import * as Tabs from "$lib/components/ui/tabs/index.js";
 	import * as Table from "$lib/components/ui/table/index.js";
+	import * as Popover from "$lib/components/ui/popover/index.js";
+	import * as Command from "$lib/components/ui/command/index.js";
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
-	import { Separator } from '$lib/components/ui/separator/index.js';
 	import { toast } from 'svelte-sonner';
-	import { MOCK_BUILDINGS, verifyVisitor, checkoutLocalVisitor } from '$lib/supabase';
+	import { MOCK_BUILDINGS, MOCK_OFFICES, verifyVisitor, checkoutLocalVisitor } from '$lib/supabase';
 	
 	// Lucide Icons
 	import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
-	import ScanFaceIcon from "@lucide/svelte/icons/scan-face";
 	import UserCheckIcon from "@lucide/svelte/icons/user-check";
 	import UserXIcon from "@lucide/svelte/icons/user-x";
 	import LogOutIcon from "@lucide/svelte/icons/log-out";
 	import QrCodeIcon from "@lucide/svelte/icons/qr-code";
-	import CheckCircleIcon from "@lucide/svelte/icons/check-circle";
 	import MapPinIcon from "@lucide/svelte/icons/map-pin";
-	import ListIcon from "@lucide/svelte/icons/list";
-	import LayoutGridIcon from "@lucide/svelte/icons/layout-grid";
 	import ActivityIcon from "@lucide/svelte/icons/activity";
-	import RadioIcon from "@lucide/svelte/icons/radio";
 	import SearchIcon from "@lucide/svelte/icons/search";
 	import AlertTriangleIcon from "@lucide/svelte/icons/alert-triangle";
-	import Building2Icon from "@lucide/svelte/icons/building-2";
-	import EyeIcon from "@lucide/svelte/icons/eye";
 	import MapIcon from "@lucide/svelte/icons/map";
-	import LockIcon from "@lucide/svelte/icons/lock";
 	import UsersIcon from "@lucide/svelte/icons/users";
-	import ClockIcon from "@lucide/svelte/icons/clock";
+	import CameraIcon from "@lucide/svelte/icons/camera";
+	import UploadIcon from "@lucide/svelte/icons/upload";
+	import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
+	import ChevronsUpDownIcon from "@lucide/svelte/icons/chevrons-up-down";
+	import CheckIcon from "@lucide/svelte/icons/check";
+	import PhoneOffIcon from "@lucide/svelte/icons/phone-off";
+
+	let { data } = $props();
 
 	const dashboardContext = getContext<any>("dashboard-state");
 	let visitors = $derived(dashboardContext.visitors);
 
+	let officesList = $derived(data?.offices?.length ? data.offices : MOCK_OFFICES);
+	let buildingsList = $derived(data?.buildings?.length ? data.buildings : MOCK_BUILDINGS);
+
 	// Display mode states
 	let activeTab = $state<'map' | 'visitors'>('map');
-	let visitorViewMode = $state<'table' | 'grid'>('table');
 	let searchQuery = $state('');
-	let selectedBuildingFilter = $state<string | null>(null);
-
-	// Scanner simulator
-	let scanInput = $state('');
-	let scannedVisitor: any = $state(null);
 
 	// Rejection Dialog state
 	let isRejecting = $state(false);
 	let rejectingVisitorId = $state('');
 	let rejectionReason = $state('');
 
+	// Assisted Registration Modal state (for Visitors without phones)
+	let isAssistModalOpen = $state(false);
+	let assistFirstName = $state('');
+	let assistMiddleName = $state('');
+	let assistLastName = $state('');
+	let assistEmail = $state('');
+	let assistPhone = $state('');
+	let assistOfficeId = $state('');
+	let assistPurpose = $state('');
+	let assistPhotoUrl = $state('');
+	let isAssistCameraActive = $state(false);
+	let isAssistOfficeComboOpen = $state(false);
+	let assistVideoElement = $state<HTMLVideoElement | null>(null);
+	let assistCanvasElement = $state<HTMLCanvasElement | null>(null);
+	let isSubmittingAssist = $state(false);
+
 	// Leaflet map references
-	let mapContainer: HTMLDivElement;
+	let mapContainer = $state<HTMLDivElement | null>(null);
 	let leafMap: any = $state(null);
 	let leafletInstance: any = $state(null);
 	let visitorMarkers: Record<string, any> = {};
-	let isSimulatingMovement = $state(true);
-	let visitorPositions: Record<string, { lat: number; lng: number; dLat: number; dLng: number }> = {};
-	let movementTimer: any = null;
 
-	// Campus Bounds from static/prev-proj/map.js
+	// Campus Bounds
 	const campusBoundsCoords = [
 		[9.893421456778755, 123.8815211010603],
 		[9.895647770829878, 123.88369296680753]
 	];
+	const mainGateCoords = { lat: 9.894144489361919, lng: 123.88273758838274 };
 
 	// Dynamic derived listings directly from database context
 	let liveMonitorList = $derived(
@@ -74,7 +86,6 @@
 
 	let filteredLiveMonitorList = $derived(
 		liveMonitorList.filter((v: any) => {
-			if (selectedBuildingFilter && v.buildingId !== selectedBuildingFilter) return false;
 			if (!searchQuery.trim()) return true;
 			const q = searchQuery.toLowerCase().trim();
 			return (
@@ -86,34 +97,86 @@
 		})
 	);
 
+	let filteredVisitorsList = $derived(
+		visitors.filter((v: any) => {
+			if (!searchQuery.trim()) return true;
+			const q = searchQuery.toLowerCase().trim();
+			return (
+				v.fullName.toLowerCase().includes(q) ||
+				v.passCode.toLowerCase().includes(q) ||
+				(v.officeName && v.officeName.toLowerCase().includes(q)) ||
+				(v.phone && v.phone.toLowerCase().includes(q)) ||
+				(v.email && v.email.toLowerCase().includes(q))
+			);
+		})
+	);
+
 	let pendingVerificationQueue = $derived(
 		visitors.filter((v: any) => v.verificationStatus === 'pending')
 	);
 
-	// Security Event Audit Log Feed
+	let assistSelectedOffice = $derived(officesList.find(o => o.id === assistOfficeId));
+
+	// Real-Time Security Audit Log Feed
 	let securityAuditLog = $derived.by(() => {
-		const events = liveMonitorList.slice(0, 5).map((v: any) => ({
-			id: v.id,
-			time: formatTime(v.checkInTime),
-			title: `${v.fullName} Entered Gate`,
-			detail: `${v.buildingName || 'Campus'} • ${v.passCode}`,
-			type: 'entry' as const
-		}));
-
-		if (pendingVerificationQueue.length > 0) {
-			events.unshift({
-				id: 'pending-alert',
-				time: 'Just now',
-				title: `${pendingVerificationQueue.length} Pending Approval`,
-				detail: 'Gate Queue Requires Security Action',
-				type: 'alert' as const
-			});
-		}
-
-		return events;
+		const logs: { id: string; time: string; title: string; detail: string; type: 'entry' | 'checkout' | 'verify' }[] = [];
+		visitors.forEach((v: any) => {
+			if (v.checkInTime) {
+				logs.push({
+					id: `in-${v.id}`,
+					time: formatTime(v.checkInTime),
+					title: `${v.fullName} Checked In`,
+					detail: `${v.officeName || 'Campus Gate'} • ${v.passCode}`,
+					type: 'entry'
+				});
+			}
+			if (v.checkOutTime) {
+				logs.push({
+					id: `out-${v.id}`,
+					time: formatTime(v.checkOutTime),
+					title: `${v.fullName} Checked Out`,
+					detail: `Duration: ${calculateVisitDuration(v.checkInTime, v.checkOutTime)}`,
+					type: 'checkout'
+				});
+			}
+		});
+		return logs.slice(-10).reverse();
 	});
 
-	// Initialize Leaflet Map on client mount
+	function formatTime(iso: string) {
+		if (!iso) return '';
+		return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+	}
+
+	function calculateVisitDuration(checkInTimeStr?: string | null, checkOutTimeStr?: string | null): string {
+		if (!checkInTimeStr) return '--';
+		const start = new Date(checkInTimeStr).getTime();
+		const end = checkOutTimeStr ? new Date(checkOutTimeStr).getTime() : Date.now();
+		const diffMs = Math.max(0, end - start);
+		const mins = Math.floor(diffMs / 60000);
+		if (mins < 1) return 'Just now';
+		if (mins < 60) return `${mins}m ${checkOutTimeStr ? 'total' : 'elapsed'}`;
+		const hrs = Math.floor(mins / 60);
+		const remMins = mins % 60;
+		return `${hrs}h ${remMins}m ${checkOutTimeStr ? 'total' : 'elapsed'}`;
+	}
+
+	function findNearestBuildingName(lat?: number, lng?: number): string {
+		if (!lat || !lng || !buildingsList.length) return 'Main Gate';
+		let nearestName = 'Main Gate';
+		let minDistance = Infinity;
+		for (const b of buildingsList) {
+			const bLat = b.lat || b.xCoord || 9.8944;
+			const bLng = b.lng || b.yCoord || 123.8825;
+			const dist = Math.hypot(lat - bLat, lng - bLng);
+			if (dist < minDistance) {
+				minDistance = dist;
+				nearestName = b.name;
+			}
+		}
+		return nearestName;
+	}
+
 	onMount(async () => {
 		if (typeof window === 'undefined') return;
 
@@ -123,851 +186,578 @@
 				const leafletModule = await import('leaflet');
 				L = leafletModule.default || leafletModule;
 			} catch (e) {
-				console.error("Failed to dynamically import Leaflet module:", e);
+				console.error("Failed to load Leaflet module:", e);
 			}
 		}
 
-		if (!L) {
-			console.warn("Leaflet library unavailable, skipping Leaflet map render");
-			return;
-		}
-
+		if (!L || !mapContainer) return;
 		leafletInstance = L;
 
-		if (!mapContainer) return;
-
 		const bounds = L.latLngBounds(campusBoundsCoords[0], campusBoundsCoords[1]);
-
 		const map = L.map(mapContainer, {
-			zoomControl: true,
+			zoomControl: false,
 			maxBounds: bounds,
 			maxBoundsViscosity: 1.0,
 			minZoom: 18,
 			maxZoom: 22
 		}).setView([9.894414742474977, 123.88258093049176], 19);
 
-		const osmLayer = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-			attribution: '&copy; OpenStreetMap contributors',
+		L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+			attribution: '&copy; OpenStreetMap',
 			maxNativeZoom: 19,
 			maxZoom: 22
 		}).addTo(map);
 
-		const satelliteLayer = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-			attribution: "Tiles &copy; Esri &mdash; Source: Esri",
-			maxNativeZoom: 18,
-			maxZoom: 22
-		});
-
-		const overlayImage = "/campusMap-adjusted.png";
-		const campusOverlay = L.imageOverlay(overlayImage, bounds, {
-			opacity: 1.0,
-			interactive: false,
-			zIndex: 300
+		L.imageOverlay("/campusMap-adjusted.png", bounds, {
+			opacity: 0.95,
+			interactive: false
 		}).addTo(map);
-
-		L.control.layers(
-			{ "OpenStreetMap": osmLayer, "ESRI Satellite": satelliteLayer },
-			{ "3D Campus Overlay": campusOverlay },
-			{ position: "topright" }
-		).addTo(map);
 
 		leafMap = map;
 
-		refreshMapMarkers();
+		plotVisitorNodesOnMap();
 
-		// Live GPS Movement Simulation Loop (Runs every 1.5s)
-		movementTimer = setInterval(() => {
-			if (!isSimulatingMovement || !leafMap) return;
-
-			liveMonitorList.forEach((v: any) => {
-				if (!visitorPositions[v.id]) {
-					refreshMapMarkers();
-				}
-
-				const pos = visitorPositions[v.id];
-				if (pos) {
-					let nextLat = pos.lat + pos.dLat;
-					let nextLng = pos.lng + pos.dLng;
-
-					// Bounce within campus bounds
-					if (nextLat < 9.8936 || nextLat > 9.8954) pos.dLat = -pos.dLat;
-					if (nextLng < 123.8817 || nextLng > 123.8834) pos.dLng = -pos.dLng;
-
-					pos.lat = pos.lat + pos.dLat;
-					pos.lng = pos.lng + pos.dLng;
-
-					if (visitorMarkers[v.id]) {
-						visitorMarkers[v.id].setLatLng([pos.lat, pos.lng]);
-					} else {
-						refreshMapMarkers();
-					}
-				}
-			});
-		}, 1500);
-
-		setTimeout(() => map.invalidateSize(), 200);
-	});
-
-	onDestroy(() => {
-		if (movementTimer) clearInterval(movementTimer);
+		setTimeout(() => map.invalidateSize(), 300);
 	});
 
 	$effect(() => {
 		if (leafMap && liveMonitorList) {
-			refreshMapMarkers();
+			plotVisitorNodesOnMap();
 		}
 	});
 
-	function refreshMapMarkers() {
-		if (!leafMap || typeof window === 'undefined') return;
-		const L = leafletInstance || (window as any).L;
-		if (!L) return;
+	function plotVisitorNodesOnMap() {
+		if (!leafMap || !leafletInstance) return;
+		const L = leafletInstance;
 
-		const seenIds = new Set<string>();
+		Object.values(visitorMarkers).forEach(m => leafMap.removeLayer(m));
+		visitorMarkers = {};
 
-		liveMonitorList.forEach((v: any, idx: number) => {
-			seenIds.add(v.id);
-
-			if (!visitorPositions[v.id]) {
-				const bld = MOCK_BUILDINGS.find(b => b.id === v.buildingId || b.name === v.buildingName);
-				const baseLat = v.lat || bld?.lat || (9.894414 + (idx * 0.0003));
-				const baseLng = v.lng || bld?.lng || (123.882580 + (idx * 0.0003));
-				visitorPositions[v.id] = {
-					lat: baseLat,
-					lng: baseLng,
-					dLat: (Math.random() - 0.5) * 0.00005,
-					dLng: (Math.random() - 0.5) * 0.00005
-				};
-			}
-
-			const pos = visitorPositions[v.id];
-			const userColor = getUserColor(v.id);
-			const initials = getInitials(v.fullName);
+		liveMonitorList.forEach((v: any) => {
+			const lat = v.lastLatitude || v.lat || mainGateCoords.lat;
+			const lng = v.lastLongitude || v.lng || mainGateCoords.lng;
+			const nearestNode = findNearestBuildingName(lat, lng);
+			const duration = calculateVisitDuration(v.checkInTime, null);
 
 			const iconHtml = `
-				<div class="visitor-marker-container group relative flex items-center justify-center transition-transform duration-200" id="marker-${v.id}">
-					<span class="animate-ping absolute inline-flex size-7 rounded-full opacity-40" style="background-color: ${userColor};"></span>
-					<div class="relative flex size-7 items-center justify-center rounded-full border-2 border-white shadow-md transition-all group-hover:scale-125" style="background-color: ${userColor};">
-						<span class="text-[10px] font-black text-white leading-none">${initials}</span>
+				<div class="group relative flex items-center justify-center cursor-pointer">
+					<span class="animate-ping absolute inline-flex size-9 rounded-full bg-emerald-500/40"></span>
+					<div class="relative size-9 rounded-full bg-card border-2 border-emerald-500 shadow-xl overflow-hidden flex items-center justify-center">
+						${v.photoUrl 
+							? `<img src="${v.photoUrl}" class="size-full object-cover" />` 
+							: `<span class="text-[10px] font-black text-foreground">${v.firstName ? v.firstName[0] : 'V'}</span>`}
 					</div>
 				</div>
 			`;
 
-			if (visitorMarkers[v.id]) {
-				visitorMarkers[v.id].setLatLng([pos.lat, pos.lng]);
-			} else {
-				const marker = L.marker([pos.lat, pos.lng], {
-					icon: L.divIcon({
-						className: "bg-transparent border-none",
-						html: iconHtml,
-						iconSize: [28, 28],
-						iconAnchor: [14, 14]
-					})
-				}).bindPopup(`
-					<div class="flex flex-col gap-1 p-1 font-sans">
-						<div class="font-black text-sm text-foreground">${v.fullName}</div>
-						<div class="font-mono text-xs font-bold text-primary">${v.passCode}</div>
-						<div class="text-xs text-muted-foreground">${v.buildingName || 'Campus'} ${v.roomNumber ? '• ' + v.roomNumber : ''}</div>
+			const marker = L.marker([lat, lng], {
+				icon: L.divIcon({
+					className: "bg-transparent border-none",
+					html: iconHtml,
+					iconSize: [36, 36],
+					iconAnchor: [18, 18]
+				})
+			}).bindPopup(`
+				<div class="font-sans text-xs p-1 max-w-xs flex flex-col gap-1">
+					<div class="font-extrabold text-foreground flex items-center justify-between gap-2">
+						<span>${v.fullName}</span>
+						<span class="font-mono text-[10px] text-primary">${v.passCode}</span>
 					</div>
-				`).addTo(leafMap);
+					<div class="text-[10px] text-muted-foreground font-semibold">
+						Office: ${v.officeName || 'Campus'}
+					</div>
+					<div class="text-[10px] text-emerald-600 font-extrabold flex items-center justify-between border-t border-border/60 pt-1 mt-0.5">
+						<span>Near: ${nearestNode}</span>
+						<span>${duration}</span>
+					</div>
+				</div>
+			`).addTo(leafMap);
 
-				visitorMarkers[v.id] = marker;
-			}
+			visitorMarkers[v.id] = marker;
 		});
+	}
 
-		Object.keys(visitorMarkers).forEach(id => {
-			if (!seenIds.has(id)) {
-				leafMap.removeLayer(visitorMarkers[id]);
-				delete visitorMarkers[id];
+	// Camera Handlers for Assisted Registration
+	async function startAssistCamera() {
+		try {
+			isAssistCameraActive = true;
+			const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+			if (assistVideoElement) assistVideoElement.srcObject = stream;
+		} catch (err) {
+			toast.error("Unable to access desk camera.");
+			isAssistCameraActive = false;
+		}
+	}
+
+	function stopAssistCamera() {
+		if (assistVideoElement && assistVideoElement.srcObject) {
+			const stream = assistVideoElement.srcObject as MediaStream;
+			stream.getTracks().forEach(track => track.stop());
+			assistVideoElement.srcObject = null;
+		}
+		isAssistCameraActive = false;
+	}
+
+	function captureAssistSelfie() {
+		if (!assistVideoElement || !assistCanvasElement) return;
+		const ctx = assistCanvasElement.getContext('2d');
+		if (ctx) {
+			assistCanvasElement.width = 250;
+			assistCanvasElement.height = 250;
+			ctx.drawImage(assistVideoElement, 0, 0, 250, 250);
+			assistPhotoUrl = assistCanvasElement.toDataURL('image/jpeg', 0.6);
+			stopAssistCamera();
+			toast.success("Visitor photo captured!");
+		}
+	}
+
+	function handleAssistFileUpload(e: Event) {
+		const target = e.target as HTMLInputElement;
+		if (target.files && target.files[0]) {
+			const reader = new FileReader();
+			reader.onload = (event) => {
+				const img = new Image();
+				img.onload = () => {
+					const tempCanvas = document.createElement('canvas');
+					tempCanvas.width = 250; tempCanvas.height = 250;
+					const ctx = tempCanvas.getContext('2d');
+					if (ctx) {
+						ctx.drawImage(img, 0, 0, 250, 250);
+						assistPhotoUrl = tempCanvas.toDataURL('image/jpeg', 0.6);
+						toast.success("Visitor photo uploaded!");
+					}
+				};
+				img.src = event.target?.result as string;
+			};
+			reader.readAsDataURL(target.files[0]);
+		}
+	}
+
+	function handleAssistEnhance() {
+		isSubmittingAssist = true;
+		return async ({ result }: { result: any }) => {
+			isSubmittingAssist = false;
+			if (result.type === 'success') {
+				isAssistModalOpen = false;
+				toast.success(result.data?.message || "Visitor registered successfully!");
+				assistFirstName = ''; assistMiddleName = ''; assistLastName = ''; assistEmail = ''; assistPhone = ''; assistOfficeId = ''; assistPurpose = ''; assistPhotoUrl = '';
+				if (dashboardContext?.refreshData) dashboardContext.refreshData();
+			} else if (result.type === 'failure') {
+				toast.error(result.data?.message || "Manual registration failed.");
 			}
-		});
+		};
 	}
 
-	function focusBuildingOnMap(bld: any) {
-		activeTab = 'map';
-		if (leafMap && bld.lat && bld.lng) {
-			leafMap.setView([bld.lat, bld.lng], 20, { animate: true });
-			toast.info(`Map camera focused on ${bld.name}.`);
-		}
+	function handleApprove(visitorId: string) {
+		verifyVisitor(visitorId, 'approved');
+		toast.success("Visitor verification approved!");
+		if (dashboardContext?.refreshData) dashboardContext.refreshData();
 	}
 
-	function focusVisitorOnMap(v: any) {
-		activeTab = 'map';
-		if (leafMap) {
-			const pos = visitorPositions[v.id] || { lat: v.lat || 9.894414, lng: v.lng || 123.882580 };
-			leafMap.setView([pos.lat, pos.lng], 20, { animate: true });
-			if (visitorMarkers[v.id]) {
-				visitorMarkers[v.id].openPopup();
-			}
-		}
-	}
-
-	function getInitials(name: string): string {
-		if (!name) return "V";
-		const parts = name.trim().split(/\s+/);
-		if (parts.length >= 2) {
-			return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-		}
-		return parts[0].substring(0, 2).toUpperCase();
-	}
-
-	function getUserColor(userId: string): string {
-		if (!userId) return "#3b82f6";
-		let hash = 0;
-		for (let i = 0; i < userId.length; i++) {
-			hash = userId.charCodeAt(i) + ((hash << 5) - hash);
-		}
-		const hue = Math.abs(hash) % 360;
-		return `hsl(${hue}, 75%, 45%)`;
-	}
-
-	function formatTime(isoString: string): string {
-		if (!isoString) return '-';
-		return new Date(isoString).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-	}
-
-	function getColorVar(str: string): string {
-		const chartVars = ['--chart-1', '--chart-2', '--chart-3', '--chart-4', '--chart-5'];
-		let hash = 0;
-		for (let i = 0; i < str.length; i++) {
-			hash = str.charCodeAt(i) + ((hash << 5) - hash);
-		}
-		const index = Math.abs(hash) % chartVars.length;
-		return chartVars[index];
-	}
-
-	async function handleCheckout(id: string) {
-		const updated = await checkoutLocalVisitor(id);
-		if (updated) {
-			toast.info(`Visitor ${updated.fullName} checked out successfully.`);
-			await dashboardContext.loadData();
-			if (scannedVisitor && scannedVisitor.id === id) {
-				scannedVisitor = { ...scannedVisitor, status: 'checked_out', checkOutTime: new Date().toISOString() };
-			}
-		}
-	}
-
-	async function handleApprove(id: string) {
-		const updated = await verifyVisitor(id, 'approved');
-		if (updated) {
-			toast.success(`Visitor ${updated.fullName} approved and verified.`);
-			await dashboardContext.loadData();
-		}
-	}
-
-	function triggerReject(id: string) {
-		rejectingVisitorId = id;
+	function openRejectModal(visitorId: string) {
+		rejectingVisitorId = visitorId;
 		rejectionReason = '';
 		isRejecting = true;
 	}
 
-	async function handleConfirmReject() {
-		if (!rejectionReason.trim()) {
-			toast.error('Please enter a rejection reason.');
-			return;
-		}
-		const updated = await verifyVisitor(rejectingVisitorId, 'rejected', rejectionReason);
-		if (updated) {
-			toast.error(`Visitor ${updated.fullName} pass has been declined.`);
-			isRejecting = false;
-			await dashboardContext.loadData();
-		}
+	function confirmReject() {
+		if (!rejectingVisitorId) return;
+		verifyVisitor(rejectingVisitorId, 'rejected', rejectionReason || 'Failed security desk verification');
+		toast.error("Visitor entry rejected.");
+		isRejecting = false;
+		if (dashboardContext?.refreshData) dashboardContext.refreshData();
 	}
 
-	function handleSimulateScan(e: SubmitEvent) {
-		e.preventDefault();
-		if (!scanInput.trim()) return;
-
-		const code = scanInput.trim().toUpperCase();
-		const match = visitors.find((v: any) => v.passCode.toUpperCase() === code || v.id === code);
-		
-		if (match) {
-			scannedVisitor = match;
-			if (match.status === 'checked_in') {
-				toast.success(`Scan Validated: ${match.fullName} is registered to visit ${match.buildingName || 'General Building'}.`);
-			} else {
-				toast.info(`Scan Record: ${match.fullName} has checked out.`);
-			}
-		} else {
-			scannedVisitor = null;
-			toast.error('No visitor pass found with code: ' + code);
-		}
+	function handleCheckout(visitorId: string) {
+		checkoutLocalVisitor(visitorId);
+		toast.info("Visitor checked out of campus.");
+		if (dashboardContext?.refreshData) dashboardContext.refreshData();
 	}
 </script>
+<div class='m-16'>
+<div class="space-y-6">
 
-{#snippet buildingBadge(buildingName: string)}
-	{@const colorVar = getColorVar(buildingName)}
-	<Badge
-		style="background-color: oklch(from var({colorVar}) l c h / 0.12); border-color: oklch(from var({colorVar}) l c h / 0.25); color: var({colorVar});"
-		variant="outline"
-		class="text-[11px] font-bold border transition-colors shadow-xs rounded-full px-2.5"
-	>
-		{buildingName}
-	</Badge>
-{/snippet}
-
-{#snippet statusBadge(visitor: any)}
-	{#if visitor.status === 'checked_out'}
-		<Badge variant="secondary" class="text-[10px] font-bold">
-			Checked Out
-		</Badge>
-	{:else if visitor.verificationStatus === 'rejected'}
-		<Badge variant="destructive" class="text-[10px] font-bold">
-			Declined
-		</Badge>
-	{:else if visitor.roomCheckInTime}
-		<Badge variant="outline" class="text-[10px] font-bold border-indigo-500/30 text-indigo-600 dark:text-indigo-400 bg-indigo-500/10">
-			In Office
-		</Badge>
-	{:else}
-		<Badge variant="outline" class="text-[10px] font-bold border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-500/10">
-			On Campus
-		</Badge>
-	{/if}
-{/snippet}
-
-<div class="flex flex-col gap-6 p-6 md:p-8">
-	<!-- Page Header Console Bar -->
-	<div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-border/60">
+	<!-- TOP PAGE HEADER (Unencased - Matching Admin Offices Layout 1-to-1) -->
+	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border/60">
 		<div class="flex items-center gap-3">
 			<div class="p-3 rounded-2xl bg-primary/10 border border-primary/20 text-primary">
 				<ShieldCheckIcon class="size-6 pointer-events-none" />
 			</div>
 			<div>
-				<div class="flex items-center gap-2">
-					<h1 class="text-xl md:text-2xl font-black text-foreground tracking-tight">Security GIS Command Console</h1>
-					<Badge variant="outline" class="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold text-[10px] uppercase border-emerald-500/30 px-2.5 gap-1">
-						<span class="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
-						
-					</Badge>
-				</div>
-				<p class="text-xs text-muted-foreground leading-relaxed font-semibold">Live GIS map telemetry with image overlay, real-time visitor positioning, and gate pass verification.</p>
+				<h1 class="text-xl md:text-2xl font-black text-foreground tracking-tight">Security Command Portal</h1>
+				<p class="text-xs text-muted-foreground leading-relaxed font-semibold">Live campus GIS tracking, logbook audit, and phone-less visitor desk registration</p>
 			</div>
 		</div>
 
-		<!-- Status Indicators -->
-		<div class="flex items-center gap-2 flex-wrap">
-			<div class="px-3 py-1.5 rounded-xl border border-border bg-card text-xs font-semibold flex items-center gap-2">
-				<ActivityIcon class="size-3.5 text-emerald-500 pointer-events-none" />
-				<span class="text-muted-foreground">Onsite Visitors:</span>
-				<span class="font-black text-foreground">{liveMonitorList.length}</span>
-			</div>
-			<div class="px-3 py-1.5 rounded-xl border border-border bg-card text-xs font-semibold flex items-center gap-2">
-				<RadioIcon class="size-3.5 text-amber-500 pointer-events-none animate-pulse" />
-				<span class="text-muted-foreground">Pending Queue:</span>
-				<span class="font-black text-amber-600 dark:text-amber-400">{pendingVerificationQueue.length}</span>
-			</div>
-		</div>
-	</div>
+		<div class="flex items-center gap-2.5 flex-wrap">
+			<Button onclick={() => isAssistModalOpen = true} class="text-xs font-extrabold gap-1.5 rounded-xl h-10 shadow-md shadow-primary/10 cursor-pointer">
+				<PhoneOffIcon class="size-4 pointer-events-none" />
+				<span>+ Assist Visitor (No Phone)</span>
+			</Button>
 
-	<!-- 3-Column Architectural GIS Monitor Dashboard -->
-	<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-		<!-- COLUMN 1: High-Utility Security Telemetry & Audit Operations (3 Cols) -->
-		<div class="lg:col-span-3 flex flex-col gap-4">
-			<!-- Security Telemetry & Operations Sentinel -->
-			<!-- <Card.Root class="border-border shadow-xs rounded-2xl bg-card">
-				<Card.Header class="pb-3">
-					<div class="flex items-center justify-between">
-						<Card.Title class="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2">
-							<ShieldCheckIcon class="size-4 text-primary pointer-events-none" />
-							<span>Security Telemetry</span>
-						</Card.Title>
-						<Badge variant="outline" class="text-[10px] font-mono font-bold">Live</Badge>
-					</div>
-					<Card.Description class="text-[11px]">Sector operational status and guard posts.</Card.Description>
-				</Card.Header>
-				<Card.Content class="flex flex-col gap-3 text-xs font-semibold">
-					<div class="p-2.5 rounded-xl bg-muted/40 border border-border/80 flex items-center justify-between">
-						<div class="flex items-center gap-2">
-							<LockIcon class="size-3.5 text-emerald-500 pointer-events-none" />
-							<span class="text-foreground">Gate 1 Main Entry</span>
-						</div>
-						<Badge variant="outline" class="text-[10px] font-bold border-emerald-500/30 text-emerald-600 bg-emerald-500/10">Active</Badge>
-					</div>
-
-					<div class="p-2.5 rounded-xl bg-muted/40 border border-border/80 flex items-center justify-between">
-						<div class="flex items-center gap-2">
-							<UsersIcon class="size-3.5 text-primary pointer-events-none" />
-							<span class="text-foreground">Guard Patrol Duty</span>
-						</div>
-						<span class="font-bold text-foreground">3 Officers</span>
-					</div>
-
-					<div class="p-2.5 rounded-xl bg-muted/40 border border-border/80 flex items-center justify-between">
-						<div class="flex items-center gap-2">
-							<ActivityIcon class="size-3.5 text-indigo-500 pointer-events-none" />
-							<span class="text-foreground">Campus Alarms</span>
-						</div>
-						<span class="font-extrabold text-emerald-600 dark:text-emerald-400">Nominal</span>
-					</div>
-				</Card.Content>
-			</Card.Root> -->
-
-			<!-- Live Security Audit Log Card -->
-			<Card.Root class="border-border shadow-xs rounded-2xl bg-card">
-				<Card.Header class="pb-3">
-					<div class="flex items-center justify-between">
-						<Card.Title class="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2">
-							<ClockIcon class="size-4 text-primary pointer-events-none" />
-							<span>Security Audit Log</span>
-						</Card.Title>
-						<Badge variant="secondary" class="text-[9px] font-mono font-bold">Real-time</Badge>
-					</div>
-					<Card.Description class="text-[11px]">Chronological gate telemetry event feed.</Card.Description>
-				</Card.Header>
-				<Card.Content class="flex flex-col gap-2.5 max-h-[220px] overflow-y-auto pr-1">
-					{#each securityAuditLog as log}
-						<div class="p-2.5 rounded-xl bg-muted/30 border border-border/60 flex flex-col gap-1 text-[11px] font-semibold">
-							<div class="flex items-center justify-between">
-								<span class="font-bold text-foreground">{log.title}</span>
-								<span class="font-mono text-[10px] text-muted-foreground">{log.time}</span>
-							</div>
-							<span class="text-[10px] text-muted-foreground font-medium">{log.detail}</span>
-						</div>
-					{/each}
-				</Card.Content>
-			</Card.Root>
-
-			<!-- Campus Landmarks Camera Focus Directory Card -->
-			<Card.Root class="border-border shadow-xs rounded-2xl bg-card">
-				<Card.Header class="pb-3">
-					<div class="flex items-center justify-between">
-						<Card.Title class="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-2">
-							<Building2Icon class="size-4 text-primary pointer-events-none" />
-							<span>Campus Landmarks</span>
-						</Card.Title>
-						<Badge variant="outline" class="text-[10px] font-mono font-bold">{MOCK_BUILDINGS.length}</Badge>
-					</div>
-					<Card.Description class="text-[11px]">One-click map camera focus controls.</Card.Description>
-				</Card.Header>
-				<Card.Content class="flex flex-col gap-2">
-					{#each MOCK_BUILDINGS as bld}
-						<div class="p-2.5 rounded-xl border border-border/80 bg-card hover:bg-muted/20 transition-all flex items-center justify-between text-xs font-semibold">
-							<div>
-								<div class="font-extrabold text-foreground">{bld.name}</div>
-								<div class="text-[10px] text-muted-foreground">{bld.code} • {bld.floors} Floors</div>
-							</div>
-							<Button 
-								onclick={() => focusBuildingOnMap(bld)} 
-								variant="outline" 
-								size="sm" 
-								class="h-7 text-[10px] font-bold rounded-lg cursor-pointer"
-							>
-								<EyeIcon data-icon="inline-start" />
-								<span>Focus</span>
-							</Button>
-						</div>
-					{/each}
-				</Card.Content>
-			</Card.Root>
-		</div>
-
-		<!-- COLUMN 2: Main Center Leaflet Map Viewport & Visitors List (6 Cols) -->
-		<div class="lg:col-span-6 flex flex-col gap-6">
-			<!-- Pending Verification Alert Banner -->
-			{#if pendingVerificationQueue.length > 0}
-				<div class="flex flex-col gap-3">
-					<div class="flex items-center justify-between">
-						<h2 class="text-xs font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-2">
-							<AlertTriangleIcon class="size-4 pointer-events-none" />
-							<span>Pending Gate Verifications ({pendingVerificationQueue.length})</span>
-						</h2>
-					</div>
-					<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-						{#each pendingVerificationQueue as visitor}
-							<Card.Root class="border-amber-500/30 bg-amber-500/[0.03] shadow-xs rounded-2xl">
-								<Card.Content class="p-3.5 flex flex-col gap-3 font-semibold text-xs">
-									<div class="flex items-center gap-3">
-										{#if visitor.photoUrl}
-											<img src={visitor.photoUrl} alt="Selfie" class="size-10 rounded-full object-cover border-2 border-amber-400/60 shadow-xs" />
-										{:else}
-											<div class="size-10 rounded-full bg-amber-500/10 text-amber-600 flex items-center justify-center text-[10px] font-black uppercase">Photo</div>
-										{/if}
-										<div>
-											<div class="font-black text-sm text-foreground">{visitor.fullName}</div>
-											<div class="text-xs font-mono font-black text-primary">{visitor.passCode}</div>
-										</div>
-									</div>
-
-									<div class="text-[11px] bg-card p-2.5 rounded-xl border border-border/80 flex flex-col gap-1 font-semibold">
-										<div><span class="text-muted-foreground">Destination:</span> <span class="font-bold text-foreground">{visitor.buildingName}</span></div>
-										<div><span class="text-muted-foreground">Purpose:</span> <span class="text-foreground">{visitor.purpose}</span></div>
-									</div>
-
-									<div class="flex gap-2">
-										<Button onclick={() => handleApprove(visitor.id)} class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs py-1.5 rounded-xl flex items-center justify-center gap-1 shadow-xs cursor-pointer h-8">
-											<UserCheckIcon data-icon="inline-start" />
-											<span>Approve</span>
-										</Button>
-										<Button onclick={() => triggerReject(visitor.id)} variant="destructive" class="flex-1 font-extrabold text-xs py-1.5 rounded-xl flex items-center justify-center gap-1 shadow-xs cursor-pointer h-8">
-											<UserXIcon data-icon="inline-start" />
-											<span>Decline</span>
-										</Button>
-									</div>
-								</Card.Content>
-							</Card.Root>
-						{/each}
-					</div>
-				</div>
-			{/if}
-
-			<!-- Primary View Switcher: Live Leaflet GIS Map vs Visitors List Table -->
-			<Tabs.Root value={activeTab} onValueChange={(val) => { activeTab = val as 'map' | 'visitors'; if (val === 'map' && leafMap) setTimeout(() => leafMap.invalidateSize(), 150); }} class="w-full flex flex-col gap-4">
-				<div class="flex items-center justify-between flex-wrap gap-3 pb-2 border-b border-border/60">
-					<Tabs.List class="bg-muted/60 p-1 rounded-xl">
-						<Tabs.Trigger value="map" class="text-xs font-bold px-4 py-1.5 rounded-lg gap-2 cursor-pointer">
-							<MapIcon class="size-3.5 pointer-events-none" />
-							<span>Live GIS Map Feed</span>
-						</Tabs.Trigger>
-						<Tabs.Trigger value="visitors" class="text-xs font-bold px-4 py-1.5 rounded-lg gap-2 cursor-pointer">
-							<ListIcon class="size-3.5 pointer-events-none" />
-							<span>Active Visitors Stream ({filteredLiveMonitorList.length})</span>
-						</Tabs.Trigger>
-					</Tabs.List>
-
-					{#if activeTab === 'visitors'}
-						<div class="flex items-center gap-2 w-full sm:w-auto">
-							<div class="relative flex-grow sm:w-48">
-								<SearchIcon class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-								<Input 
-									type="text" 
-									placeholder="Search name or pass..." 
-									bind:value={searchQuery} 
-									class="pl-9 h-8 text-xs rounded-xl"
-								/>
-							</div>
-
-							<div class="flex items-center p-0.5 rounded-xl border border-border bg-muted/40">
-								<Button 
-									variant={visitorViewMode === 'table' ? 'secondary' : 'ghost'} 
-									size="icon" 
-									onclick={() => visitorViewMode = 'table'} 
-									class="size-7 rounded-lg cursor-pointer"
-								>
-									<ListIcon class="size-3.5 pointer-events-none" />
-								</Button>
-								<Button 
-									variant={visitorViewMode === 'grid' ? 'secondary' : 'ghost'} 
-									size="icon" 
-									onclick={() => visitorViewMode = 'grid'} 
-									class="size-7 rounded-lg cursor-pointer"
-								>
-									<LayoutGridIcon class="size-3.5 pointer-events-none" />
-								</Button>
-							</div>
-						</div>
-					{/if}
-				</div>
-
-				<!-- TAB CONTENT 1: Leaflet Interactive GIS Map with /campusMap-adjusted.png Overlay -->
-				<Tabs.Content value="map" class="mt-0">
-					<Card.Root class="border-border/80 shadow-md rounded-2xl overflow-hidden bg-card flex flex-col">
-						<Card.Header class="px-4 border-b border-border/60  flex-row items-center justify-between flex-wrap gap-2 space-y-0">
-							<div class="flex items-center gap-2">
-								<Badge variant="default" class="font-mono font-extrabold text-[10px] gap-1">
-									<RadioIcon class="size-3 pointer-events-none animate-pulse" />
-									<span>3D OVERLAY GIS</span>
-								</Badge>
-								<span class="text-xs text-muted-foreground font-semibold">Campus map image overlay & live visitor markers</span>
-							</div>
-
-							<div class="flex items-center gap-3">
-								<Button 
-									onclick={() => isSimulatingMovement = !isSimulatingMovement} 
-									variant="outline" 
-									size="sm" 
-									class="h-7 text-[10px] font-bold rounded-lg gap-1 border-primary/30 text-primary hover:bg-primary/10 cursor-pointer"
-								>
-									<ActivityIcon data-icon="inline-start" />
-									<span>{isSimulatingMovement ? 'Pause Live Movement' : 'Resume Live Movement'}</span>
-								</Button>
-								<div class="text-[11px] font-mono text-muted-foreground font-bold hidden sm:block">
-									Bounds: 9.8944° N, 123.8825° E
-								</div>
-							</div>
-						</Card.Header>
-
-						<!-- Leaflet Container -->
-						<Card.Content class="p-0">
-							<div class="relative w-full h-[480px] bg-slate-950 rounded-b-2xl overflow-hidden">
-								<div bind:this={mapContainer} class="size-full"></div>
-							</div>
-						</Card.Content>
-					</Card.Root>
-				</Tabs.Content>
-
-				<!-- TAB CONTENT 2: Active Visitors Stream Table / Grid -->
-				<Tabs.Content value="visitors" class="mt-0">
-					{#if filteredLiveMonitorList.length === 0}
-						<Card.Root class="p-12 text-center border-dashed border-border text-muted-foreground text-xs font-semibold rounded-2xl bg-card">
-							<Card.Content class="p-0">
-								{#if searchQuery.trim()}
-									No active visitors match your search term "{searchQuery}".
-								{:else}
-									No active verified visitors currently on campus.
-								{/if}
-							</Card.Content>
-						</Card.Root>
-					{:else if visitorViewMode === 'table'}
-						<div class="border border-border/80 rounded-2xl overflow-hidden bg-card shadow-xs">
-							<Table.Root>
-								<Table.Header class="bg-muted/30">
-									<Table.Row>
-										<Table.Head class="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Visitor Profile</Table.Head>
-										<Table.Head class="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Pass Code</Table.Head>
-										<Table.Head class="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Destination</Table.Head>
-										<Table.Head class="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Gate Entry</Table.Head>
-										<Table.Head class="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Status</Table.Head>
-										<Table.Head class="text-[10px] font-black uppercase text-muted-foreground tracking-wider text-right">Actions</Table.Head>
-									</Table.Row>
-								</Table.Header>
-								<Table.Body>
-									{#each filteredLiveMonitorList as visitor (visitor.id)}
-										<Table.Row class="hover:bg-muted/20 transition-colors">
-											<Table.Cell class="font-semibold text-xs py-3">
-												<div class="flex items-center gap-3">
-													{#if visitor.photoUrl}
-														<img src={visitor.photoUrl} alt="Selfie" class="size-9 rounded-full object-cover border border-primary/20 shrink-0" />
-													{:else}
-														<div class="size-9 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground shrink-0">Pic</div>
-													{/if}
-													<div>
-														<div class="font-extrabold text-foreground">{visitor.fullName}</div>
-														<div class="text-[10px] text-muted-foreground">{visitor.email || visitor.phone}</div>
-													</div>
-												</div>
-											</Table.Cell>
-
-											<Table.Cell class="py-3">
-												<span class="font-mono font-black text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20">
-													{visitor.passCode}
-												</span>
-											</Table.Cell>
-
-											<Table.Cell class="py-3">
-												<div class="flex flex-col gap-0.5">
-													{@render buildingBadge(visitor.buildingName || 'General')}
-													{#if visitor.roomNumber}
-														<span class="text-[10px] text-muted-foreground font-bold pl-1">Room: {visitor.roomNumber}</span>
-													{/if}
-												</div>
-											</Table.Cell>
-
-											<Table.Cell class="py-3 font-mono text-xs font-bold text-foreground">
-												{formatTime(visitor.checkInTime)}
-											</Table.Cell>
-
-											<Table.Cell class="py-3">
-												{@render statusBadge(visitor)}
-											</Table.Cell>
-
-											<Table.Cell class="py-3 text-right">
-												<div class="flex items-center justify-end gap-1.5">
-													<Button 
-														onclick={() => focusVisitorOnMap(visitor)} 
-														variant="outline" 
-														size="sm" 
-														class="text-xs font-bold rounded-xl h-8 gap-1 cursor-pointer"
-													>
-														<EyeIcon data-icon="inline-start" />
-														<span>Focus</span>
-													</Button>
-													<Button 
-														onclick={() => handleCheckout(visitor.id)} 
-														variant="destructive" 
-														size="sm" 
-														class="text-xs font-bold rounded-xl h-8 gap-1 shadow-xs cursor-pointer"
-													>
-														<LogOutIcon data-icon="inline-start" />
-														<span>Out</span>
-													</Button>
-												</div>
-											</Table.Cell>
-										</Table.Row>
-									{/each}
-								</Table.Body>
-							</Table.Root>
-						</div>
-					{:else}
-						<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-							{#each filteredLiveMonitorList as visitor (visitor.id)}
-								<Card.Root class="shadow-xs border-border/80 hover:shadow-md transition-all rounded-2xl bg-card">
-									<Card.Content class="p-4 flex flex-col gap-3 font-semibold text-xs">
-										<div class="flex items-center justify-between">
-											<div class="flex items-center gap-2.5">
-												{#if visitor.photoUrl}
-													<img src={visitor.photoUrl} alt="Selfie" class="size-10 rounded-full object-cover border border-primary/30" />
-												{:else}
-													<div class="size-10 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground">Pic</div>
-												{/if}
-												<div>
-													<div class="font-bold text-sm text-foreground">{visitor.fullName}</div>
-													<div class="text-[10px] text-muted-foreground leading-none mt-0.5">{visitor.email}</div>
-												</div>
-											</div>
-											{@render statusBadge(visitor)}
-										</div>
-
-										<div class="grid grid-cols-2 gap-2 text-[11px] bg-muted/40 p-3 rounded-xl border border-border/80">
-											<div>
-												<span class="text-muted-foreground block text-[9px] uppercase font-bold tracking-wider">Pass Code</span>
-												<span class="font-mono font-black text-primary text-xs">{visitor.passCode}</span>
-											</div>
-											<div>
-												<span class="text-muted-foreground block text-[9px] uppercase font-bold tracking-wider">Gate Entry</span>
-												<span class="font-mono text-foreground font-bold">{formatTime(visitor.checkInTime)}</span>
-											</div>
-										</div>
-
-										<div class="flex gap-2">
-											<Button onclick={() => focusVisitorOnMap(visitor)} variant="outline" class="flex-1 text-xs font-bold rounded-xl cursor-pointer h-9 gap-1">
-												<EyeIcon data-icon="inline-start" />
-												<span>Focus Map</span>
-											</Button>
-											<Button onclick={() => handleCheckout(visitor.id)} class="flex-1 bg-destructive hover:bg-destructive/95 text-destructive-foreground text-xs font-bold rounded-xl flex items-center justify-center gap-1 shadow-xs cursor-pointer h-9">
-												<LogOutIcon data-icon="inline-start" />
-												<span>Check Out</span>
-											</Button>
-										</div>
-									</Card.Content>
-								</Card.Root>
-							{/each}
-						</div>
-					{/if}
-				</Tabs.Content>
+			<Tabs.Root value={activeTab} onValueChange={(v) => activeTab = v as 'map' | 'visitors'}>
+				<Tabs.List class="bg-muted/80 p-1 rounded-2xl border border-border">
+					<Tabs.Trigger value="map" class="rounded-xl text-xs font-bold px-3.5 py-1.5 gap-1.5 cursor-pointer">
+						<MapIcon class="size-4 pointer-events-none" />
+						<span>Live Map ({liveMonitorList.length})</span>
+					</Tabs.Trigger>
+					<Tabs.Trigger value="visitors" class="rounded-xl text-xs font-bold px-3.5 py-1.5 gap-1.5 cursor-pointer">
+						<UsersIcon class="size-4 pointer-events-none" />
+						<span>Logbook ({visitors.length})</span>
+					</Tabs.Trigger>
+				</Tabs.List>
 			</Tabs.Root>
 		</div>
+	</div>
 
-		<!-- COLUMN 3: Gate Pass Scanner Terminal (3 Cols) -->
-		<div class="lg:col-span-3 flex flex-col gap-6">
-			<Card.Root class="border-border/80 shadow-md rounded-2xl bg-card">
-				<Card.Header>
-					<Card.Title class="text-base font-black text-foreground flex items-center gap-2">
-						<QrCodeIcon class="size-4 text-primary pointer-events-none" />
-						Scan Gate Pass QR
-					</Card.Title>
-					<Card.Description class="text-xs text-muted-foreground font-semibold">Simulate barcode scanner sweeps at gate terminals.</Card.Description>
-				</Card.Header>
-				<Card.Content class="flex flex-col gap-4">
-					<form onsubmit={handleSimulateScan} class="flex flex-col gap-4">
-						<Field.FieldGroup class="flex flex-col gap-3">
-							<Field.Field>
-								<Field.FieldLabel for="scan-input" class="text-xs font-extrabold uppercase text-muted-foreground tracking-wider">Pass Code / Scan Input</Field.FieldLabel>
-								<div class="flex gap-2 mt-1">
-									<Input
-										id="scan-input"
-										type="text"
-										placeholder="e.g. VP-8921"
-										bind:value={scanInput}
-										required
-										class="font-mono text-sm tracking-widest h-10 rounded-xl"
-									/>
-									<Button type="submit" class="bg-primary hover:bg-primary/95 text-primary-foreground font-extrabold text-xs px-4 h-10 rounded-xl cursor-pointer">
-										Scan
-									</Button>
+	<!-- PENDING VERIFICATIONS BANNER -->
+	{#if pendingVerificationQueue.length > 0}
+		<Card.Root class="border-amber-500/30 bg-amber-500/10 dark:bg-amber-500/10 rounded-2xl shadow-xs">
+			<Card.Header class="pb-2">
+				<Card.Title class="text-xs font-black text-amber-600 dark:text-amber-400 flex items-center gap-2 uppercase tracking-wider">
+					<AlertTriangleIcon class="size-4 animate-bounce" />
+					<span>Pending Security Desk Verifications ({pendingVerificationQueue.length})</span>
+				</Card.Title>
+			</Card.Header>
+			<Card.Content class="p-4 pt-0">
+				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+					{#each pendingVerificationQueue as p}
+						<div class="p-3 rounded-xl border border-amber-500/30 bg-card flex items-center justify-between text-xs">
+							<div class="flex items-center gap-2">
+								{#if p.photoUrl}
+									<img src={p.photoUrl} alt={p.fullName} class="size-9 rounded-full object-cover border border-primary/30" />
+								{:else}
+									<div class="size-9 rounded-full bg-muted flex items-center justify-center font-bold text-xs">{p.fullName[0]}</div>
+								{/if}
+								<div>
+									<div class="font-extrabold text-foreground">{p.fullName}</div>
+									<div class="text-[10px] text-muted-foreground font-mono">{p.passCode} • {p.officeName || 'Campus'}</div>
 								</div>
-							</Field.Field>
-						</Field.FieldGroup>
-
-						<Separator />
-
-						<div class="flex flex-col gap-2 font-semibold">
-							<div class="text-xs font-extrabold text-foreground uppercase tracking-wider">Simulate Quick Scans:</div>
-							<div class="flex flex-wrap gap-1.5">
-								{#each liveMonitorList.slice(0, 4) as vis}
-									<Button onclick={() => { scanInput = vis.passCode; handleSimulateScan(new SubmitEvent('submit')); }} variant="outline" size="sm" class="text-xs font-mono rounded-xl h-8 border-border/85 cursor-pointer">
-										{vis.passCode}
-									</Button>
-								{/each}
+							</div>
+							<div class="flex gap-1">
+								<Button onclick={() => handleApprove(p.id)} size="sm" class="h-8 text-xs font-bold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer">Approve</Button>
+								<Button onclick={() => openRejectModal(p.id)} size="sm" variant="destructive" class="h-8 text-xs font-bold rounded-lg cursor-pointer">Reject</Button>
 							</div>
 						</div>
-					</form>
-				</Card.Content>
-			</Card.Root>
+					{/each}
+				</div>
+			</Card.Content>
+		</Card.Root>
+	{/if}
 
-			<!-- Scanner Terminal Output -->
-			<Card.Root class="border-border/80 shadow-md rounded-2xl overflow-hidden bg-muted/[0.15]">
-				<Card.Header class="pb-2">
-					<Card.Title class="text-xs font-black uppercase text-foreground">Terminal Telemetry Output</Card.Title>
-				</Card.Header>
-				<Card.Content class="p-5 flex flex-col gap-4 items-center justify-center min-h-[240px]">
-					{#if scannedVisitor}
-						<div class="w-full flex flex-col gap-3 items-center text-center font-semibold">
-							{#if scannedVisitor.photoUrl}
-								<img src={scannedVisitor.photoUrl} alt="Selfie" class="size-20 rounded-full object-cover border-4 border-primary/20 shadow-md" />
-							{:else}
-								<div class="size-20 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground">No Selfie</div>
-							{/if}
+	<!-- MAIN CONTENT TAB 1: LIVE MAP PORTAL -->
+	{#if activeTab === 'map'}
+		<div class="flex flex-col gap-4">
+			<!-- SUB-HEADER BAR (Matching Admin Offices sub-header) -->
+			<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+				<div>
+					<h2 class="text-xs font-black text-foreground uppercase tracking-wider">Active Campus GIS Tracking ({liveMonitorList.length})</h2>
+					<span class="text-xs text-muted-foreground font-semibold">{liveMonitorList.length} active visitor check-in sessions monitored across campus.</span>
+				</div>
 
-							<div class="space-y-0.5">
-								<div class="font-black text-base text-foreground leading-tight">{scannedVisitor.fullName}</div>
-								<div class="text-xs font-mono font-black text-primary">{scannedVisitor.passCode}</div>
-							</div>
+				<div class="relative w-full sm:w-64">
+					<SearchIcon class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+					<Input 
+						type="text" 
+						placeholder="Search visitor, pass code..." 
+						bind:value={searchQuery} 
+						class="pl-9 h-9 text-xs rounded-xl"
+					/>
+				</div>
+			</div>
 
-							<div class="w-full grid grid-cols-2 gap-2 text-left text-[11px] bg-card p-3 rounded-xl border border-border/80 font-semibold">
-								<div><span class="text-muted-foreground text-[9px] block uppercase font-bold tracking-wider">Destination</span><div class="font-bold truncate">{scannedVisitor.buildingName}</div></div>
-								<div><span class="text-muted-foreground text-[9px] block uppercase font-bold tracking-wider">Status</span><div>{@render statusBadge(scannedVisitor)}</div></div>
-							</div>
+			<!-- MAP & AUDIT LOG GRID -->
+			<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+				<!-- MAP CANVAS CONTAINER -->
+				<div class="lg:col-span-3 relative h-[560px] rounded-2xl overflow-hidden border border-border shadow-xs bg-card">
+					<div bind:this={mapContainer} class="absolute inset-0 z-0"></div>
+				</div>
 
-							{#if scannedVisitor.status === 'checked_in'}
-								<Button onclick={() => handleCheckout(scannedVisitor!.id)} class="w-full bg-destructive hover:bg-destructive/95 text-destructive-foreground font-extrabold text-xs py-2 rounded-xl flex items-center justify-center gap-1.5 shadow-xs cursor-pointer h-9">
-									<LogOutIcon data-icon="inline-start" />
-									<span>Validate Exit Check-Out</span>
-								</Button>
-							{:else}
-								<div class="text-xs text-muted-foreground font-bold flex items-center gap-1.5 p-2 rounded-xl bg-emerald-500/[0.04] border border-emerald-200/30">
-									<CheckCircleIcon class="size-4 text-emerald-600 pointer-events-none" />
-									<span>Pass validation complete. Exited.</span>
+				<!-- SIDE SECURITY AUDIT FEED CARD -->
+				<Card.Root class="rounded-2xl border-border bg-card shadow-xs flex flex-col">
+					<Card.Header class="pb-3 border-b border-border/50 bg-muted/20">
+						<div class="flex items-center justify-between gap-2">
+							<Card.Title class="text-xs font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
+								<ActivityIcon class="size-4 text-primary pointer-events-none" />
+								<span>Security Audit Log</span>
+							</Card.Title>
+							<Badge class="bg-primary/15 text-primary font-mono text-[9px] px-2 py-0.5 rounded-lg border border-primary/25">Live</Badge>
+						</div>
+					</Card.Header>
+					<Card.Content class="p-4 flex-1 overflow-y-auto max-h-[480px]">
+						<div class="flex flex-col gap-2.5">
+							{#each securityAuditLog as log}
+								<div class="p-3 rounded-xl border border-border/60 bg-muted/20 text-xs font-semibold flex items-start gap-3 hover:bg-muted/40 transition-colors">
+									<div class="size-2 rounded-full mt-1.5 shrink-0 {log.type === 'entry' ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' : 'bg-rose-500 shadow-xs shadow-rose-500/50'}"></div>
+									<div class="flex-1 text-start">
+										<div class="flex items-center justify-between gap-2">
+											<span class="font-extrabold text-foreground">{log.title}</span>
+											<span class="text-[9px] font-mono text-muted-foreground shrink-0">{log.time}</span>
+										</div>
+										<div class="text-[10px] text-muted-foreground font-mono mt-0.5">{log.detail}</div>
+									</div>
 								</div>
-							{/if}
+							{/each}
 						</div>
-					{:else}
-						<div class="text-center text-muted-foreground space-y-2 py-6 font-semibold">
-							<QrCodeIcon class="size-10 mx-auto text-primary/30 animate-pulse pointer-events-none" />
-							<div class="font-extrabold text-xs text-foreground uppercase tracking-widest">Waiting for Pass scan</div>
-							<p class="text-xs max-w-[180px] mx-auto text-muted-foreground/80 leading-relaxed font-semibold">Enter a pass code or click a simulation button above.</p>
-						</div>
-					{/if}
+					</Card.Content>
+				</Card.Root>
+			</div>
+		</div>
+
+	{:else}
+		<!-- TAB 2: VISITOR LOGBOOK DATA TABLE -->
+		<div class="flex flex-col gap-4">
+			<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+				<div>
+					<h2 class="text-xs font-black text-foreground uppercase tracking-wider">Visitor Logbook Directory ({filteredVisitorsList.length})</h2>
+					<span class="text-xs text-muted-foreground font-semibold">Complete registry of campus entry passes, check-in durations, and status logs.</span>
+				</div>
+
+				<div class="relative w-full sm:w-64">
+					<SearchIcon class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+					<Input 
+						type="text" 
+						placeholder="Filter by name, pass code, office..." 
+						bind:value={searchQuery} 
+						class="pl-9 h-9 text-xs rounded-xl"
+					/>
+				</div>
+			</div>
+
+			<Card.Root class="border-border shadow-xs rounded-2xl bg-card overflow-hidden">
+				<Card.Content class="p-0 overflow-x-auto">
+					<Table.Root>
+						<Table.Header class="bg-muted/30 text-[10px] uppercase font-black tracking-wider">
+							<Table.Row class="border-b border-border/60">
+								<Table.Head class="pl-5 py-3">Visitor Profile</Table.Head>
+								<Table.Head>Pass Code</Table.Head>
+								<Table.Head>Destination Office</Table.Head>
+								<Table.Head>Nearest Landmark / Node</Table.Head>
+								<Table.Head>Duration</Table.Head>
+								<Table.Head>Status</Table.Head>
+								<Table.Head class="pr-5 text-end">Actions</Table.Head>
+							</Table.Row>
+						</Table.Header>
+						<Table.Body class="text-xs font-semibold divide-y divide-border/40">
+							{#each filteredVisitorsList as v}
+								<Table.Row class="hover:bg-muted/30 transition-colors">
+									<Table.Cell class="pl-5 py-3">
+										<div class="flex items-center gap-3">
+											{#if v.photoUrl}
+												<img src={v.photoUrl} alt={v.fullName} class="size-9 rounded-full object-cover border border-border shrink-0" />
+											{:else}
+												<div class="size-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">{v.fullName[0]}</div>
+											{/if}
+											<div>
+												<div class="font-extrabold text-foreground">{v.fullName}</div>
+												<div class="text-[10px] text-muted-foreground">{v.phone || v.email || 'No contact'}</div>
+											</div>
+										</div>
+									</Table.Cell>
+									<Table.Cell class="font-mono text-xs font-black text-primary">{v.passCode}</Table.Cell>
+									<Table.Cell>{v.officeName || 'Campus'}</Table.Cell>
+									<Table.Cell>
+										<Badge variant="outline" class="text-[10px] font-mono gap-1 rounded-lg">
+											<MapPinIcon class="size-3 text-primary" />
+											<span>{findNearestBuildingName(v.lastLatitude || v.lat, v.lastLongitude || v.lng)}</span>
+										</Badge>
+									</Table.Cell>
+									<Table.Cell class="font-mono text-xs font-bold text-foreground">
+										{calculateVisitDuration(v.checkInTime, v.checkOutTime)}
+									</Table.Cell>
+									<Table.Cell>
+										{#if v.status === 'checked_in'}
+											<Badge class="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-extrabold rounded-lg">Active Pass</Badge>
+										{:else}
+											<Badge variant="secondary" class="text-[10px] font-bold rounded-lg">Checked Out</Badge>
+										{/if}
+									</Table.Cell>
+									<Table.Cell class="pr-5 text-end">
+										{#if v.status === 'checked_in'}
+											<Button onclick={() => handleCheckout(v.id)} variant="destructive" size="sm" class="h-8 text-xs font-bold rounded-xl cursor-pointer gap-1">
+												<LogOutIcon class="size-3.5 pointer-events-none" />
+												<span>Check Out</span>
+											</Button>
+										{:else}
+											<span class="text-[10px] text-muted-foreground font-mono">Archived</span>
+										{/if}
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						</Table.Body>
+					</Table.Root>
 				</Card.Content>
 			</Card.Root>
 		</div>
-	</div>
+	{/if}
+</div>
 </div>
 
-<!-- Rejection Dialog Overlay -->
-<Dialog.Root bind:open={isRejecting}>
-	<Dialog.Content class="max-w-md border-destructive/40 shadow-2xl rounded-2xl">
-		<Dialog.Header>
-			<Dialog.Title class="text-destructive font-black text-left">Decline Visitor Entry Pass</Dialog.Title>
-			<Dialog.Description class="text-xs text-left font-semibold text-muted-foreground">Provide a reason for declining verification on this entry pass.</Dialog.Description>
-		</Dialog.Header>
+<!-- ASSISTED MANUAL VISITOR REGISTRATION MODAL (For Visitors without smartphones) -->
+<Dialog.Root bind:open={isAssistModalOpen}>
+	<Dialog.Portal>
+		<Dialog.Content class="z-[2500] max-w-md border-border bg-card text-card-foreground shadow-2xl rounded-3xl max-h-[90vh] overflow-y-auto">
+			<Dialog.Header>
+				<Dialog.Title class="text-base font-black text-foreground flex items-center gap-2">
+					<PhoneOffIcon class="size-5 text-primary" />
+					<span>Assist Visitor (No Phone Setup)</span>
+				</Dialog.Title>
+				<Dialog.Description class="text-xs text-muted-foreground">
+					Register and check in a visitor directly from the Security Desk.
+				</Dialog.Description>
+			</Dialog.Header>
 
-		<Field.FieldGroup class="flex flex-col gap-4 py-2">
-			<Field.Field>
-				<Field.FieldLabel for="reasonText" class="text-xs font-bold uppercase text-muted-foreground tracking-wider">Reason for Rejection *</Field.FieldLabel>
-				<textarea
-					id="reasonText"
-					bind:value={rejectionReason}
-					placeholder="e.g. Blurry photo snapshot, invalid purpose statement, or unrecognized destination head"
-					class="w-full h-24 rounded-xl border border-border bg-background p-3 text-xs shadow-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-destructive/20 focus-visible:border-destructive transition-all font-semibold"
-					required
-				></textarea>
-			</Field.Field>
-		</Field.FieldGroup>
+			<form action="?/registerVisitorManual" method="POST" use:enhance={handleAssistEnhance} class="flex flex-col gap-3 font-semibold text-xs py-2">
+				<input type="hidden" name="firstName" value={assistFirstName} />
+				<input type="hidden" name="middleName" value={assistMiddleName} />
+				<input type="hidden" name="lastName" value={assistLastName} />
+				<input type="hidden" name="email" value={assistEmail} />
+				<input type="hidden" name="phone" value={assistPhone} />
+				<input type="hidden" name="officeId" value={assistOfficeId} />
+				<input type="hidden" name="purpose" value={assistPurpose} />
+				<input type="hidden" name="photoUrl" value={assistPhotoUrl} />
 
-		<Dialog.Footer class="flex gap-2 pt-3 border-t border-border/60">
-			<Button onclick={() => (isRejecting = false)} variant="outline" class="flex-1 text-xs font-semibold rounded-xl h-10 cursor-pointer">
-				Cancel
-			</Button>
-			<Button onclick={handleConfirmReject} variant="destructive" class="flex-1 text-xs font-extrabold rounded-xl h-10 cursor-pointer">
-				Decline Pass
-			</Button>
-		</Dialog.Footer>
-	</Dialog.Content>
+				<!-- Personal Details -->
+				<div class="grid grid-cols-3 gap-2">
+					<Field.Field>
+						<Field.FieldLabel for="assist-fn">First Name *</Field.FieldLabel>
+						<Input id="assist-fn" bind:value={assistFirstName} placeholder="Juan" required class="rounded-xl h-9 text-xs" />
+					</Field.Field>
+					<Field.Field>
+						<Field.FieldLabel for="assist-mn">Middle</Field.FieldLabel>
+						<Input id="assist-mn" bind:value={assistMiddleName} placeholder="D." class="rounded-xl h-9 text-xs" />
+					</Field.Field>
+					<Field.Field>
+						<Field.FieldLabel for="assist-ln">Last Name *</Field.FieldLabel>
+						<Input id="assist-ln" bind:value={assistLastName} placeholder="Cruz" required class="rounded-xl h-9 text-xs" />
+					</Field.Field>
+				</div>
+
+				<div class="grid grid-cols-2 gap-2">
+					<Field.Field>
+						<Field.FieldLabel for="assist-em">Email</Field.FieldLabel>
+						<Input id="assist-em" type="email" bind:value={assistEmail} placeholder="juan@example.com" class="rounded-xl h-9 text-xs" />
+					</Field.Field>
+					<Field.Field>
+						<Field.FieldLabel for="assist-ph">Phone</Field.FieldLabel>
+						<Input id="assist-ph" type="tel" bind:value={assistPhone} placeholder="+63 9..." class="rounded-xl h-9 text-xs" />
+					</Field.Field>
+				</div>
+
+				<!-- Office Combobox -->
+				<Field.Field>
+					<Field.FieldLabel>Designated Office *</Field.FieldLabel>
+					<Popover.Root bind:open={isAssistOfficeComboOpen}>
+						<Popover.Trigger>
+							<Button variant="outline" type="button" role="combobox" class="w-full justify-between rounded-xl h-10 text-xs font-bold border-border bg-background cursor-pointer">
+								<span class="truncate">
+									{assistSelectedOffice ? `${assistSelectedOffice.name} (${assistSelectedOffice.code})` : "-- Select Office --"}
+								</span>
+								<ChevronsUpDownIcon class="size-4 opacity-50 ml-2 shrink-0 pointer-events-none" />
+							</Button>
+						</Popover.Trigger>
+						<Popover.Content align="start" sideOffset={6} class="w-[var(--bits-popover-anchor-width)] max-w-xs p-0 max-h-60 overflow-y-auto z-[2600] border-border bg-popover text-popover-foreground rounded-2xl shadow-2xl">
+							<Command.Root class="w-full">
+								<Command.Input placeholder="Search office..." class="h-10 text-xs px-3 border-b border-border/60" />
+								<Command.List class="p-1 max-h-48 overflow-y-auto">
+									<Command.Empty class="p-3 text-xs text-muted-foreground text-center">No office found.</Command.Empty>
+									<Command.Group>
+										{#each officesList as office}
+											<Command.Item
+												value={office.name}
+												onSelect={() => {
+													assistOfficeId = office.id;
+													isAssistOfficeComboOpen = false;
+												}}
+												class="text-xs font-semibold cursor-pointer rounded-xl px-3 py-2 flex items-center justify-between hover:bg-muted/60"
+											>
+												<span>{office.name} ({office.code})</span>
+												{#if assistOfficeId === office.id}
+													<CheckIcon class="size-4 text-primary shrink-0 ml-2" />
+												{/if}
+											</Command.Item>
+										{/each}
+									</Command.Group>
+								</Command.List>
+							</Command.Root>
+						</Popover.Content>
+					</Popover.Root>
+				</Field.Field>
+
+				<Field.Field>
+					<Field.FieldLabel for="assist-purp">Purpose of Visit *</Field.FieldLabel>
+					<Input id="assist-purp" bind:value={assistPurpose} placeholder="e.g. Official Inquiry" required class="rounded-xl h-9 text-xs" />
+				</Field.Field>
+
+				<!-- Visitor Photo Capture / Upload -->
+				<div class="flex flex-col gap-2 items-center p-3 rounded-2xl border border-border bg-muted/30 text-center">
+					{#if assistPhotoUrl}
+						<img src={assistPhotoUrl} alt="Visitor Snapshot" class="size-24 rounded-full object-cover border-2 border-primary/30 shadow-md" />
+						<Button type="button" onclick={startAssistCamera} variant="outline" size="sm" class="text-xs font-bold rounded-xl h-7 gap-1 mt-1">
+							<RefreshCwIcon class="size-3 pointer-events-none" />
+							<span>Retake</span>
+						</Button>
+					{:else if isAssistCameraActive}
+						<div class="relative size-36 rounded-2xl overflow-hidden bg-black border border-primary/40">
+							<video bind:this={assistVideoElement} autoplay playsinline class="size-full object-cover"></video>
+						</div>
+						<canvas bind:this={assistCanvasElement} class="hidden"></canvas>
+						<Button type="button" onclick={captureAssistSelfie} class="bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-8 gap-1 cursor-pointer mt-1">
+							<CameraIcon class="size-3.5 pointer-events-none" />
+							<span>Capture Photo</span>
+						</Button>
+					{:else}
+						<div class="flex gap-2 w-full pt-1">
+							<Button type="button" onclick={startAssistCamera} variant="outline" class="flex-1 text-xs font-bold rounded-xl h-9 gap-1 cursor-pointer">
+								<CameraIcon class="size-3.5 pointer-events-none" />
+								<span>Desk Camera</span>
+							</Button>
+							<label class="flex-1 flex items-center justify-center gap-1 px-3 h-9 rounded-xl border border-border bg-card hover:bg-muted/40 font-bold text-xs cursor-pointer">
+								<UploadIcon class="size-3.5 text-primary pointer-events-none" />
+								<span>Upload File</span>
+								<input type="file" accept="image/*" onchange={handleAssistFileUpload} class="hidden" />
+							</label>
+						</div>
+					{/if}
+				</div>
+
+				<Dialog.Footer class="pt-3 border-t border-border/60">
+					<Button type="button" onclick={() => isAssistModalOpen = false} variant="outline" class="text-xs font-semibold rounded-xl h-10 cursor-pointer">
+						Cancel
+					</Button>
+					<Button type="submit" disabled={isSubmittingAssist} class="bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-10 cursor-pointer shadow-md">
+						<span>{isSubmittingAssist ? 'Processing...' : 'Register & Check In'}</span>
+					</Button>
+				</Dialog.Footer>
+			</form>
+		</Dialog.Content>
+	</Dialog.Portal>
 </Dialog.Root>
 
-<style>
-	:global(.visitor-marker-container) {
-		transition: transform 1.5s linear !important;
-	}
-</style>
+<!-- REJECTION REASON DIALOG -->
+<Dialog.Root bind:open={isRejecting}>
+	<Dialog.Portal>
+		<Dialog.Content class="z-[2600] max-w-sm border-border bg-card text-card-foreground shadow-2xl rounded-3xl">
+			<Dialog.Header>
+				<Dialog.Title class="text-base font-black text-destructive flex items-center gap-2">
+					<UserXIcon class="size-5 pointer-events-none" />
+					<span>Reject Visitor Entry</span>
+				</Dialog.Title>
+				<Dialog.Description class="text-xs text-muted-foreground">
+					Specify the reason for refusing visitor entry at the security gate.
+				</Dialog.Description>
+			</Dialog.Header>
+
+			<Field.Field class="py-2">
+				<Field.FieldLabel for="rej-reason">Rejection Reason</Field.FieldLabel>
+				<Input id="rej-reason" bind:value={rejectionReason} placeholder="e.g. Invalid ID document / Security Policy" class="rounded-xl h-9 text-xs" />
+			</Field.Field>
+
+			<Dialog.Footer class="pt-2 border-t border-border/60">
+				<Button onclick={() => isRejecting = false} variant="outline" class="text-xs font-semibold rounded-xl h-9 cursor-pointer">Cancel</Button>
+				<Button onclick={confirmReject} variant="destructive" class="text-xs font-extrabold rounded-xl h-9 cursor-pointer">Confirm Reject</Button>
+			</Dialog.Footer>
+		</Dialog.Content>
+	</Dialog.Portal>
+</Dialog.Root>
+
