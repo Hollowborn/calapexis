@@ -102,6 +102,7 @@
 
 	// Pre-Pass & Official Checked-In Pass state
 	let prePassData = $state<{
+		logId?: string;
 		registeredVisitorId?: string;
 		fullName: string;
 		firstName: string;
@@ -343,6 +344,17 @@
 					userGps = { lat, lng };
 					gpsStatus = 'active';
 					updateVisitorMarkerOnMap(lat, lng, "Live GPS Position");
+					
+					// Background GPS Sync to visitor_logs
+					const targetLogId = activeOfficialPass?.id || prePassData?.logId;
+					if (targetLogId) {
+						const body = new FormData();
+						body.append('logId', targetLogId);
+						body.append('lat', lat.toString());
+						body.append('lng', lng.toString());
+						fetch('?/updateLocation', { method: 'POST', body }).catch(e => console.warn("GPS sync fail:", e));
+					}
+
 					toast.success("GPS Location active on campus.");
 				} else {
 					gpsStatus = 'disabled';
@@ -682,6 +694,8 @@
 					<input type="hidden" name="photoUrl" value={photoUrl} />
 					<input type="hidden" name="officeId" value={selectedOfficeId} />
 					<input type="hidden" name="purpose" value={purpose} />
+					<input type="hidden" name="lat" value={userGps?.lat || ''} />
+					<input type="hidden" name="lng" value={userGps?.lng || ''} />
 
 					{#if registrationStep === 1}
 						<!-- STEP 1: PERSONAL DETAILS -->
