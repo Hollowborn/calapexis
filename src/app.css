@@ -148,7 +148,7 @@
 }
 
 @theme inline {
-  --font-sans: "Inter Variable", sans-serif;
+  --font-sans: "Raleway", sans-serif;
 
   --color-sidebar-ring: var(--sidebar-ring);
 
@@ -227,42 +227,45 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 
   --animate-aurora: aurora 8s ease-in-out infinite alternate;
-	@keyframes aurora {
-		0% {
-			background-position: 0% 50%;
-			transform: rotate(-5deg) scale(0.9);
+  @keyframes aurora {
+    0% {
+      background-position: 0% 50%;
+      transform: rotate(-5deg) scale(0.9);
     }
-		25% {
-			background-position: 50% 100%;
-			transform: rotate(5deg) scale(1.1);
+    25% {
+      background-position: 50% 100%;
+      transform: rotate(5deg) scale(1.1);
     }
-		50% {
-			background-position: 100% 50%;
-			transform: rotate(-3deg) scale(0.95);
+    50% {
+      background-position: 100% 50%;
+      transform: rotate(-3deg) scale(0.95);
     }
-		75% {
-			background-position: 50% 0%;
-			transform: rotate(3deg) scale(1.05);
+    75% {
+      background-position: 50% 0%;
+      transform: rotate(3deg) scale(1.05);
     }
-		100% {
-			background-position: 0% 50%;
-			transform: rotate(-5deg) scale(0.9);
+    100% {
+      background-position: 0% 50%;
+      transform: rotate(-5deg) scale(0.9);
     }
   }
-	--animate-shiny-text: shiny-text 8s infinite;
-	@keyframes shiny-text {
-		0%, 90%, 100% {
-			background-position: calc(-100% - var(--shiny-width)) 0;
+  --animate-shiny-text: shiny-text 8s infinite;
+  @keyframes shiny-text {
+    0%,
+    90%,
+    100% {
+      background-position: calc(-100% - var(--shiny-width)) 0;
     }
-		30%, 60% {
-			background-position: calc(100% + var(--shiny-width)) 0;
+    30%,
+    60% {
+      background-position: calc(100% + var(--shiny-width)) 0;
     }
   }
 }
 
 @media print {
   /* Hide interface controls and sidebars */
-  [data-sidebar=sidebar],
+  [data-sidebar="sidebar"],
   header,
   .flex-col.sm\:flex-row.sm\:items-center.sm\:justify-between,
   .flex-col.sm\:flex-row.gap-3.items-center.bg-card.p-4 {
@@ -270,7 +273,10 @@
   }
 
   /* Reset container parameters for standard printing */
-  html, body, main, .flex-grow {
+  html,
+  body,
+  main,
+  .flex-grow {
     background: white !important;
     color: black !important;
     padding: 0 !important;
@@ -286,7 +292,8 @@
     overflow: visible !important;
   }
 
-  th:last-child, td:last-child {
+  th:last-child,
+  td:last-child {
     display: none !important;
   }
 
@@ -299,7 +306,8 @@
     page-break-inside: avoid !important;
   }
 }
-	::view-transition-old(root), ::view-transition-new(root) {
-		animation: none;
-		mix-blend-mode: normal;
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
 }
