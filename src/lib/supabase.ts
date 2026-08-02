@@ -442,12 +442,17 @@ function mapVisitorToDbVisitor(v: any): any {
 }
 
 // Local Data Access Helper Functions
-export async function getLocalVisitors(): Promise<Visitor[]> {
+export async function getLocalVisitors(todayOnly: boolean = false): Promise<Visitor[]> {
 	if (isSupabaseConfigured && supabase) {
-		const { data, error } = await getDbClient()
-			.from("visitors")
-			.select("*")
-			.order("check_in_time", { ascending: false });
+		let query = getDbClient().from("visitors").select("*");
+
+		if (todayOnly) {
+			const startOfToday = new Date();
+			startOfToday.setHours(0, 0, 0, 0);
+			query = query.or(`status.eq.checked_in,check_in_time.gte.${startOfToday.toISOString()}`);
+		}
+
+		const { data, error } = await query.order("check_in_time", { ascending: false });
 		if (!error && data) {
 			return data.map(mapDbVisitorToVisitor);
 		}
@@ -630,24 +635,48 @@ export async function updateOfficeCheckIn(
 
 export async function checkoutLocalVisitor(
 	idOrPassCode: string,
+	staffOfficeId?: string | null,
+	isStaffOnly?: boolean
 ): Promise<Visitor | null> {
 	if (isSupabaseConfigured && supabase) {
-		const { data, error } = await getDbClient()
-			.from("visitors")
+		const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idOrPassCode);
+
+		if (isStaffOnly && staffOfficeId) {
+			const selectQuery = getDbClient().from("visitor_logs").select("office_id");
+			const { data: targetLog } = isUuid
+				? await selectQuery.eq("id", idOrPassCode).maybeSingle()
+				: await selectQuery.eq("pass_code", idOrPassCode).maybeSingle();
+
+			if (targetLog && targetLog.office_id && targetLog.office_id !== staffOfficeId) {
+				throw new Error("Access Denied: Staff can only check out visitors assigned to their managed office desk.");
+			}
+		}
+
+		const query = getDbClient()
+			.from("visitor_logs")
 			.update({
 				status: "checked_out",
-				check_out_time: new Date().toISOString(),
-				room_check_in_time: null,
-			})
-			.or(`id.eq.${idOrPassCode},pass_code.eq.${idOrPassCode}`)
-			.select();
+				check_out_time: new Date().toISOString()
+			});
+
+		const { data, error } = isUuid
+			? await query.eq("id", idOrPassCode).select()
+			: await query.eq("pass_code", idOrPassCode).select();
+
 		if (!error && data && data.length > 0) {
-			return mapDbVisitorToVisitor(data[0]);
+			const { data: fullData } = await getDbClient()
+				.from("visitors")
+				.select("*")
+				.eq("id", data[0].id)
+				.maybeSingle();
+
+			if (fullData) {
+				return mapDbVisitorToVisitor(fullData);
+			}
 		}
-		console.warn(
-			"Supabase checkout visitor error, using mock fallback:",
-			error,
-		);
+		if (error) {
+			throw new Error(error.message);
+		}
 	}
 
 	let target: Visitor | null = null;
