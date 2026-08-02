@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { enhance } from '$app/forms';
+	import { page } from '$app/state';
 	import { Html5Qrcode } from 'html5-qrcode';
 	import * as Card from "$lib/components/ui/card/index.js";
 	import * as Dialog from "$lib/components/ui/dialog/index.js";
@@ -31,6 +32,7 @@
 	import LogOutIcon from "@lucide/svelte/icons/log-out";
 	import SmartphoneIcon from "@lucide/svelte/icons/smartphone";
 	import Building2Icon from "@lucide/svelte/icons/building-2";
+	import SchoolIcon from "@lucide/svelte/icons/school";
 	import RefreshCwIcon from "@lucide/svelte/icons/refresh-cw";
 	import SparklesIcon from "@lucide/svelte/icons/sparkles";
 	import AlertCircleIcon from "@lucide/svelte/icons/alert-circle";
@@ -205,15 +207,13 @@
 		[9.893421456778755, 123.8815211010603],
 		[9.895647770829878, 123.88369296680753]
 	];
-	const mainGateCoords = { lat: 9.894300, lng: 123.882100 };
+	const mainGateCoords = { lat: 9.894144489361919, lng: 123.88273758838274 };
 
 	let selectedOffice = $derived(officesList.find(o => o.id === selectedOfficeId));
-	let filteredLandmarks = $derived(
-		officesList.filter(o => {
-			if (!searchQuery.trim()) return true;
-			const q = searchQuery.toLowerCase().trim();
-			return o.name.toLowerCase().includes(q) || o.code.toLowerCase().includes(q);
-		})
+	let selectedBuildingOffices = $derived(
+		selectedBuildingForModal
+			? officesList.filter(o => o.buildingId === selectedBuildingForModal.id)
+			: []
 	);
 
 	let selectedBuildingRooms = $derived(
@@ -221,6 +221,79 @@
 			? roomsList.filter(r => r.buildingId === selectedBuildingForModal.id)
 			: []
 	);
+
+	// Categorized Search Results (Buildings, Offices, Rooms)
+	let searchResults = $derived.by(() => {
+		const q = searchQuery.toLowerCase().trim();
+		if (!q) return { buildings: [], offices: [], rooms: [] };
+
+		const matchingBuildings = buildingsList.filter(b => 
+			b.name.toLowerCase().includes(q) || b.code.toLowerCase().includes(q)
+		);
+
+		const matchingOffices = officesList.filter(o => 
+			o.name.toLowerCase().includes(q) || 
+			o.code.toLowerCase().includes(q) || 
+			(o.description && o.description.toLowerCase().includes(q))
+		);
+
+		const matchingRooms = roomsList.filter(r => 
+			r.roomName.toLowerCase().includes(q) || 
+			r.roomNumber.toLowerCase().includes(q) || 
+			(r.description && r.description.toLowerCase().includes(q))
+		);
+
+		return {
+			buildings: matchingBuildings,
+			offices: matchingOffices,
+			rooms: matchingRooms
+		};
+	});
+
+	function focusSearchResult(item: any, type: 'building' | 'office' | 'room') {
+		let targetBuilding: any = null;
+
+		if (type === 'building') {
+			targetBuilding = item;
+		} else if (type === 'office') {
+			targetBuilding = buildingsList.find(b => b.id === item.buildingId);
+			if (!targetBuilding && item.buildingName) {
+				targetBuilding = buildingsList.find(b => b.name === item.buildingName);
+			}
+			if (!targetBuilding && buildingsList.length > 0) {
+				targetBuilding = buildingsList[0];
+			}
+		} else if (type === 'room') {
+			targetBuilding = buildingsList.find(b => b.id === item.buildingId);
+		}
+
+		if (targetBuilding && targetBuilding.xCoord && targetBuilding.yCoord && leafMap) {
+			leafMap.flyTo([targetBuilding.xCoord, targetBuilding.yCoord], 20, { duration: 1.2 });
+			selectedBuildingForModal = targetBuilding;
+			isBuildingModalOpen = true;
+			isSearchOpen = false;
+			searchQuery = '';
+
+			if (type === 'office') {
+				toast.info(`Navigating to ${item.name}`, {
+					description: `Located inside ${targetBuilding.name}`
+				});
+			} else if (type === 'room') {
+				toast.info(`Navigating to ${item.roomName} (${item.roomNumber})`, {
+					description: `Located inside ${targetBuilding.name}`
+				});
+			} else {
+				toast.info(`Navigating to ${targetBuilding.name}`);
+			}
+		} else if (targetBuilding) {
+			selectedBuildingForModal = targetBuilding;
+			isBuildingModalOpen = true;
+			isSearchOpen = false;
+			searchQuery = '';
+		} else {
+			toast.error("Location coordinates not configured for this item.");
+		}
+	}
 
 	onMount(async () => {
 		if (typeof window === 'undefined') return;
@@ -254,6 +327,12 @@
 			}
 		}
 
+		// 3. Check URL parameter to skip gate setup wizard and land directly on map
+		const skipSetup = page.url.searchParams.get('skipSetup') === 'true' || page.url.searchParams.get('mode') === 'map' || page.url.searchParams.get('view') === 'map';
+		if (skipSetup) {
+			isGateOverlayOpen = false;
+		}
+
 		// 3. Initialize Leaflet Map
 		let L = (window as any).L;
 		if (!L) {
@@ -275,7 +354,7 @@
 			maxBoundsViscosity: 1.0,
 			minZoom: 18,
 			maxZoom: 22
-		}).setView([9.894414742474977, 123.88258093049176], 19);
+		}).setView([mainGateCoords.lat, mainGateCoords.lng], 19);
 
 		osmLayerInstance = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 			attribution: '&copy; OpenStreetMap',
@@ -300,8 +379,14 @@
 		// 4. Plot Interactive Building Nodes on Map
 		plotBuildingNodesOnMap();
 
-		// Initial plot of visitor marker at Main Gate
-		updateVisitorMarkerOnMap(mainGateCoords.lat, mainGateCoords.lng, "Visitor (Main Gate)");
+		// Initial plot of visitor marker at Main Gate or checked-in office location
+		if (activeOfficialPass) {
+			moveVisitorToOfficeLocation(activeOfficialPass);
+		} else if (prePassData) {
+			moveVisitorToOfficeLocation(prePassData);
+		} else {
+			updateVisitorMarkerOnMap(mainGateCoords.lat, mainGateCoords.lng, "Visitor (Main Gate)");
+		}
 
 		// 5. Request Device GPS Position
 		requestDeviceGps();
@@ -650,6 +735,36 @@
 		};
 	}
 
+	function moveVisitorToOfficeLocation(passOrPrePass: any) {
+		if (!passOrPrePass) return;
+		const targetOffice = officesList.find(o => 
+			o.id === passOrPrePass.officeId || 
+			o.name === passOrPrePass.officeName || 
+			o.code === passOrPrePass.officeCode
+		);
+
+		let targetBuilding: any = null;
+		if (targetOffice) {
+			targetBuilding = buildingsList.find(b => b.id === targetOffice.buildingId) ||
+			                 buildingsList.find(b => b.name === targetOffice.buildingName);
+		}
+		if (!targetBuilding && buildingsList.length > 0) {
+			targetBuilding = buildingsList[0];
+		}
+
+		if (targetBuilding && targetBuilding.xCoord && targetBuilding.yCoord) {
+			updateVisitorMarkerOnMap(
+				targetBuilding.xCoord,
+				targetBuilding.yCoord,
+				`${passOrPrePass.fullName || 'Checked-In Visitor'} @ ${targetOffice?.name || targetBuilding.name}`
+			);
+
+			if (leafMap) {
+				leafMap.flyTo([targetBuilding.xCoord, targetBuilding.yCoord], 20, { duration: 1.2 });
+			}
+		}
+	}
+
 	function handleCheckInEnhance() {
 		isSubmittingCheckIn = true;
 		return async ({ result }: { result: any }) => {
@@ -660,7 +775,7 @@
 				safeSetLocalStorage('calapexis_active_pass', pass);
 				isScannerModalOpen = false;
 
-				updateVisitorMarkerOnMap(9.894414, 123.882580, `${pass.fullName} (${pass.officeName || 'Office Check-In'})`);
+				moveVisitorToOfficeLocation(pass);
 
 				toast.success("Check-In Complete!", {
 					description: `Digital Pass ${pass.passCode} logged in database.`
@@ -685,9 +800,10 @@
 				isReturningVisitor = true;
 				registrationStep = 3;
 			} catch (e) {
-				console.warn("Failed to parse saved visitor profile on openGateOverlay:", e);
+				console.warn("Failed to parse saved profile:", e);
 			}
 		} else {
+			firstName = ''; middleName = ''; lastName = ''; email = ''; phone = ''; photoUrl = '';
 			isReturningVisitor = false;
 			registrationStep = 1;
 		}
@@ -703,6 +819,12 @@
 			if (pathPolyline && leafMap) {
 				leafMap.removeLayer(pathPolyline);
 			}
+
+			updateVisitorMarkerOnMap(mainGateCoords.lat, mainGateCoords.lng, "Visitor (Main Gate)");
+			if (leafMap) {
+				leafMap.flyTo([mainGateCoords.lat, mainGateCoords.lng], 19, { duration: 1.2 });
+			}
+
 			openGateOverlay();
 			toast.info("Checked out of campus. Re-opened Campus Gate screen.");
 		} else {
@@ -1024,22 +1146,84 @@
 			</InputGroup.Addon>
 		</InputGroup.Root>
 
-		<!-- Search Suggestions Dropdown -->
+		<!-- Categorized Search Suggestions Dropdown -->
 		{#if isSearchOpen && searchQuery.trim()}
-			<Card.Root class="mt-2 shadow-2xl border-border rounded-2xl bg-card/95 backdrop-blur-xl max-h-60 overflow-y-auto pointer-events-auto">
-				<Card.Content class="p-2 flex flex-col gap-1">
-					{#each filteredLandmarks as landmark}
-						<button 
-							onclick={() => { focusOfficeOnMap(landmark); searchQuery = landmark.name; isSearchOpen = false; }}
-							class="w-full text-start p-2.5 rounded-xl hover:bg-muted/40 transition-colors flex items-center justify-between text-xs font-semibold cursor-pointer"
-						>
-							<div>
-								<div class="font-extrabold text-foreground">{landmark.name}</div>
-								<div class="text-[10px] text-muted-foreground">{landmark.code} • {landmark.headPerson || 'Office Desk'}</div>
+			<Card.Root class="mt-2 shadow-2xl border-border rounded-2xl bg-card/95 backdrop-blur-xl max-h-72 overflow-y-auto pointer-events-auto">
+				<Card.Content class="p-2 flex flex-col gap-2 divide-y divide-border/40">
+					<!-- 1. BUILDINGS & LANDMARKS -->
+					{#if searchResults.buildings.length > 0}
+						<div class="flex flex-col gap-1 pt-1">
+							<div class="px-2 py-1 text-[9px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+								<SchoolIcon class="size-3 text-primary shrink-0" />
+								<span>Buildings & Landmarks ({searchResults.buildings.length})</span>
 							</div>
-							<Badge variant="outline" class="text-[9px] font-mono">Focus</Badge>
-						</button>
-					{/each}
+							{#each searchResults.buildings as b}
+								<button 
+									type="button"
+									onclick={() => focusSearchResult(b, 'building')}
+									class="w-full text-start p-2 rounded-xl hover:bg-muted/60 transition-colors flex items-center justify-between text-xs font-semibold cursor-pointer"
+								>
+									<div class="flex flex-col">
+										<span class="font-extrabold text-foreground">{b.name}</span>
+										<span class="text-[10px] text-muted-foreground font-mono">{b.code} • {b.floors || 1} Floors</span>
+									</div>
+									<Badge variant="outline" class="text-[9px] font-extrabold border-primary/30 text-primary">BUILDING</Badge>
+								</button>
+							{/each}
+						</div>
+					{/if}
+
+					<!-- 2. DEPARTMENTS & OFFICES -->
+					{#if searchResults.offices.length > 0}
+						<div class="flex flex-col gap-1 pt-2">
+							<div class="px-2 py-1 text-[9px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+								<Building2Icon class="size-3 text-emerald-500 shrink-0" />
+								<span>Departments & Reception Desks ({searchResults.offices.length})</span>
+							</div>
+							{#each searchResults.offices as o}
+								<button 
+									type="button"
+									onclick={() => focusSearchResult(o, 'office')}
+									class="w-full text-start p-2 rounded-xl hover:bg-muted/60 transition-colors flex items-center justify-between text-xs font-semibold cursor-pointer"
+								>
+									<div class="flex flex-col">
+										<span class="font-extrabold text-foreground">{o.name}</span>
+										<span class="text-[10px] text-muted-foreground font-mono">{o.code} • Head: {o.headPerson || 'Staff'}</span>
+									</div>
+									<Badge variant="secondary" class="text-[9px] font-mono font-bold">{o.code}</Badge>
+								</button>
+							{/each}
+						</div>
+					{/if}
+
+					<!-- 3. CLASSROOMS & ROOMS -->
+					{#if searchResults.rooms.length > 0}
+						<div class="flex flex-col gap-1 pt-2">
+							<div class="px-2 py-1 text-[9px] font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+								<DoorClosedIcon class="size-3 text-indigo-500 shrink-0" />
+								<span>Rooms & Classrooms ({searchResults.rooms.length})</span>
+							</div>
+							{#each searchResults.rooms as r}
+								<button 
+									type="button"
+									onclick={() => focusSearchResult(r, 'room')}
+									class="w-full text-start p-2 rounded-xl hover:bg-muted/60 transition-colors flex items-center justify-between text-xs font-semibold cursor-pointer"
+								>
+									<div class="flex flex-col">
+										<span class="font-extrabold text-foreground">{r.roomName} ({r.roomNumber})</span>
+										<span class="text-[10px] text-muted-foreground">{r.floor} Floor</span>
+									</div>
+									<Badge variant="outline" class="text-[9px] font-mono">ROOM</Badge>
+								</button>
+							{/each}
+						</div>
+					{/if}
+
+					{#if searchResults.buildings.length === 0 && searchResults.offices.length === 0 && searchResults.rooms.length === 0}
+						<div class="p-4 text-center text-xs text-muted-foreground font-semibold">
+							No campus building, office, or room matches "{searchQuery}".
+						</div>
+					{/if}
 				</Card.Content>
 			</Card.Root>
 		{/if}
@@ -1051,6 +1235,8 @@
 	<!-- BOTTOM FLOATING MAP HUD BAR (Pass Details, QR Scan & Check-Out Controls) -->
 	<div class="absolute bottom-6 left-4 right-4 z-50 max-w-lg mx-auto pointer-events-auto">
 		<div class="p-4 rounded-3xl bg-card/95 backdrop-blur-2xl border border-border shadow-2xl flex flex-col gap-3 font-semibold text-xs text-card-foreground">
+			<!-- Drawer Handle Bar Indicator Pill -->
+			<div class="w-10 h-1 bg-muted-foreground/30 hover:bg-muted-foreground/50 rounded-full mx-auto mb-1 shrink-0 transition-colors"></div>
 			{#if activeOfficialPass}
 				<!-- OFFICIAL PASS ACTIVE HUD -->
 				<div class="flex items-center justify-between">
@@ -1170,6 +1356,50 @@
 							<span class="font-mono text-[11px] font-bold text-foreground truncate block max-w-[130px]">{selectedBuildingForModal.contactEmail || 'N/A'}</span>
 						</div>
 					</div>
+				</div>
+
+				<!-- Department Offices List inside this Building -->
+				<div class="flex flex-col gap-2 pt-2 font-semibold text-xs">
+					<div class="flex items-center justify-between border-b border-border/60 pb-1.5">
+						<span class="font-black text-xs uppercase tracking-wider text-foreground flex items-center gap-1.5">
+							<Building2Icon class="size-4 text-emerald-500" />
+							<span>Department Offices ({selectedBuildingOffices.length})</span>
+						</span>
+					</div>
+
+					{#if selectedBuildingOffices.length > 0}
+						<div class="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1">
+							{#each selectedBuildingOffices as office}
+								<div class="p-3 rounded-2xl border border-border/80 bg-background/80 hover:bg-muted/30 transition-colors flex items-start justify-between gap-3">
+									<div class="flex flex-col gap-0.5 text-start">
+										<div class="flex items-center gap-2">
+											<span class="font-black text-foreground">{office.name}</span>
+											<Badge class="bg-primary/15 text-primary font-mono font-black text-[9px] px-2 py-0 rounded-md">
+												{office.code}
+											</Badge>
+										</div>
+										<span class="text-[10px] text-muted-foreground font-semibold">
+											Officer in Charge: {office.headPerson || 'Staff Desk'}
+										</span>
+										{#if office.contactEmail}
+											<span class="text-[10px] text-muted-foreground font-mono">
+												Email: {office.contactEmail}
+											</span>
+										{/if}
+									</div>
+									{#if office.operatingHours}
+										<Badge variant="outline" class="text-[9px] font-mono shrink-0">
+											{office.operatingHours}
+										</Badge>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<div class="p-3 text-center text-xs text-muted-foreground rounded-2xl border border-dashed border-border bg-muted/20">
+							No department offices registered in this landmark building.
+						</div>
+					{/if}
 				</div>
 
 				<!-- Rooms List inside this Building -->
