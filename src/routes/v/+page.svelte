@@ -3,7 +3,6 @@
 	import { enhance } from '$app/forms';
 	import * as Card from "$lib/components/ui/card/index.js";
 	import * as Dialog from "$lib/components/ui/dialog/index.js";
-	import * as Drawer from "$lib/components/ui/drawer/index.js";
 	import * as Field from "$lib/components/ui/field/index.js";
 	import * as InputGroup from "$lib/components/ui/input-group/index.js";
 	import * as Popover from "$lib/components/ui/popover/index.js";
@@ -39,6 +38,7 @@
 	import ArrowLeftIcon from "@lucide/svelte/icons/arrow-left";
 	import ChevronsUpDownIcon from "@lucide/svelte/icons/chevrons-up-down";
 	import CheckIcon from "@lucide/svelte/icons/check";
+	import HelpCircleIcon from "@lucide/svelte/icons/help-circle";
 
 	let { data } = $props();
 
@@ -55,9 +55,8 @@
 	let searchQuery = $state('');
 	let isSearchOpen = $state(false);
 
-	// Controlled Modal & Drawer States
-	let isDrawerOpen = $state(true);
-	let isRegisterModalOpen = $state(false);
+	// Controlled Gate Setup Overlay & Scanner Modal States
+	let isGateOverlayOpen = $state(true);
 	let isScannerModalOpen = $state(false);
 	let isReturningVisitor = $state(false);
 	let isSubmittingRegister = $state(false);
@@ -148,6 +147,7 @@
 		if (cachedPass) {
 			try {
 				activeOfficialPass = JSON.parse(cachedPass);
+				isGateOverlayOpen = false;
 			} catch (e) {
 				console.warn("Failed to parse cached active pass:", e);
 			}
@@ -420,7 +420,7 @@
 					photoUrl: data.photoUrl
 				});
 
-				isRegisterModalOpen = false;
+				isGateOverlayOpen = false;
 				registrationStep = 1;
 
 				const targetOffice = officesList.find(o => o.id === data.officeId);
@@ -428,8 +428,8 @@
 					drawNavigationPathToOffice(targetOffice);
 				}
 
-				toast.success("Registration saved to database!", {
-					description: `Pre-Pass issued for ${data.officeName}. Scan QR code at the desk.`
+				toast.success("Check-In Registered!", {
+					description: `Pre-Pass created for ${data.officeName}. Map unlocked!`
 				});
 			} else if (result.type === 'failure') {
 				toast.error(result.data?.message || "Registration failed.");
@@ -459,15 +459,18 @@
 	}
 
 	function handleSelfCheckout() {
-		if (activeOfficialPass) {
-			checkoutLocalVisitor(activeOfficialPass.id);
+		if (activeOfficialPass || prePassData) {
+			if (activeOfficialPass) checkoutLocalVisitor(activeOfficialPass.id);
 			localStorage.removeItem('calapexis_active_pass');
 			activeOfficialPass = null;
 			prePassData = null;
 			if (pathPolyline && leafMap) {
 				leafMap.removeLayer(pathPolyline);
 			}
-			toast.info("Checked out of campus. Thank you for visiting!");
+			isGateOverlayOpen = true;
+			toast.info("Checked out of campus. Re-opened Campus Gate screen.");
+		} else {
+			isGateOverlayOpen = true;
 		}
 	}
 
@@ -480,8 +483,225 @@
 </script>
 
 <div class="relative w-full h-screen overflow-hidden bg-background text-foreground font-sans select-none">
-	<!-- TOP FLOATING APPLE MAPS SEARCH BAR (`InputGroup`) -->
-	<div class="absolute top-4 left-4 right-4 z-30 max-w-lg mx-auto">
+
+	<!-- 1. FULLSCREEN CAMPUS GATE SETUP OVERLAY (INITIAL SETUP WIZARD) -->
+	{#if isGateOverlayOpen}
+		<div class="fixed inset-0 z-[2000] bg-background/95 backdrop-blur-3xl flex flex-col items-center justify-center p-4 sm:p-6 overflow-y-auto">
+			<div class="relative max-w-md w-full bg-card border border-border rounded-3xl p-6 shadow-2xl flex flex-col gap-5">
+				
+				<!-- Gate Header & Logo -->
+				<div class="text-center pt-2">
+					<div class="size-16 bg-primary/10 border border-primary/20 text-primary rounded-3xl flex items-center justify-center mx-auto mb-3 shadow-md">
+						<span class="font-black text-2xl">C</span>
+					</div>
+					<h2 class="text-xl font-black text-foreground tracking-tight">BISU Calape Gate Check-In</h2>
+					<p class="text-xs text-muted-foreground mt-0.5">Please register your details to unlock campus map & pass</p>
+				</div>
+
+				<!-- WIZARD STEP PROGRESS BAR -->
+				<div class="flex items-center justify-between gap-2 px-1">
+					<div class="flex-1 h-1.5 rounded-full {registrationStep >= 1 ? 'bg-primary' : 'bg-muted'} transition-colors"></div>
+					<div class="flex-1 h-1.5 rounded-full {registrationStep >= 2 ? 'bg-primary' : 'bg-muted'} transition-colors"></div>
+					<div class="flex-1 h-1.5 rounded-full {registrationStep >= 3 ? 'bg-primary' : 'bg-muted'} transition-colors"></div>
+				</div>
+
+				<!-- Step Header Title -->
+				<div class="flex items-center gap-2 border-b border-border/60 pb-2">
+					<UserCheckIcon class="size-5 text-primary" />
+					<div class="text-start">
+						<h3 class="text-sm font-black text-foreground">
+							{#if registrationStep === 1}
+								Step 1: Personal Information
+							{:else if registrationStep === 2}
+								Step 2: ID Photo Snapshot (Required)
+							{:else}
+								Step 3: Destination Office & Purpose
+							{/if}
+						</h3>
+					</div>
+				</div>
+
+				<!-- SvelteKit Server Action Form -->
+				<form action="?/register" method="POST" use:enhance={handleRegisterEnhance} class="flex flex-col gap-4 font-semibold text-xs">
+					<input type="hidden" name="firstName" value={firstName} />
+					<input type="hidden" name="middleName" value={middleName} />
+					<input type="hidden" name="lastName" value={lastName} />
+					<input type="hidden" name="email" value={email} />
+					<input type="hidden" name="phone" value={phone} />
+					<input type="hidden" name="photoUrl" value={photoUrl} />
+					<input type="hidden" name="officeId" value={selectedOfficeId} />
+					<input type="hidden" name="purpose" value={purpose} />
+
+					{#if registrationStep === 1}
+						<!-- STEP 1: PERSONAL DETAILS -->
+						{#if isReturningVisitor}
+							<div class="p-3 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-between text-xs font-semibold">
+								<div class="flex items-center gap-2">
+									<SparklesIcon class="size-4 text-primary" />
+									<span class="font-bold text-foreground">Saved Profile Auto-Filled</span>
+								</div>
+								<button type="button" onclick={clearSavedProfile} class="text-[10px] text-primary font-black uppercase hover:underline cursor-pointer">Clear</button>
+							</div>
+						{/if}
+
+						<Field.FieldGroup class="flex flex-col gap-3">
+							<div class="grid grid-cols-3 gap-2">
+								<Field.Field>
+									<Field.FieldLabel for="gate-firstName">First Name *</Field.FieldLabel>
+									<Input id="gate-firstName" bind:value={firstName} placeholder="John" required class="rounded-xl h-9 text-xs" />
+								</Field.Field>
+								<Field.Field>
+									<Field.FieldLabel for="gate-middleName">Middle</Field.FieldLabel>
+									<Input id="gate-middleName" bind:value={middleName} placeholder="Paul" class="rounded-xl h-9 text-xs" />
+								</Field.Field>
+								<Field.Field>
+									<Field.FieldLabel for="gate-lastName">Last Name *</Field.FieldLabel>
+									<Input id="gate-lastName" bind:value={lastName} placeholder="Doe" required class="rounded-xl h-9 text-xs" />
+								</Field.Field>
+							</div>
+
+							<div class="grid grid-cols-2 gap-2">
+								<Field.Field>
+									<Field.FieldLabel for="gate-email">Email (Optional)</Field.FieldLabel>
+									<Input id="gate-email" type="email" bind:value={email} placeholder="john@example.com" class="rounded-xl h-9 text-xs" />
+								</Field.Field>
+								<Field.Field>
+									<Field.FieldLabel for="gate-phone">Phone (Optional)</Field.FieldLabel>
+									<Input id="gate-phone" type="tel" bind:value={phone} placeholder="+63 917..." class="rounded-xl h-9 text-xs" />
+								</Field.Field>
+							</div>
+						</Field.FieldGroup>
+
+						<div class="pt-2 flex flex-col gap-2">
+							<Button type="button" onclick={goToNextStep} class="w-full bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-11 gap-1.5 cursor-pointer shadow-md">
+								<span>Next: Photo Snapshot</span>
+								<ArrowRightIcon data-icon="inline-end" />
+							</Button>
+							<Button type="button" onclick={() => isGateOverlayOpen = false} variant="ghost" class="w-full text-xs font-bold text-muted-foreground rounded-xl h-9 cursor-pointer">
+								<span>Bypass & Open Map</span>
+							</Button>
+						</div>
+
+					{:else if registrationStep === 2}
+						<!-- STEP 2: PHOTO SNAPSHOT OR UPLOAD (REQUIRED) -->
+						<div class="flex flex-col gap-3">
+							<div class="flex flex-col gap-2 items-center p-4 rounded-2xl border border-border bg-muted/40 text-center">
+								{#if photoUrl}
+									<img src={photoUrl} alt="Selfie Preview" class="size-28 rounded-full object-cover border-4 border-primary/30 shadow-lg" />
+									<span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider">Photo Captured & Optimized!</span>
+									<Button type="button" onclick={startSelfieCamera} variant="outline" size="sm" class="text-xs font-bold rounded-xl h-8 gap-1 mt-1">
+										<RefreshCwIcon data-icon="inline-start" />
+										<span>Retake Camera</span>
+									</Button>
+								{:else if isCameraActive}
+									<div class="relative size-44 rounded-2xl overflow-hidden bg-black border border-primary/40">
+										<video bind:this={videoElement} autoplay playsinline class="size-full object-cover"></video>
+									</div>
+									<canvas bind:this={canvasElement} class="hidden"></canvas>
+									<Button type="button" onclick={captureSelfieSnapshot} class="bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-9 gap-1.5 cursor-pointer mt-2">
+										<CameraIcon data-icon="inline-start" />
+										<span>Capture Snapshot</span>
+									</Button>
+								{:else}
+									<div class="size-20 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
+										<CameraIcon class="size-8" />
+									</div>
+									<div class="flex flex-col sm:flex-row gap-2 pt-2 w-full">
+										<Button type="button" onclick={startSelfieCamera} variant="outline" class="flex-1 text-xs font-bold rounded-xl h-9 gap-1.5 cursor-pointer">
+											<CameraIcon data-icon="inline-start" />
+											<span>Selfie Camera</span>
+										</Button>
+
+										<label class="flex-1 flex items-center justify-center gap-1.5 px-3 h-9 rounded-xl border border-border bg-card hover:bg-muted/40 font-bold text-xs cursor-pointer">
+											<UploadIcon class="size-4 text-primary pointer-events-none" />
+											<span>Upload File</span>
+											<input type="file" accept="image/*" onchange={handleFileUpload} class="hidden" />
+										</label>
+									</div>
+								{/if}
+							</div>
+						</div>
+
+						<div class="pt-2 flex gap-2">
+							<Button type="button" onclick={goToPrevStep} variant="outline" class="flex-1 text-xs font-semibold rounded-xl h-10 gap-1.5 cursor-pointer">
+								<ArrowLeftIcon data-icon="inline-start" />
+								<span>Back</span>
+							</Button>
+							<Button type="button" onclick={goToNextStep} class="flex-1 bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-10 gap-1.5 cursor-pointer shadow-md">
+								<span>Next: Office Step</span>
+								<ArrowRightIcon data-icon="inline-end" />
+							</Button>
+						</div>
+
+					{:else if registrationStep === 3}
+						<!-- STEP 3: DESTINATION OFFICE & PURPOSE -->
+						<Field.FieldGroup class="flex flex-col gap-3">
+							<Field.Field>
+								<Field.FieldLabel>Designated Office / Desk *</Field.FieldLabel>
+								<Popover.Root bind:open={isOfficeComboOpen}>
+									<Popover.Trigger>
+										<Button variant="outline" type="button" role="combobox" class="w-full justify-between rounded-xl h-10 text-xs font-bold border-border bg-background cursor-pointer">
+											<span class="truncate">
+												{selectedOffice ? `${selectedOffice.name} (${selectedOffice.code})` : "-- Select Destination Office --"}
+											</span>
+											<ChevronsUpDownIcon class="size-4 opacity-50 ml-2 shrink-0 pointer-events-none" />
+										</Button>
+									</Popover.Trigger>
+									<Popover.Content align="start" sideOffset={6} class="w-[var(--bits-popover-anchor-width)] max-w-xs p-0 max-h-60 overflow-y-auto z-[2500] border-border bg-popover text-popover-foreground rounded-2xl shadow-2xl">
+										<Command.Root class="w-full">
+											<Command.Input placeholder="Search office or department..." class="h-10 text-xs px-3 border-b border-border/60" />
+											<Command.List class="p-1 max-h-48 overflow-y-auto">
+												<Command.Empty class="p-3 text-xs text-muted-foreground text-center">No office found.</Command.Empty>
+												<Command.Group>
+													{#each officesList as office}
+														<Command.Item
+															value={office.name}
+															onSelect={() => {
+																selectedOfficeId = office.id;
+																isOfficeComboOpen = false;
+															}}
+															class="text-xs font-semibold cursor-pointer rounded-xl px-3 py-2.5 flex items-center justify-between hover:bg-muted/60 transition-colors"
+														>
+															<div class="flex flex-col text-start">
+																<span class="font-extrabold text-foreground">{office.name}</span>
+																<span class="text-[10px] text-muted-foreground font-mono">{office.code}</span>
+															</div>
+															{#if selectedOfficeId === office.id}
+																<CheckIcon class="size-4 text-primary shrink-0 ml-2" />
+															{/if}
+														</Command.Item>
+													{/each}
+												</Command.Group>
+											</Command.List>
+										</Command.Root>
+									</Popover.Content>
+								</Popover.Root>
+							</Field.Field>
+
+							<Field.Field>
+								<Field.FieldLabel for="gate-purpose">Purpose of Visit *</Field.FieldLabel>
+								<Input id="gate-purpose" bind:value={purpose} placeholder="e.g. Transcript of Records Request" required class="rounded-xl h-9 text-xs" />
+							</Field.Field>
+						</Field.FieldGroup>
+
+						<div class="pt-2 flex gap-2">
+							<Button type="button" onclick={goToPrevStep} variant="outline" class="flex-1 text-xs font-semibold rounded-xl h-10 gap-1.5 cursor-pointer">
+								<ArrowLeftIcon data-icon="inline-start" />
+								<span>Back</span>
+							</Button>
+							<Button type="submit" disabled={isSubmittingRegister} class="flex-1 bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-10 cursor-pointer shadow-md">
+								<span>{isSubmittingRegister ? 'Saving...' : 'Check In & Unlock Map'}</span>
+							</Button>
+						</div>
+					{/if}
+				</form>
+			</div>
+		</div>
+	{/if}
+
+	<!-- 2. INTERACTIVE MAP PORTAL CANVAS & FLOATING OVERLAYS -->
+	<!-- TOP FLOATING MAP SEARCH BAR (`InputGroup`) -->
+	<div class="absolute top-4 left-4 right-4 z-50 max-w-lg mx-auto pointer-events-auto">
 		<InputGroup.Root class="shadow-2xl rounded-2xl bg-card/90 backdrop-blur-xl border border-border transition-all">
 			<InputGroup.Input 
 				placeholder="Search building, office, or room..." 
@@ -496,7 +716,7 @@
 
 		<!-- Search Suggestions Dropdown -->
 		{#if isSearchOpen && searchQuery.trim()}
-			<Card.Root class="mt-2 shadow-2xl border-border rounded-2xl bg-card/95 backdrop-blur-xl max-h-60 overflow-y-auto">
+			<Card.Root class="mt-2 shadow-2xl border-border rounded-2xl bg-card/95 backdrop-blur-xl max-h-60 overflow-y-auto pointer-events-auto">
 				<Card.Content class="p-2 flex flex-col gap-1">
 					{#each filteredLandmarks as landmark}
 						<button 
@@ -515,8 +735,8 @@
 		{/if}
 	</div>
 
-	<!-- TOP RIGHT FLOATING CONTROLS -->
-	<div class="absolute top-4 right-4 z-30 flex flex-col gap-2 pt-16">
+	<!-- TOP RIGHT FLOATING CONTROLS (GPS & Theme) -->
+	<div class="absolute top-4 right-4 z-50 flex flex-col gap-2 pt-16 pointer-events-auto">
 		<Button 
 			onclick={requestDeviceGps} 
 			variant="outline" 
@@ -529,329 +749,85 @@
 	</div>
 
 	<!-- MAIN LEAFLET MAP CANVAS -->
-	<div bind:this={mapContainer} class="size-full z-10"></div>
+	<div bind:this={mapContainer} class="absolute inset-0 z-0"></div>
 
-	<!-- BOTTOM SHEET DRAWER (Apple Maps Style `Drawer.Root`) -->
-	<Drawer.Root bind:open={isDrawerOpen} dismissible={false}>
-		<Drawer.Portal>
-			<Drawer.Content class="z-[100] max-w-md mx-auto border-border bg-card/95 backdrop-blur-2xl rounded-t-3xl shadow-2xl">
-				<Drawer.Header class="pb-2 pt-3 text-center">
-					<div class="w-12 h-1.5 rounded-full bg-muted-foreground/30 mx-auto mb-2"></div>
-					
-					<div class="flex items-center justify-between">
-						<div class="flex items-center gap-2">
-							<div class="size-8 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center font-black">C</div>
-							<div class="text-start">
-								<Drawer.Title class="text-sm font-black text-foreground">Calapexis Mobile Visitor Portal</Drawer.Title>
-								<Drawer.Description class="text-[10px] text-muted-foreground">Campus Navigation & QR Office Check-In</Drawer.Description>
-							</div>
-						</div>
-
-						<Badge variant="outline" class="text-[10px] font-bold border-primary/20 text-primary gap-1">
-							<span class="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-							{gpsStatus === 'active' ? 'GPS Active' : 'Main Gate'}
+	<!-- BOTTOM FLOATING MAP HUD BAR (Pass Details, QR Scan & Check-Out Controls) -->
+	<div class="absolute bottom-6 left-4 right-4 z-50 max-w-lg mx-auto pointer-events-auto">
+		<div class="p-4 rounded-3xl bg-card/95 backdrop-blur-2xl border border-border shadow-2xl flex flex-col gap-3 font-semibold text-xs text-card-foreground">
+			{#if activeOfficialPass}
+				<!-- OFFICIAL PASS ACTIVE HUD -->
+				<div class="flex items-center justify-between">
+					<div class="flex items-center gap-2">
+						<Badge variant="outline" class="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold text-[10px] border-emerald-500/30 gap-1">
+							<CheckCircleIcon class="size-3" />
+							CHECKED IN
 						</Badge>
+						<span class="font-bold text-foreground">{activeOfficialPass.fullName}</span>
 					</div>
-				</Drawer.Header>
-
-				<div class="p-5 pt-1 flex flex-col gap-4 font-semibold text-xs text-card-foreground">
-					{#if activeOfficialPass}
-						<!-- STATE C: Official Checked-In Visitor Pass -->
-						<div class="flex flex-col gap-3 py-1">
-							<div class="flex items-center justify-between">
-								<Badge variant="outline" class="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold text-[10px] uppercase border-emerald-500/30 gap-1">
-									<CheckCircleIcon class="size-3" />
-									OFFICIAL DIGITAL VISITOR PASS
-								</Badge>
-								<span class="font-mono text-xs font-black text-primary">{activeOfficialPass.passCode}</span>
-							</div>
-
-							<div>
-								<h4 class="text-base font-black text-foreground">{activeOfficialPass.fullName}</h4>
-								<div class="grid grid-cols-2 gap-2 text-[11px] mt-2 pt-2 border-t border-border/60">
-									<div>
-										<span class="text-muted-foreground block text-[9px] uppercase font-bold tracking-wider">Office Destination</span>
-										<div class="font-extrabold text-foreground">{activeOfficialPass.officeName || 'Campus Office'}</div>
-									</div>
-									<div>
-										<span class="text-muted-foreground block text-[9px] uppercase font-bold tracking-wider">Check-In Time</span>
-										<div class="font-mono font-bold text-foreground">{new Date(activeOfficialPass.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-									</div>
-								</div>
-							</div>
-
-							<Button onclick={handleSelfCheckout} variant="destructive" class="w-full font-extrabold text-xs rounded-xl h-10 gap-1.5 cursor-pointer shadow-xs mt-1">
-								<LogOutIcon data-icon="inline-start" />
-								<span>Check Out of Campus</span>
-							</Button>
-						</div>
-
-					{:else if prePassData}
-						<!-- STATE B: Pre-Pass Active -> Pending Office QR Scan -->
-						<div class="flex flex-col gap-3 py-1">
-							<div class="flex items-center justify-between">
-								<Badge variant="outline" class="bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold text-[10px] border-amber-500/30 gap-1">
-									<RadioIcon class="size-3 animate-pulse" />
-									PRE-CHECK-IN ACTIVE
-								</Badge>
-								<span class="text-[10px] text-muted-foreground font-bold">{prePassData.fullName}</span>
-							</div>
-
-							<div>
-								<h4 class="text-sm font-black text-foreground">Destination: {prePassData.officeName}</h4>
-								<p class="text-xs text-muted-foreground leading-relaxed mt-0.5">
-									Follow the blue navigation path on the map, then scan the office QR code at the desk to complete check-in.
-								</p>
-							</div>
-
-							<div class="flex gap-2 pt-1">
-								<Button onclick={() => isScannerModalOpen = true} class="flex-1 bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-10 gap-1.5 cursor-pointer shadow-xs">
-									<QrCodeIcon data-icon="inline-start" />
-									<span>Scan Office QR</span>
-								</Button>
-								<Button onclick={() => isScannerModalOpen = true} variant="outline" class="flex-1 font-bold text-xs rounded-xl h-10 gap-1.5 cursor-pointer">
-									<SmartphoneIcon data-icon="inline-start" />
-									<span>Manual Code</span>
-								</Button>
-							</div>
-						</div>
-
-					{:else}
-						<!-- STATE A: Visitor Unregistered -> Start Registration -->
-						<div class="flex flex-col gap-3 py-2 text-start">
-							<div class="flex items-center gap-2 text-primary font-black text-sm">
-								<SparklesIcon class="size-4" />
-								<span>Welcome Visitor!</span>
-							</div>
-							<p class="text-xs text-muted-foreground leading-relaxed">
-								Fill out your details step-by-step, take a selfie or upload a photo, and select your destination office to generate your pass.
-							</p>
-							<Button onclick={() => { registrationStep = 1; isRegisterModalOpen = true; }} class="w-full bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-11 gap-2 cursor-pointer shadow-md mt-1">
-								<UserCheckIcon data-icon="inline-start" />
-								<span>Register & Request Visitor Pass</span>
-							</Button>
-						</div>
-					{/if}
+					<span class="font-mono text-xs font-black text-primary">{activeOfficialPass.passCode}</span>
 				</div>
-			</Drawer.Content>
-		</Drawer.Portal>
-	</Drawer.Root>
-</div>
 
-<!-- STEPPED VISITOR REGISTRATION WIZARD (`Dialog.Root`) -->
-<Dialog.Root bind:open={isRegisterModalOpen}>
-	<Dialog.Portal>
-		<Dialog.Content class="z-[100] max-w-md border-border bg-card text-card-foreground shadow-2xl rounded-3xl max-h-[90vh] overflow-y-auto">
-			<!-- WIZARD STEP PROGRESS BAR -->
-			<div class="flex items-center justify-between gap-2 pt-2 px-1">
-				<div class="flex-1 h-1.5 rounded-full {registrationStep >= 1 ? 'bg-primary' : 'bg-muted'} transition-colors"></div>
-				<div class="flex-1 h-1.5 rounded-full {registrationStep >= 2 ? 'bg-primary' : 'bg-muted'} transition-colors"></div>
-				<div class="flex-1 h-1.5 rounded-full {registrationStep >= 3 ? 'bg-primary' : 'bg-muted'} transition-colors"></div>
-			</div>
-
-			<Dialog.Header class="pt-1">
-				<Dialog.Title class="text-base font-black text-foreground flex items-center gap-2">
-					<UserCheckIcon class="size-5 text-primary" />
-					{#if registrationStep === 1}
-						<span>Step 1: Personal Details</span>
-					{:else if registrationStep === 2}
-						<span>Step 2: Face Photo / Image Upload</span>
-					{:else}
-						<span>Step 3: Office & Purpose</span>
-					{/if}
-				</Dialog.Title>
-				<Dialog.Description class="text-xs text-muted-foreground">
-					{#if registrationStep === 1}
-						Enter your full name and optional contact info.
-					{:else if registrationStep === 2}
-						Take a selfie camera snapshot or upload an image file (Required).
-					{:else}
-						Select your destination office and state your visit purpose.
-					{/if}
-				</Dialog.Description>
-			</Dialog.Header>
-
-			<!-- SvelteKit Server Action Form -->
-			<form action="?/register" method="POST" use:enhance={handleRegisterEnhance} class="flex flex-col gap-4 py-2 font-semibold text-xs">
-				<input type="hidden" name="firstName" value={firstName} />
-				<input type="hidden" name="middleName" value={middleName} />
-				<input type="hidden" name="lastName" value={lastName} />
-				<input type="hidden" name="email" value={email} />
-				<input type="hidden" name="phone" value={phone} />
-				<input type="hidden" name="photoUrl" value={photoUrl} />
-				<input type="hidden" name="officeId" value={selectedOfficeId} />
-				<input type="hidden" name="purpose" value={purpose} />
-
-				{#if registrationStep === 1}
-					<!-- STEP 1: PERSONAL INFORMATION -->
-					{#if isReturningVisitor}
-						<div class="p-3 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-between text-xs font-semibold">
-							<div class="flex items-center gap-2">
-								<SparklesIcon class="size-4 text-primary" />
-								<span class="font-bold text-foreground">Welcome Back! Saved Profile Auto-Filled</span>
-							</div>
-							<button type="button" onclick={clearSavedProfile} class="text-[10px] text-primary font-black uppercase hover:underline cursor-pointer">Clear</button>
-						</div>
-					{/if}
-
-					<Field.FieldGroup class="flex flex-col gap-3">
-						<div class="grid grid-cols-3 gap-2">
-							<Field.Field>
-								<Field.FieldLabel for="reg-firstName">First Name *</Field.FieldLabel>
-								<Input id="reg-firstName" name="firstName" bind:value={firstName} placeholder="John" required class="rounded-xl h-9 text-xs" />
-							</Field.Field>
-							<Field.Field>
-								<Field.FieldLabel for="reg-middleName">Middle</Field.FieldLabel>
-								<Input id="reg-middleName" name="middleName" bind:value={middleName} placeholder="Paul" class="rounded-xl h-9 text-xs" />
-							</Field.Field>
-							<Field.Field>
-								<Field.FieldLabel for="reg-lastName">Last Name *</Field.FieldLabel>
-								<Input id="reg-lastName" name="lastName" bind:value={lastName} placeholder="Doe" required class="rounded-xl h-9 text-xs" />
-							</Field.Field>
-						</div>
-
-						<div class="grid grid-cols-2 gap-2">
-							<Field.Field>
-								<Field.FieldLabel for="reg-email">Email (Optional)</Field.FieldLabel>
-								<Input id="reg-email" name="email" type="email" bind:value={email} placeholder="john@example.com" class="rounded-xl h-9 text-xs" />
-							</Field.Field>
-							<Field.Field>
-								<Field.FieldLabel for="reg-phone">Phone (Optional)</Field.FieldLabel>
-								<Input id="reg-phone" name="phone" type="tel" bind:value={phone} placeholder="+63 917..." class="rounded-xl h-9 text-xs" />
-							</Field.Field>
-						</div>
-					</Field.FieldGroup>
-
-					<Dialog.Footer class="pt-3 border-t border-border/60 flex gap-2">
-						<Button type="button" onclick={() => isRegisterModalOpen = false} variant="outline" class="flex-1 text-xs font-semibold rounded-xl h-10 cursor-pointer">
-							Cancel
-						</Button>
-						<Button type="button" onclick={goToNextStep} class="flex-1 bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-10 gap-1.5 cursor-pointer">
-							<span>Next: Photo Step</span>
-							<ArrowRightIcon data-icon="inline-end" />
-						</Button>
-					</Dialog.Footer>
-
-				{:else if registrationStep === 2}
-					<!-- STEP 2: FACE PHOTO SNAPSHOT OR FILE UPLOAD (MANDATORY) -->
-					<div class="flex flex-col gap-3">
-						<div class="flex flex-col gap-2 items-center p-4 rounded-2xl border border-border bg-muted/40 text-center">
-							{#if photoUrl}
-								<img src={photoUrl} alt="Selfie Preview" class="size-28 rounded-full object-cover border-4 border-primary/30 shadow-lg" />
-								<span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider">Photo Captured & Ready!</span>
-								<div class="flex gap-2 pt-1">
-									<Button type="button" onclick={startSelfieCamera} variant="outline" size="sm" class="text-xs font-bold rounded-xl h-8 gap-1">
-										<RefreshCwIcon data-icon="inline-start" />
-										<span>Retake Camera</span>
-									</Button>
-								</div>
-							{:else if isCameraActive}
-								<div class="relative size-44 rounded-2xl overflow-hidden bg-black border border-primary/40">
-									<video bind:this={videoElement} autoplay playsinline class="size-full object-cover"></video>
-								</div>
-								<canvas bind:this={canvasElement} class="hidden"></canvas>
-								<Button type="button" onclick={captureSelfieSnapshot} class="bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-9 gap-1.5 cursor-pointer mt-2">
-									<CameraIcon data-icon="inline-start" />
-									<span>Capture Snapshot</span>
-								</Button>
-							{:else}
-								<div class="size-20 rounded-full bg-muted flex items-center justify-center text-muted-foreground">
-									<CameraIcon class="size-8" />
-								</div>
-								<div class="flex flex-col sm:flex-row gap-2 pt-2 w-full">
-									<Button type="button" onclick={startSelfieCamera} variant="outline" class="flex-1 text-xs font-bold rounded-xl h-9 gap-1.5 cursor-pointer">
-										<CameraIcon data-icon="inline-start" />
-										<span>Selfie Camera</span>
-									</Button>
-
-									<label class="flex-1 flex items-center justify-center gap-1.5 px-3 h-9 rounded-xl border border-border bg-card hover:bg-muted/40 font-bold text-xs cursor-pointer">
-										<UploadIcon class="size-4 text-primary pointer-events-none" />
-										<span>Upload File</span>
-										<input type="file" accept="image/*" onchange={handleFileUpload} class="hidden" />
-									</label>
-								</div>
-							{/if}
-						</div>
+				<div class="flex items-center justify-between text-[11px] bg-muted/40 p-2.5 rounded-xl border border-border">
+					<div>
+						<span class="text-muted-foreground block text-[9px] uppercase font-bold tracking-wider">Office Destination</span>
+						<div class="font-extrabold text-foreground">{activeOfficialPass.officeName || 'Campus Office'}</div>
 					</div>
+					<Button onclick={handleSelfCheckout} variant="destructive" size="sm" class="font-extrabold text-xs rounded-xl h-8 gap-1 cursor-pointer">
+						<LogOutIcon data-icon="inline-start" class="size-3.5" />
+						<span>Check Out</span>
+					</Button>
+				</div>
 
-					<Dialog.Footer class="pt-3 border-t border-border/60 flex gap-2">
-						<Button type="button" onclick={goToPrevStep} variant="outline" class="flex-1 text-xs font-semibold rounded-xl h-10 gap-1.5 cursor-pointer">
-							<ArrowLeftIcon data-icon="inline-start" />
-							<span>Back</span>
-						</Button>
-						<Button type="button" onclick={goToNextStep} class="flex-1 bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-10 gap-1.5 cursor-pointer">
-							<span>Next: Office Step</span>
-							<ArrowRightIcon data-icon="inline-end" />
-						</Button>
-					</Dialog.Footer>
+			{:else if prePassData}
+				<!-- PRE-PASS ACTIVE HUD (Pending QR Desk Check-In) -->
+				<div class="flex items-center justify-between">
+					<Badge variant="outline" class="bg-amber-500/15 text-amber-600 dark:text-amber-400 font-extrabold text-[10px] border-amber-500/30 gap-1">
+						<RadioIcon class="size-3 animate-pulse" />
+						PRE-PASS: {prePassData.officeName}
+					</Badge>
+					<span class="text-[10px] text-muted-foreground font-bold">{prePassData.fullName}</span>
+				</div>
 
-				{:else if registrationStep === 3}
-					<!-- STEP 3: DESTINATION OFFICE (COMBOBOX) & PURPOSE -->
-					<Field.FieldGroup class="flex flex-col gap-3">
-						<Field.Field>
-							<Field.FieldLabel>Designated Office / Desk *</Field.FieldLabel>
-							<Popover.Root bind:open={isOfficeComboOpen}>
-								<Popover.Trigger>
-									<Button variant="outline" type="button" role="combobox" class="w-full justify-between rounded-xl h-10 text-xs font-bold border-border bg-background cursor-pointer">
-										<span class="truncate">
-											{selectedOffice ? `${selectedOffice.name} (${selectedOffice.code})` : "-- Select Destination Office --"}
-										</span>
-										<ChevronsUpDownIcon class="size-4 opacity-50 ml-2 shrink-0 pointer-events-none" />
-									</Button>
-								</Popover.Trigger>
-								<Popover.Content class="w-full p-0 max-h-60 overflow-y-auto z-[120] border-border bg-popover text-popover-foreground rounded-2xl shadow-xl">
-									<Command.Root>
-										<Command.Input placeholder="Search office or department..." class="h-9 text-xs" />
-										<Command.List class="p-1">
-											<Command.Empty class="p-2 text-xs text-muted-foreground text-center">No office found.</Command.Empty>
-											<Command.Group>
-												{#each officesList as office}
-													<Command.Item
-														value={office.name}
-														onSelect={() => {
-															selectedOfficeId = office.id;
-															isOfficeComboOpen = false;
-														}}
-														class="text-xs font-semibold cursor-pointer rounded-xl p-2 flex items-center justify-between hover:bg-muted/50"
-													>
-														<span>{office.name} ({office.code})</span>
-														{#if selectedOfficeId === office.id}
-															<CheckIcon class="size-3.5 text-primary" />
-														{/if}
-													</Command.Item>
-												{/each}
-											</Command.Group>
-										</Command.List>
-									</Command.Root>
-								</Popover.Content>
-							</Popover.Root>
-						</Field.Field>
+				<div class="flex gap-2">
+					<Button onclick={() => isScannerModalOpen = true} class="flex-1 bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-10 gap-1.5 cursor-pointer shadow-xs">
+						<QrCodeIcon data-icon="inline-start" />
+						<span>Scan Office QR Desk</span>
+					</Button>
+					<Button onclick={handleSelfCheckout} variant="outline" class="font-bold text-xs rounded-xl h-10 gap-1 cursor-pointer">
+						<LogOutIcon data-icon="inline-start" class="size-3.5" />
+						<span>Gate Screen</span>
+					</Button>
+				</div>
 
-						<Field.Field>
-							<Field.FieldLabel for="reg-purpose">Purpose of Visit *</Field.FieldLabel>
-							<Input id="reg-purpose" name="purpose" bind:value={purpose} placeholder="e.g. Transcript of Records Request" required class="rounded-xl h-9 text-xs" />
-						</Field.Field>
-					</Field.FieldGroup>
+			{:else}
+				<!-- UNREGISTERED MAP HUD -->
+				<div class="flex items-center justify-between">
+					<div class="flex items-center gap-2 text-primary font-black text-xs">
+						<SparklesIcon class="size-4" />
+						<span>Visiting Campus?</span>
+					</div>
+					<Badge variant="outline" class="text-[9px]">Map Unlocked</Badge>
+				</div>
 
-					<Dialog.Footer class="pt-3 border-t border-border/60 flex gap-2">
-						<Button type="button" onclick={goToPrevStep} variant="outline" class="flex-1 text-xs font-semibold rounded-xl h-10 gap-1.5 cursor-pointer">
-							<ArrowLeftIcon data-icon="inline-start" />
-							<span>Back</span>
-						</Button>
-						<Button type="submit" disabled={isSubmittingRegister} class="flex-1 bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-10 cursor-pointer shadow-md">
-							<span>{isSubmittingRegister ? 'Saving...' : 'Complete & Issue Pass'}</span>
-						</Button>
-					</Dialog.Footer>
-				{/if}
-			</form>
-		</Dialog.Content>
-	</Dialog.Portal>
-</Dialog.Root>
+				<div class="flex gap-2">
+					<Button onclick={() => isGateOverlayOpen = true} class="flex-1 bg-primary text-primary-foreground font-extrabold text-xs rounded-xl h-10 gap-1.5 cursor-pointer shadow-md">
+						<UserCheckIcon data-icon="inline-start" />
+						<span>Open Registration Gate</span>
+					</Button>
+					<Button onclick={() => isScannerModalOpen = true} variant="outline" class="flex-1 font-bold text-xs rounded-xl h-10 gap-1.5 cursor-pointer">
+						<QrCodeIcon data-icon="inline-start" />
+						<span>Scan Office QR</span>
+					</Button>
+				</div>
+			{/if}
+		</div>
+	</div>
+</div>
 
 <!-- STEP 4 OFFICE QR CODE SCANNER MODAL (`Dialog.Root`) -->
 <Dialog.Root bind:open={isScannerModalOpen}>
 	<Dialog.Portal>
-		<Dialog.Content class="z-[100] max-w-md border-border bg-card text-card-foreground shadow-2xl rounded-3xl">
+		<Dialog.Content class="z-[2500] max-w-md border-border bg-card text-card-foreground shadow-2xl rounded-3xl">
 			<Dialog.Header>
 				<Dialog.Title class="text-base font-black text-foreground flex items-center gap-2">
 					<QrCodeIcon class="size-5 text-primary" />
