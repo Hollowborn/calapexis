@@ -423,10 +423,10 @@
 			</Field.FieldGroup>
 
 			<Dialog.Footer class="pt-4 border-t border-border flex gap-2">
-				<Button type="button" onclick={() => (isCreatingUser = false)} variant="outline" class="flex-1 text-xs font-semibold rounded-xl h-10 cursor-pointer">
+				<Button type="button" onclick={() => (isCreatingUser = false)} variant="outline" class="">
 					Cancel
 				</Button>
-				<Button type="submit" class="flex-1 text-xs font-extrabold rounded-xl h-10 cursor-pointer">
+				<Button type="submit" >
 					Create Account
 				</Button>
 			</Dialog.Footer>
