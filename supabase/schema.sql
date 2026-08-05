@@ -195,24 +195,38 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
     user_role TEXT;
+    user_office_id UUID;
     user_room_id UUID;
+    meta_office_id TEXT;
     meta_room_id TEXT;
 BEGIN
     -- Extract role from metadata, fallback to 'staff' if not set
     user_role := COALESCE(new.raw_user_meta_data->>'role', 'staff');
     
+    -- Extract office_id text
+    meta_office_id := new.raw_user_meta_data->>'office_id';
+    IF meta_office_id IS NOT NULL AND meta_office_id ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' THEN
+        user_office_id := meta_office_id::UUID;
+    ELSE
+        user_office_id := NULL;
+    END IF;
+
     -- Extract room_id text
     meta_room_id := new.raw_user_meta_data->>'room_id';
-    
-    -- Validate if room_id matches UUID format before casting
     IF meta_room_id IS NOT NULL AND meta_room_id ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' THEN
         user_room_id := meta_room_id::UUID;
     ELSE
         user_room_id := NULL;
     END IF;
 
-    INSERT INTO public.profiles (id, email, role, room_id)
-    VALUES (new.id, new.email, user_role, user_room_id);
+    INSERT INTO public.profiles (id, email, role, office_id, room_id)
+    VALUES (new.id, new.email, user_role, user_office_id, user_room_id)
+    ON CONFLICT (id) DO UPDATE SET
+        email = EXCLUDED.email,
+        role = COALESCE(EXCLUDED.role, public.profiles.role),
+        office_id = COALESCE(EXCLUDED.office_id, public.profiles.office_id),
+        room_id = COALESCE(EXCLUDED.room_id, public.profiles.room_id),
+        updated_at = timezone('utc'::text, now());
     
     RETURN NEW;
 END;

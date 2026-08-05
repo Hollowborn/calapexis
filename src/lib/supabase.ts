@@ -732,43 +732,70 @@ export async function addLocalProfile(
 	};
 
 	if (isSupabaseConfigured && supabase) {
-		const tempSupabase = createClient(supabaseUrl, supabaseAnonKey, {
-			auth: {
-				persistSession: false,
-				autoRefreshToken: false,
-			},
-		});
+		const dbClient = getDbClient();
+		let createdUserId = "";
+		let createdAt = new Date().toISOString();
 
-		const { data: authData, error: authError } = await tempSupabase.auth.signUp(
-			{
+		if (dbClient.auth && dbClient.auth.admin) {
+			const { data: adminAuthData, error: adminAuthErr } = await dbClient.auth.admin.createUser({
+				email,
+				password: password || "Default123456!",
+				email_confirm: true,
+				user_metadata: {
+					role,
+					office_id: officeId || null,
+					room_id: roomId || null
+				}
+			});
+			if (!adminAuthErr && adminAuthData?.user) {
+				createdUserId = adminAuthData.user.id;
+				createdAt = adminAuthData.user.created_at;
+			}
+		}
+
+		if (!createdUserId) {
+			const tempSupabase = createClient(supabaseUrl, supabaseAnonKey, {
+				auth: { persistSession: false, autoRefreshToken: false }
+			});
+			const { data: authData, error: authError } = await tempSupabase.auth.signUp({
 				email,
 				password: password || "Default123456!",
 				options: {
-					data: {
-						role,
-						office_id: officeId || null,
-						room_id: roomId || null
-					}
+					data: { role, office_id: officeId || null, room_id: roomId || null }
 				}
-			},
-		);
-
-		if (authError || !authData.user) {
-			throw new Error(
-				authError?.message || "Failed to create authentication user.",
-			);
+			});
+			if (authError || !authData.user) {
+				throw new Error(authError?.message || "Failed to create authentication user.");
+			}
+			createdUserId = authData.user.id;
+			createdAt = authData.user.created_at;
 		}
 
-		const profile: Profile = {
-			id: authData.user.id,
-			email: authData.user.email || email,
+		// Upsert into profiles table to ensure record exists
+		const { data: profileRow, error: profileErr } = await dbClient
+			.from("profiles")
+			.upsert([{
+				id: createdUserId,
+				email,
+				role,
+				office_id: officeId || null,
+				room_id: roomId || null
+			}])
+			.select()
+			.maybeSingle();
+
+		if (!profileErr && profileRow) {
+			return mapDbProfileToProfile(profileRow);
+		}
+
+		return {
+			id: createdUserId,
+			email,
 			role,
 			officeId,
 			roomId,
-			createdAt: authData.user.created_at,
+			createdAt
 		};
-
-		return profile;
 	}
 
 	getCalapexisStore().profiles = [...getCalapexisStore().profiles, newProfile];
@@ -780,13 +807,30 @@ export async function updateLocalProfile(
 	updates: Partial<Profile> & { password?: string }
 ): Promise<Profile | null> {
 	if (isSupabaseConfigured && supabase) {
+		const dbClient = getDbClient();
 		const dbRow: any = {};
 		if (updates.email !== undefined) dbRow.email = updates.email;
 		if (updates.role !== undefined) dbRow.role = updates.role;
 		if (updates.officeId !== undefined) dbRow.office_id = updates.officeId || null;
 		if (updates.roomId !== undefined) dbRow.room_id = updates.roomId || null;
 
-		const { data, error } = await getDbClient()
+		// 1. If admin client is available, update auth.users
+		if (dbClient.auth && dbClient.auth.admin) {
+			const authAdminUpdates: any = {};
+			if (updates.email) authAdminUpdates.email = updates.email;
+			if (updates.password) authAdminUpdates.password = updates.password;
+			authAdminUpdates.user_metadata = {
+				role: updates.role,
+				office_id: updates.officeId || null,
+				room_id: updates.roomId || null
+			};
+			await dbClient.auth.admin.updateUserById(id, authAdminUpdates).catch((err: any) => {
+				console.warn("Supabase auth.admin updateUserById warning:", err);
+			});
+		}
+
+		// 2. Update public.profiles table
+		const { data, error } = await dbClient
 			.from("profiles")
 			.update(dbRow)
 			.eq("id", id)
@@ -796,7 +840,8 @@ export async function updateLocalProfile(
 			return mapDbProfileToProfile(data[0]);
 		}
 		if (error) {
-			console.warn("Supabase update profile error, using mock fallback:", error);
+			console.error("Supabase update profile error:", error.message);
+			throw new Error(error.message || "Failed to update profile in database.");
 		}
 	}
 
@@ -816,16 +861,41 @@ export async function updateLocalProfile(
 
 export async function deleteLocalProfile(id: string): Promise<boolean> {
 	if (isSupabaseConfigured && supabase) {
-		const { error } = await getDbClient().from("profiles").delete().eq("id", id);
+		const dbClient = getDbClient();
+
+		// 1. Delete from auth.users via admin if available (cascades to profiles)
+		if (dbClient.auth && dbClient.auth.admin) {
+			const { error: adminAuthErr } = await dbClient.auth.admin.deleteUser(id);
+			if (!adminAuthErr) {
+				return true;
+			}
+			console.warn("Supabase auth.admin deleteUser warning:", adminAuthErr.message);
+		}
+
+		// 2. Delete directly from public.profiles table
+		const { error } = await dbClient.from("profiles").delete().eq("id", id);
 		if (!error) {
 			return true;
 		}
-		console.warn("Supabase delete profile error, using mock fallback:", error);
+		console.error("Supabase delete profile error:", error.message);
+		throw new Error(error.message || "Failed to delete profile from database.");
 	}
 
 	const initialLength = getCalapexisStore().profiles.length;
 	getCalapexisStore().profiles = getCalapexisStore().profiles.filter((p: Profile) => p.id !== id);
 	return getCalapexisStore().profiles.length < initialLength;
+}
+
+export async function signInWithGoogle() {
+	if (!isSupabaseConfigured || !supabase) {
+		throw new Error("Supabase is not configured for OAuth authentication.");
+	}
+	return await supabase.auth.signInWithOAuth({
+		provider: "google",
+		options: {
+			redirectTo: typeof window !== "undefined" ? `${window.location.origin}/dashboard` : undefined
+		}
+	});
 }
 
 // Buildings local store fallback

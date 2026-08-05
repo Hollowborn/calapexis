@@ -88,7 +88,7 @@
 		toast.promise(createPromise, {
 			loading: "Provisioning account...",
 			success: "Account created successfully!",
-			error: (err: any) => err.message || "Failed to create account."
+			error: (err: any) => typeof err === "string" ? err : (err?.message || "Failed to create account.")
 		});
 
 		return async ({ result, update }) => {
@@ -102,7 +102,11 @@
 				await dashboardContext.loadData();
 				await update();
 			} else if (result.type === "failure") {
-				rejectUser(new Error((result.data as any)?.message || "Failed to create user."));
+				const errMsg = (result.data as any)?.message || "Failed to create user.";
+				rejectUser(new Error(errMsg));
+			} else if (result.type === "error") {
+				const errMsg = (result.error as any)?.message || "Server error creating user.";
+				rejectUser(new Error(errMsg));
 			} else {
 				rejectUser(new Error("Unexpected authentication error."));
 			}
@@ -120,7 +124,7 @@
 		toast.promise(updatePromise, {
 			loading: "Updating account profile...",
 			success: "Account updated successfully!",
-			error: (err: any) => err.message || "Failed to update account."
+			error: (err: any) => typeof err === "string" ? err : (err?.message || "Failed to update account.")
 		});
 
 		return async ({ result, update }) => {
@@ -130,7 +134,11 @@
 				await dashboardContext.loadData();
 				await update();
 			} else if (result.type === "failure") {
-				rejectUpdate(new Error((result.data as any)?.message || "Failed to update user."));
+				const errMsg = (result.data as any)?.message || "Failed to update user.";
+				rejectUpdate(new Error(errMsg));
+			} else if (result.type === "error") {
+				const errMsg = (result.error as any)?.message || "Server error updating user.";
+				rejectUpdate(new Error(errMsg));
 			} else {
 				rejectUpdate(new Error("Unexpected error."));
 			}
@@ -148,7 +156,7 @@
 		toast.promise(deletePromise, {
 			loading: "Deleting account...",
 			success: "User account deleted successfully!",
-			error: (err: any) => err.message || "Failed to delete account."
+			error: (err: any) => typeof err === "string" ? err : (err?.message || "Failed to delete account.")
 		});
 
 		return async ({ result, update }) => {
@@ -158,7 +166,11 @@
 				await dashboardContext.loadData();
 				await update();
 			} else if (result.type === "failure") {
-				rejectDelete(new Error((result.data as any)?.message || "Failed to delete user."));
+				const errMsg = (result.data as any)?.message || "Failed to delete user.";
+				rejectDelete(new Error(errMsg));
+			} else if (result.type === "error") {
+				const errMsg = (result.error as any)?.message || "Server error deleting user.";
+				rejectDelete(new Error(errMsg));
 			} else {
 				rejectDelete(new Error("Unexpected error."));
 			}
@@ -170,7 +182,7 @@
 
 	const columns = [
 		columnHelper.accessor("email", {
-			header: ({ column }) => renderComponent(DataTable.ColumnHeader, { column: column as any, title: "Username (Email)" }),
+			header: ({ column }) => renderComponent(DataTable.ColumnHeader, { column: column as any, title: "Username / Email" }),
 			cell: ({ getValue }) => renderSnippet(emailCell, { email: getValue() })
 		}),
 		columnHelper.accessor("role", {
@@ -180,6 +192,11 @@
 		columnHelper.accessor("officeId", {
 			header: "Assigned Check-In Office",
 			cell: ({ row }) => renderSnippet(officeCell, { profile: row.original })
+		}),
+		columnHelper.display({
+			id: "authProvider",
+			header: "Auth Method",
+			cell: ({ row }) => renderSnippet(providerCell, { email: row.original.email })
 		}),
 		columnHelper.accessor("createdAt", {
 			header: ({ column }) => renderComponent(DataTable.ColumnHeader, { column: column as any, title: "Created Date" }),
@@ -212,6 +229,18 @@
 		<Badge class="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 border-indigo-500/20 text-[10px] font-bold rounded-full">Security Guard</Badge>
 	{:else}
 		<Badge class="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 border-emerald-500/20 text-[10px] font-bold rounded-full">Office Staff</Badge>
+	{/if}
+{/snippet}
+
+{#snippet providerCell({ email }: { email: string })}
+	{#if email.includes('@gmail.com') || email.includes('@google') || email.endsWith('.google.com')}
+		<Badge variant="outline" class="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 text-[9px] font-bold rounded-md">
+			Google OAuth
+		</Badge>
+	{:else}
+		<Badge variant="outline" class="bg-muted text-muted-foreground border-border text-[9px] font-bold rounded-md">
+			Email / Password
+		</Badge>
 	{/if}
 {/snippet}
 
@@ -396,7 +425,7 @@
 							onValueChange={(val) => newOfficeId = val}
 						>
 							<Select.Trigger class="w-full h-10 rounded-xl cursor-pointer hover:bg-muted/30">
-								<span class="text-xs font-semibold text-foreground">
+								<span class="text-xs font-semibold text-foreground truncate">
 									{#if newOfficeId}
 										{@const off = officesList.find(o => o.id === newOfficeId)}
 										{off ? `${off.code} - ${off.name} (${off.buildingName || ''})` : 'Select Check-In Office'}
