@@ -47,8 +47,8 @@ CREATE TABLE IF NOT EXISTS public.offices (
 
 -- 3. Profiles Table (RBAC roles & desk/room binding)
 CREATE TABLE IF NOT EXISTS public.profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    email TEXT NOT NULL,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT NOT NULL UNIQUE,
     role TEXT NOT NULL CHECK (role IN ('admin', 'security', 'staff')),
     office_id UUID REFERENCES public.offices(id) ON DELETE SET NULL,
     room_id UUID REFERENCES public.rooms(id) ON DELETE SET NULL,
@@ -149,6 +149,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Profiles Policies
 CREATE POLICY "Allow public select profiles" ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Allow public insert profiles" ON public.profiles FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow admins all access to profiles" ON public.profiles FOR ALL USING (
     public.get_user_role(auth.uid()) = 'admin'
 );

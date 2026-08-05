@@ -30,7 +30,10 @@
 	let { data } = $props();
 
 	const dashboardContext = getContext<any>("dashboard-state");
-	let profiles = $derived<Profile[]>(dashboardContext.profiles);
+	let actionProfiles = $state<Profile[] | null>(null);
+	let profiles = $derived<Profile[]>(
+		actionProfiles || (data.profiles && data.profiles.length > 0 ? data.profiles : dashboardContext.profiles)
+	);
 
 	// Fallback to mock lists if DB is empty
 	let officesList = $derived(data.offices && data.offices.length > 0 ? data.offices : MOCK_OFFICES);
@@ -76,6 +79,22 @@
 		})
 	);
 
+	function parseAuthErrorMessage(rawMsg: string): string {
+		if (rawMsg.includes("already registered") || rawMsg.includes("already exists")) {
+			return "User already exists! Delete old user from Supabase Dashboard ➔ Auth ➔ Users, or try another email.";
+		}
+		if (rawMsg.includes("Password") || rawMsg.includes("password")) {
+			return "Password Error: Minimum 6 characters required by Supabase Auth.";
+		}
+		if (rawMsg.includes("Bearer token")) {
+			return "Missing Service Key: Please add SUPABASE_SERVICE_ROLE_KEY=your_key to your .env file.";
+		}
+		if (rawMsg.includes("email") || rawMsg.includes("format")) {
+			return "Invalid Email: Please provide a valid email format (e.g. staff@bisu.edu.ph).";
+		}
+		return rawMsg;
+	}
+
 	// Submit handlers
 	const handleCreateUserEnhance: SubmitFunction = () => {
 		let resolveUser: (v?: any) => void = () => {};
@@ -86,14 +105,23 @@
 		});
 
 		toast.promise(createPromise, {
-			loading: "Provisioning account...",
-			success: "Account created successfully!",
-			error: (err: any) => typeof err === "string" ? err : (err?.message || "Failed to create account.")
+			loading: "Step 1/2: Provisioning credentials & database profile...",
+			success: (data: any) => data?.message || "Account provisioned successfully!",
+			error: (err: any) => {
+				const raw = typeof err === "string" ? err : (err?.message || "Failed to create user account.");
+				return parseAuthErrorMessage(raw);
+			}
 		});
 
 		return async ({ result, update }) => {
 			if (result.type === "success") {
-				resolveUser();
+				const successMsg = (result.data as any)?.email 
+					? `Account ${(result.data as any).email} created successfully!`
+					: "Account created and bound to desk successfully!";
+				resolveUser({ message: successMsg });
+				if ((result.data as any)?.profiles) {
+					actionProfiles = (result.data as any).profiles;
+				}
 				isCreatingUser = false;
 				newEmail = '';
 				newPassword = '';
@@ -102,13 +130,13 @@
 				await dashboardContext.loadData();
 				await update();
 			} else if (result.type === "failure") {
-				const errMsg = (result.data as any)?.message || "Failed to create user.";
-				rejectUser(new Error(errMsg));
+				const errMsg = (result.data as any)?.message || "User creation failed. Verify credentials format.";
+				rejectUser(new Error(parseAuthErrorMessage(errMsg)));
 			} else if (result.type === "error") {
-				const errMsg = (result.error as any)?.message || "Server error creating user.";
-				rejectUser(new Error(errMsg));
+				const errMsg = (result.error as any)?.message || "Server connection error during user creation.";
+				rejectUser(new Error(parseAuthErrorMessage(errMsg)));
 			} else {
-				rejectUser(new Error("Unexpected authentication error."));
+				rejectUser(new Error("Unexpected authentication error occurred."));
 			}
 		};
 	};
@@ -130,6 +158,9 @@
 		return async ({ result, update }) => {
 			if (result.type === "success") {
 				resolveUpdate();
+				if ((result.data as any)?.profiles) {
+					actionProfiles = (result.data as any).profiles;
+				}
 				activeEditingUser = null;
 				await dashboardContext.loadData();
 				await update();
@@ -162,6 +193,9 @@
 		return async ({ result, update }) => {
 			if (result.type === "success") {
 				resolveDelete();
+				if ((result.data as any)?.profiles) {
+					actionProfiles = (result.data as any).profiles;
+				}
 				deletingUserTarget = null;
 				await dashboardContext.loadData();
 				await update();
@@ -367,7 +401,7 @@
 						id="new-email"
 						name="email"
 						type="text"
-						placeholder="e.g. registrar_staff"
+						placeholder="e.g. registrar_staff or staff@calape.edu.ph"
 						bind:value={newEmail}
 						required
 						class="rounded-xl h-10"
@@ -553,10 +587,10 @@
 			</Field.FieldGroup>
 
 			<Dialog.Footer class="pt-4 border-t border-border flex gap-2">
-				<Button type="button" onclick={() => (activeEditingUser = null)} variant="outline" class="flex-1 text-xs font-semibold rounded-xl h-10 cursor-pointer">
+				<Button type="button" onclick={() => (activeEditingUser = null)} variant="outline" >
 					Cancel
 				</Button>
-				<Button type="submit" class="flex-1 text-xs font-extrabold rounded-xl h-10 cursor-pointer">
+				<Button type="submit" >
 					Save Changes
 				</Button>
 			</Dialog.Footer>

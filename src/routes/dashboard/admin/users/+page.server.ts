@@ -9,6 +9,7 @@ import {
 	getLocalRooms, 
 	getLocalBuildings 
 } from "$lib/supabase";
+import { supabaseAdmin } from "$lib/server/supabase";
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const session = locals.session;
@@ -18,13 +19,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw redirect(303, "/dashboard?error=unauthorized_role");
 	}
 
-	const [offices, rooms, buildings] = await Promise.all([
+	const [profiles, offices, rooms, buildings] = await Promise.all([
+		getLocalProfiles(supabaseAdmin),
 		getLocalOffices(),
 		getLocalRooms(),
 		getLocalBuildings()
 	]);
 
 	return {
+		profiles,
 		offices,
 		rooms,
 		buildings
@@ -44,7 +47,7 @@ export const actions: Actions = {
 		}
 
 		// Check if username already exists
-		const profiles = await getLocalProfiles();
+		const profiles = await getLocalProfiles(supabaseAdmin);
 		if (profiles.some(p => p.email.toLowerCase() === email.toLowerCase())) {
 			return fail(400, { message: 'Username is already taken.' });
 		}
@@ -58,9 +61,12 @@ export const actions: Actions = {
 				email, 
 				role, 
 				password, 
-				role === 'staff' ? officeId : undefined
+				role === 'staff' ? officeId : undefined,
+				undefined,
+				supabaseAdmin
 			);
-			return { success: true, newUserId: profile.id };
+			const updatedProfiles = await getLocalProfiles(supabaseAdmin);
+			return { success: true, newUserId: profile.id, profiles: updatedProfiles };
 		} catch (error: any) {
 			return fail(400, { message: error.message || "Failed to provision system user account." });
 		}
@@ -82,12 +88,17 @@ export const actions: Actions = {
 		}
 
 		try {
-			await updateLocalProfile(id, {
-				email,
-				role,
-				officeId: role === 'staff' ? officeId : undefined
-			});
-			return { success: true };
+			await updateLocalProfile(
+				id, 
+				{
+					email,
+					role,
+					officeId: role === 'staff' ? officeId : undefined
+				},
+				supabaseAdmin
+			);
+			const updatedProfiles = await getLocalProfiles(supabaseAdmin);
+			return { success: true, profiles: updatedProfiles };
 		} catch (error: any) {
 			return fail(400, { message: error.message || "Failed to update system user account." });
 		}
@@ -102,8 +113,9 @@ export const actions: Actions = {
 		}
 
 		try {
-			await deleteLocalProfile(id);
-			return { success: true };
+			await deleteLocalProfile(id, supabaseAdmin);
+			const updatedProfiles = await getLocalProfiles(supabaseAdmin);
+			return { success: true, profiles: updatedProfiles };
 		} catch (error: any) {
 			return fail(400, { message: error.message || "Failed to delete system user account." });
 		}
