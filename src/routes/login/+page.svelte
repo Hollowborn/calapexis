@@ -5,6 +5,14 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
+	import { 
+		FieldGroup, 
+		Field, 
+		FieldLabel, 
+		FieldSeparator, 
+		FieldDescription 
+	} from '$lib/components/ui/field/index.js';
+	import { signInWithGoogle } from '$lib/supabase';
 	import { toast } from 'svelte-sonner';
 	import { fade, slide } from 'svelte/transition';
 	
@@ -25,6 +33,18 @@
 	let username = $state('');
 	let password = $state('');
 	let isGuideOpen = $state(false);
+
+	async function handleGoogleSignIn() {
+		try {
+			toast.promise(signInWithGoogle(data.supabase), {
+				loading: "Connecting to Google OAuth...",
+				success: "Redirecting to Google...",
+				error: (err: any) => err?.message || "Failed to launch Google authentication."
+			});
+		} catch (e: any) {
+			toast.error(e?.message || "Google Authentication unavailable.");
+		}
+	}
 
 	let resolveLogin: (val?: any) => void;
 	let rejectLogin: (err: any) => void;
@@ -54,11 +74,19 @@
 		};
 	};
 
-	// Trigger error notification if redirect auth flags error
+	// Trigger notifications if redirect auth flags status
 	$effect(() => {
-		if (data?.error) {
+		if (data?.error === 'unprovisioned_google_account') {
+			toast.error('Access Denied: Your Google account is not pre-provisioned in system user profiles.');
+		} else if (data?.error === 'oauth_failed') {
+			toast.error('Google OAuth Authentication failed. Please try again.');
+		} else if (data?.error) {
 			const reason = data.error.replace('unauthorized_', '');
 			toast.error(`Unauthorized: Log in as a verified ${reason} to view that portal.`);
+		}
+
+		if (data?.login === 'google_success') {
+			toast.success('Google Authentication successful! Welcome back.');
 		}
 		if (data?.logout) {
 			toast.success('Logged out successfully!');
@@ -145,55 +173,87 @@
 			{/if}
 
 			<form method="POST" action="?/login" use:enhance={handleLoginEnhance} class="flex flex-col gap-5">
-				<div class="flex flex-col gap-2">
-					<label
-						for="email"
-						class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground"
-					>
-						Username / Email
-					</label>
-					<Input
-						type="text"
-						id="email"
-						name="username"
-						required
-						maxlength={35}
-						placeholder="admin"
-						bind:value={username}
-						class="rounded-xl h-10 border-border bg-background shadow-xs focus-visible:ring-primary/20 text-xs font-semibold"
-					/>
-				</div>
+				<FieldGroup class="flex flex-col gap-4">
+					<Field>
+						<FieldLabel
+							for="email"
+							class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground"
+						>
+							Username / Email
+						</FieldLabel>
+						<Input
+							type="text"
+							id="email"
+							name="username"
+							required
+							maxlength={35}
+							placeholder="admin"
+							bind:value={username}
+							class="rounded-xl h-10 border-border bg-background shadow-xs focus-visible:ring-primary/20 text-xs font-semibold"
+						/>
+					</Field>
 
-				<div class="flex flex-col gap-2">
-					<label
-						for="password"
-						class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground"
-					>
-						Password
-					</label>
-					<Input
-						type="password"
-						id="password"
-						name="password"
-						required
-						maxlength={15}
-						placeholder="••••••••"
-						bind:value={password}
-						class="rounded-xl h-10 border-border bg-background shadow-xs focus-visible:ring-primary/20 text-xs font-semibold"
-					/>
-				</div>
+					<Field>
+						<FieldLabel
+							for="password"
+							class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground"
+						>
+							Password
+						</FieldLabel>
+						<Input
+							type="password"
+							id="password"
+							name="password"
+							required
+							maxlength={15}
+							placeholder="••••••••"
+							bind:value={password}
+							class="rounded-xl h-10 border-border bg-background shadow-xs focus-visible:ring-primary/20 text-xs font-semibold"
+						/>
+					</Field>
 
-				<Button
-					type="submit"
-					class="w-full h-10 rounded-xl bg-primary hover:bg-primary/95 text-primary-foreground font-extrabold text-sm flex items-center justify-center gap-2 mt-2 shadow-md shadow-primary/10 transition-all cursor-pointer"
-				>
-					<KeyRoundIcon class="size-4 pointer-events-none" />
-					<span>Sign In</span>
-				</Button>
+					<Button
+						type="submit"
+						class="w-full h-10 rounded-xl bg-primary hover:bg-primary/95 text-primary-foreground font-extrabold text-sm flex items-center justify-center gap-2 mt-2 shadow-md shadow-primary/10 transition-all cursor-pointer"
+					>
+						
+						<span>Login</span>
+					</Button>
+
+					<FieldSeparator>Or continue with</FieldSeparator>
+
+					<Field>
+						<Button
+							variant="outline"
+							type="button"
+							onclick={handleGoogleSignIn}
+							class="w-full h-10 rounded-xl border-border bg-card hover:bg-muted/50 font-bold text-xs flex items-center justify-center gap-2.5 shadow-xs transition-all cursor-pointer"
+						>
+							<svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+								<path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+								<path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+								<path fill="#FBBC05" d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.62z"/>
+								<path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+							</svg>
+							<span>Login with Google</span>
+						</Button>
+
+						<FieldDescription class="text-center text-xs mt-2">
+							Don't have an account?
+							<a
+								href="##"
+								onclick={(e) => { e.preventDefault(); isGuideOpen = true; }}
+								class="underline underline-offset-4 font-bold text-foreground hover:text-primary"
+							>
+								Sign up guide
+							</a>
+						</FieldDescription>
+					</Field>
+				</FieldGroup>
 			</form>
 
 			<!-- Dev Quick Fill helpers -->
-			{#if import.meta.env.DEV}
+			<!-- {#if import.meta.env.DEV}
 				<div class="border border-border/80 bg-card rounded-2xl p-4 shadow-sm">
 					<div class="text-[10px] font-black text-primary uppercase tracking-widest mb-3 flex items-center gap-1.5">
 						<span class="w-1.5 h-1.5 rounded-full bg-primary animate-ping"></span>
@@ -229,7 +289,7 @@
 						</Button>
 					</div>
 				</div>
-			{/if}
+			{/if} -->
 
 			<p class="text-center text-[10px] text-muted-foreground/60 font-medium">
 				Powered by Supabase Authentication

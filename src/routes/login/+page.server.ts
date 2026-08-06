@@ -7,11 +7,13 @@ import {
 import type { Actions, PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ cookies, url }) => {
-  const sessionRole = cookies.get("session_role");
   const error = url.searchParams.get("error");
   const logout = url.searchParams.get("logout");
+  const login = url.searchParams.get("login");
 
-  // If already logged in, redirect to respective portal
+  const sessionRole = cookies.get("session_role");
+
+  // If already logged in with valid session cookie, redirect to dashboard
   if (sessionRole && !error) {
     throw redirect(303, "/dashboard");
   }
@@ -19,31 +21,36 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
   return {
     error,
     logout,
+    login,
   };
 };
 
-function setSessionCookies(
-  cookies: any,
-  role: string,
-  roomId?: string | null,
-) {
+function setSessionCookies(cookies: any, role: string, officeId?: string | null) {
   cookies.set("session_role", role, {
     path: "/",
     httpOnly: true,
-    sameSite: "strict",
+    sameSite: "lax",
     secure: false, // Set true in production with HTTPS
     maxAge: 60 * 60 * 24, // 1 day
   });
 
-  if (roomId) {
-    cookies.set("session_room_id", roomId, {
+  if (officeId) {
+    cookies.set("session_office_id", officeId, {
       path: "/",
       httpOnly: true,
-      sameSite: "strict",
+      sameSite: "lax",
+      secure: false,
+      maxAge: 60 * 60 * 24,
+    });
+    cookies.set("session_room_id", officeId, {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
       secure: false,
       maxAge: 60 * 60 * 24,
     });
   } else {
+    cookies.delete("session_office_id", { path: "/" });
     cookies.delete("session_room_id", { path: "/" });
   }
 }
@@ -51,15 +58,16 @@ function setSessionCookies(
 function getRedirectUrl(role: string, url: URL): string {
   const redirectUrl = url.searchParams.get("redirect");
   if (redirectUrl) {
-    return decodeURIComponent(redirectUrl);
+    const decoded = decodeURIComponent(redirectUrl);
+    return `${decoded}${decoded.includes("?") ? "&" : "?"}login=success`;
   }
-  if (role === "admin") return "/admin";
-  if (role === "security") return "/security";
-  return "/staff";
+  if (role === "admin") return "/dashboard?login=success";
+  if (role === "security") return "/dashboard/security?login=success";
+  return "/dashboard/staff?login=success";
 }
 
 export const actions: Actions = {
-  login: async ({ request, cookies, url }) => {
+  login: async ({ request, cookies, url, locals }) => {
     const data = await request.formData();
     const username = ((data.get("username") as string) || "").trim();
     const password = data.get("password") as string;
@@ -68,19 +76,21 @@ export const actions: Actions = {
       return fail(400, { message: "Username and password are required." });
     }
 
-    // Try logging in using Supabase Auth client if configured
-    if (isSupabaseConfigured && supabase) {
+    const formattedEmail = username.includes("@")
+      ? username
+      : `${username}@bisu.edu.ph`;
+
+    // Try logging in using per-request Supabase Auth client (via @supabase/ssr)
+    if (locals.supabase) {
       const { data: authData, error: authError } =
-        await supabase.auth.signInWithPassword({
-          email: username.includes("@")
-            ? username
-            : `${username}@calapexis.local`, // Format email if missing domain
+        await locals.supabase.auth.signInWithPassword({
+          email: formattedEmail,
           password: password,
         });
 
       if (!authError && authData.user) {
         // Sign-in succeeded. Get roles and department mappings from the profiles table
-        let { data: profile, error: profileError } = await supabase
+        let { data: profile, error: profileError } = await locals.supabase
           .from("profiles")
           .select("*")
           .eq("id", authData.user.id)
@@ -103,43 +113,17 @@ export const actions: Actions = {
             resolvedRole = "security";
           }
 
-          const defaultRoomId = resolvedRole === "staff" ? "rm-105" : null;
-
-          let insertResult = await supabase
+          let insertResult = await locals.supabase
             .from("profiles")
             .insert([
               {
                 id: authData.user.id,
-                email: username,
+                email: formattedEmail,
                 role: resolvedRole,
-                room_id: defaultRoomId,
               },
             ])
             .select()
             .maybeSingle();
-
-          if (
-            insertResult.error &&
-            (insertResult.error.message.includes("room_id") ||
-              insertResult.error.code === "P0002" ||
-              insertResult.error.code === "42703")
-          ) {
-            // Fallback: Insert without room_id if the column doesn't exist yet
-            console.warn(
-              "room_id column not found in database, retrying insert without it",
-            );
-            insertResult = await supabase
-              .from("profiles")
-              .insert([
-                {
-                  id: authData.user.id,
-                  email: username,
-                  role: resolvedRole,
-                },
-              ])
-              .select()
-              .maybeSingle();
-          }
 
           if (insertResult.error || !insertResult.data) {
             console.error(
@@ -154,9 +138,10 @@ export const actions: Actions = {
           profile = insertResult.data;
         }
 
-        setSessionCookies(cookies, profile.role, profile.room_id);
+        setSessionCookies(cookies, profile.role, profile.room_id || profile.office_id);
         throw redirect(303, getRedirectUrl(profile.role, url));
       }
+
 
       // If auth fails, try checking mock profiles fallback (e.g. for offline local dev support)
       const profiles = await getLocalProfiles();
@@ -191,9 +176,14 @@ export const actions: Actions = {
     throw redirect(303, getRedirectUrl(userProfile.role, url));
   },
 
-  logout: async ({ cookies }) => {
+  logout: async ({ cookies, locals }) => {
+    if (locals.supabase) {
+      await locals.supabase.auth.signOut();
+    }
     cookies.delete("session_role", { path: "/" });
+    cookies.delete("session_office_id", { path: "/" });
     cookies.delete("session_room_id", { path: "/" });
     throw redirect(303, "/login?logout=success");
   },
 };
+
