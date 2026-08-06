@@ -18,9 +18,9 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	const [buildings, rooms, offices] = await Promise.all([
-		getLocalBuildings(),
-		getLocalRooms(),
-		getLocalOffices()
+		getLocalBuildings(locals.supabase),
+		getLocalRooms(locals.supabase),
+		getLocalOffices(locals.supabase)
 	]);
 
 	return {
@@ -31,7 +31,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-	createOffice: async ({ request }) => {
+	createOffice: async ({ request, locals }) => {
 		const data = await request.formData();
 		const name = (data.get("name") as string || "").trim();
 		const code = (data.get("code") as string || "").trim().toUpperCase();
@@ -57,14 +57,14 @@ export const actions: Actions = {
 				operatingHours: operatingHours || undefined,
 				description: description || undefined,
 				isActive: true
-			});
+			}, locals.supabase);
 			return { success: true };
 		} catch (error: any) {
 			return fail(500, { message: error.message || "Failed to create office desk." });
 		}
 	},
 
-	updateOffice: async ({ request }) => {
+	updateOffice: async ({ request, locals }) => {
 		const data = await request.formData();
 		const id = data.get("id") as string;
 		const name = (data.get("name") as string || "").trim();
@@ -92,14 +92,14 @@ export const actions: Actions = {
 				operatingHours: operatingHours || undefined,
 				description: description || undefined,
 				isActive
-			});
+			}, locals.supabase);
 			return { success: true };
 		} catch (error: any) {
 			return fail(500, { message: error.message || "Failed to update office desk." });
 		}
 	},
 
-	deleteOffice: async ({ request }) => {
+	deleteOffice: async ({ request, locals }) => {
 		const data = await request.formData();
 		const id = data.get("id") as string;
 
@@ -108,7 +108,7 @@ export const actions: Actions = {
 		}
 
 		try {
-			await deleteLocalOffice(id);
+			await deleteLocalOffice(id, locals.supabase);
 			return { success: true };
 		} catch (error: any) {
 			return fail(500, { message: error.message || "Failed to delete office desk." });

@@ -22,8 +22,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	const [buildings, rooms] = await Promise.all([
-		getLocalBuildings(),
-		getLocalRooms()
+		getLocalBuildings(locals.supabase),
+		getLocalRooms(locals.supabase)
 	]);
 
 	return {
@@ -33,7 +33,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 };
 
 export const actions: Actions = {
-	createBuilding: async ({ request }) => {
+	createBuilding: async ({ request, locals }) => {
 		const data = await request.formData();
 		const name = (data.get("name") as string || "").trim();
 		const code = (data.get("code") as string || "").trim().toUpperCase();
@@ -81,14 +81,14 @@ export const actions: Actions = {
 				yCoord,
 				color: color || undefined,
 				imageUrl: finalImageUrl || undefined
-			});
+			}, locals.supabase);
 			return { success: true };
 		} catch (error: any) {
 			return fail(500, { message: error.message || "Failed to create building." });
 		}
 	},
 
-	updateBuilding: async ({ request }) => {
+	updateBuilding: async ({ request, locals }) => {
 		const data = await request.formData();
 		const id = data.get("id") as string;
 		const name = (data.get("name") as string || "").trim();
@@ -141,14 +141,14 @@ export const actions: Actions = {
 				yCoord,
 				color: color || undefined,
 				imageUrl: finalImageUrl || undefined
-			});
+			}, locals.supabase);
 			return { success: true };
 		} catch (error: any) {
 			return fail(500, { message: error.message || "Failed to update building." });
 		}
 	},
 
-	deleteBuilding: async ({ request }) => {
+	deleteBuilding: async ({ request, locals }) => {
 		const data = await request.formData();
 		const id = data.get("id") as string;
 
@@ -157,14 +157,14 @@ export const actions: Actions = {
 		}
 
 		try {
-			await deleteLocalBuilding(id);
+			await deleteLocalBuilding(id, locals.supabase);
 			return { success: true };
 		} catch (error: any) {
 			return fail(500, { message: error.message || "Failed to delete building." });
 		}
 	},
 
-	createRoom: async ({ request }) => {
+	createRoom: async ({ request, locals }) => {
 		const data = await request.formData();
 		const buildingId = data.get("buildingId") as string;
 		const roomNumber = (data.get("roomNumber") as string || "").trim();
@@ -207,14 +207,14 @@ export const actions: Actions = {
 				yCoord,
 				description: description || undefined,
 				imageUrl: finalImageUrl || undefined
-			});
+			}, locals.supabase);
 			return { success: true };
 		} catch (error: any) {
 			return fail(500, { message: error.message || "Failed to create room." });
 		}
 	},
 
-	deleteRoom: async ({ request }) => {
+	deleteRoom: async ({ request, locals }) => {
 		const data = await request.formData();
 		const id = data.get("id") as string;
 
@@ -223,14 +223,14 @@ export const actions: Actions = {
 		}
 
 		try {
-			await deleteLocalRoom(id);
+			await deleteLocalRoom(id, locals.supabase);
 			return { success: true };
 		} catch (error: any) {
 			return fail(500, { message: error.message || "Failed to delete room." });
 		}
 	},
 
-	updateRoom: async ({ request }) => {
+	updateRoom: async ({ request, locals }) => {
 		const data = await request.formData();
 		const id = data.get("id") as string;
 		const roomNumber = (data.get("roomNumber") as string || "").trim();
@@ -276,7 +276,7 @@ export const actions: Actions = {
 				yCoord,
 				description: description || undefined,
 				imageUrl: finalImageUrl || undefined
-			});
+			}, locals.supabase);
 			return { success: true };
 		} catch (error: any) {
 			return fail(500, { message: error.message || "Failed to update room." });

@@ -1056,9 +1056,10 @@ export const MOCK_OFFICES: Office[] = [
   },
 ];
 
-export async function getLocalBuildings(): Promise<Building[]> {
-  if (isSupabaseConfigured && supabase) {
-    const { data, error } = await getDbClient()
+export async function getLocalBuildings(overrideClient?: any): Promise<Building[]> {
+  const client = getDbClient(overrideClient);
+  if (isSupabaseConfigured && client) {
+    const { data, error } = await client
       .from("buildings")
       .select("*")
       .order("name", { ascending: true });
@@ -1075,13 +1076,15 @@ export async function getLocalBuildings(): Promise<Building[]> {
 
 export async function addLocalBuilding(
   building: Omit<Building, "id">,
+  overrideClient?: any
 ): Promise<Building> {
+  const client = getDbClient(overrideClient);
   const newBuilding: Building = {
     ...building,
     id: "bld-" + Math.floor(1000 + Math.random() * 9000),
   };
 
-  if (isSupabaseConfigured && supabase) {
+  if (isSupabaseConfigured && client) {
     const dbRow = {
       name: building.name,
       code: building.code,
@@ -1095,16 +1098,19 @@ export async function addLocalBuilding(
       image_url: building.imageUrl || null,
     };
 
-    const { data, error } = await getDbClient()
+    const { data, error } = await client
       .from("buildings")
       .insert([dbRow])
       .select()
       .single();
 
-    if (!error && data) {
+    if (error) {
+      console.error("[Supabase Error] insert building error:", error);
+      throw new Error(error.message || "Database failed to insert building.");
+    }
+    if (data) {
       return mapDbBuildingToBuilding(data);
     }
-    console.warn("Supabase insert building error, using mock fallback:", error);
   }
 
   getCalapexisStore().buildings = [
@@ -1117,8 +1123,10 @@ export async function addLocalBuilding(
 export async function updateLocalBuilding(
   id: string,
   updates: Partial<Omit<Building, "id">>,
+  overrideClient?: any
 ): Promise<Building | null> {
-  if (isSupabaseConfigured && supabase) {
+  const client = getDbClient(overrideClient);
+  if (isSupabaseConfigured && client) {
     const dbRow: any = {};
     if (updates.name !== undefined) dbRow.name = updates.name;
     if (updates.code !== undefined) dbRow.code = updates.code;
@@ -1135,20 +1143,18 @@ export async function updateLocalBuilding(
     if (updates.imageUrl !== undefined)
       dbRow.image_url = updates.imageUrl || null;
 
-    const { data, error } = await getDbClient()
+    const { data, error } = await client
       .from("buildings")
       .update(dbRow)
       .eq("id", id)
       .select();
 
-    if (!error && data && data.length > 0) {
-      return mapDbBuildingToBuilding(data[0]);
-    }
     if (error) {
-      console.warn(
-        "Supabase update building error, using mock fallback:",
-        error,
-      );
+      console.error("[Supabase Error] update building error:", error);
+      throw new Error(error.message || "Database failed to update building.");
+    }
+    if (data && data.length > 0) {
+      return mapDbBuildingToBuilding(data[0]);
     }
   }
 
@@ -1168,16 +1174,18 @@ export async function updateLocalBuilding(
   return target;
 }
 
-export async function deleteLocalBuilding(id: string): Promise<boolean> {
-  if (isSupabaseConfigured && supabase) {
-    const { error } = await getDbClient()
+export async function deleteLocalBuilding(id: string, overrideClient?: any): Promise<boolean> {
+  const client = getDbClient(overrideClient);
+  if (isSupabaseConfigured && client) {
+    const { error } = await client
       .from("buildings")
       .delete()
       .eq("id", id);
-    if (!error) {
-      return true;
+    if (error) {
+      console.error("[Supabase Error] delete building error:", error);
+      throw new Error(error.message || "Database failed to delete building.");
     }
-    console.warn("Supabase delete building error, using mock fallback:", error);
+    return true;
   }
 
   const initialLength = getCalapexisStore().buildings.length;
@@ -1187,9 +1195,10 @@ export async function deleteLocalBuilding(id: string): Promise<boolean> {
   return getCalapexisStore().buildings.length < initialLength;
 }
 
-export async function getLocalRooms(): Promise<Room[]> {
-  if (isSupabaseConfigured && supabase) {
-    const { data, error } = await getDbClient()
+export async function getLocalRooms(overrideClient?: any): Promise<Room[]> {
+  const client = getDbClient(overrideClient);
+  if (isSupabaseConfigured && client) {
+    const { data, error } = await client
       .from("rooms")
       .select("*")
       .order("room_number", { ascending: true });
@@ -1204,13 +1213,14 @@ export async function getLocalRooms(): Promise<Room[]> {
   return [...getCalapexisStore().rooms];
 }
 
-export async function addLocalRoom(room: Omit<Room, "id">): Promise<Room> {
+export async function addLocalRoom(room: Omit<Room, "id">, overrideClient?: any): Promise<Room> {
+  const client = getDbClient(overrideClient);
   const newRoom: Room = {
     ...room,
     id: "rm-" + Math.floor(1000 + Math.random() * 9000),
   };
 
-  if (isSupabaseConfigured && supabase) {
+  if (isSupabaseConfigured && client) {
     const dbRow = {
       building_id: room.buildingId,
       room_number: room.roomNumber,
@@ -1222,16 +1232,19 @@ export async function addLocalRoom(room: Omit<Room, "id">): Promise<Room> {
       image_url: room.imageUrl || null,
     };
 
-    const { data, error } = await getDbClient()
+    const { data, error } = await client
       .from("rooms")
       .insert([dbRow])
       .select()
       .single();
 
-    if (!error && data) {
+    if (error) {
+      console.error("[Supabase Error] insert room error:", error);
+      throw new Error(error.message || "Database failed to insert room.");
+    }
+    if (data) {
       return mapDbRoomToRoom(data);
     }
-    console.warn("Supabase insert room error, using mock fallback:", error);
   }
 
   getCalapexisStore().rooms = [...getCalapexisStore().rooms, newRoom];
@@ -1241,8 +1254,10 @@ export async function addLocalRoom(room: Omit<Room, "id">): Promise<Room> {
 export async function updateLocalRoom(
   id: string,
   updates: Partial<Room>,
+  overrideClient?: any
 ): Promise<Room | null> {
-  if (isSupabaseConfigured && supabase) {
+  const client = getDbClient(overrideClient);
+  if (isSupabaseConfigured && client) {
     const dbRow: any = {};
     if (updates.buildingId !== undefined)
       dbRow.building_id = updates.buildingId;
@@ -1257,17 +1272,18 @@ export async function updateLocalRoom(
     if (updates.imageUrl !== undefined)
       dbRow.image_url = updates.imageUrl || null;
 
-    const { data, error } = await getDbClient()
+    const { data, error } = await client
       .from("rooms")
       .update(dbRow)
       .eq("id", id)
       .select();
 
-    if (!error && data && data.length > 0) {
-      return mapDbRoomToRoom(data[0]);
-    }
     if (error) {
-      console.warn("Supabase update room error, using mock fallback:", error);
+      console.error("[Supabase Error] update room error:", error);
+      throw new Error(error.message || "Database failed to update room.");
+    }
+    if (data && data.length > 0) {
+      return mapDbRoomToRoom(data[0]);
     }
   }
 
@@ -1285,13 +1301,15 @@ export async function updateLocalRoom(
   return target;
 }
 
-export async function deleteLocalRoom(id: string): Promise<boolean> {
-  if (isSupabaseConfigured && supabase) {
-    const { error } = await getDbClient().from("rooms").delete().eq("id", id);
-    if (!error) {
-      return true;
+export async function deleteLocalRoom(id: string, overrideClient?: any): Promise<boolean> {
+  const client = getDbClient(overrideClient);
+  if (isSupabaseConfigured && client) {
+    const { error } = await client.from("rooms").delete().eq("id", id);
+    if (error) {
+      console.error("[Supabase Error] delete room error:", error);
+      throw new Error(error.message || "Database failed to delete room.");
     }
-    console.warn("Supabase delete room error, using mock fallback:", error);
+    return true;
   }
 
   const initialLength = getCalapexisStore().rooms.length;
@@ -1370,9 +1388,10 @@ function mapDbOfficeToOffice(row: any): Office {
   };
 }
 
-export async function getLocalOffices(): Promise<Office[]> {
-  if (isSupabaseConfigured && supabase) {
-    const { data, error } = await getDbClient()
+export async function getLocalOffices(overrideClient?: any): Promise<Office[]> {
+  const client = getDbClient(overrideClient);
+  if (isSupabaseConfigured && client) {
+    const { data, error } = await client
       .from("offices")
       .select("*, buildings(name), rooms(room_number)")
       .order("name", { ascending: true });
@@ -1389,7 +1408,9 @@ export async function getLocalOffices(): Promise<Office[]> {
 
 export async function addLocalOffice(
   office: Omit<Office, "id">,
+  overrideClient?: any
 ): Promise<Office> {
+  const client = getDbClient(overrideClient);
   const building = getCalapexisStore().buildings.find(
     (b: Building) => b.id === office.buildingId,
   );
@@ -1404,7 +1425,7 @@ export async function addLocalOffice(
     roomNumber: room?.roomNumber,
   };
 
-  if (isSupabaseConfigured && supabase) {
+  if (isSupabaseConfigured && client) {
     const dbRow = {
       name: office.name,
       code: office.code,
@@ -1417,15 +1438,18 @@ export async function addLocalOffice(
       is_active: office.isActive ?? true,
     };
 
-    const { data, error } = await getDbClient()
+    const { data, error } = await client
       .from("offices")
       .insert([dbRow])
       .select("*, buildings(name), rooms(room_number)");
 
-    if (!error && data && data.length > 0) {
+    if (error) {
+      console.error("[Supabase Error] insert office error:", error);
+      throw new Error(error.message || "Database failed to insert office.");
+    }
+    if (data && data.length > 0) {
       return mapDbOfficeToOffice(data[0]);
     }
-    console.warn("Supabase insert office error, using mock fallback:", error);
   }
 
   getCalapexisStore().offices = [...getCalapexisStore().offices, newOffice];
@@ -1435,8 +1459,10 @@ export async function addLocalOffice(
 export async function updateLocalOffice(
   id: string,
   updates: Partial<Office>,
+  overrideClient?: any
 ): Promise<Office | null> {
-  if (isSupabaseConfigured && supabase) {
+  const client = getDbClient(overrideClient);
+  if (isSupabaseConfigured && client) {
     const dbRow: any = {};
     if (updates.name !== undefined) dbRow.name = updates.name;
     if (updates.code !== undefined) dbRow.code = updates.code;
@@ -1453,17 +1479,18 @@ export async function updateLocalOffice(
       dbRow.description = updates.description || null;
     if (updates.isActive !== undefined) dbRow.is_active = updates.isActive;
 
-    const { data, error } = await getDbClient()
+    const { data, error } = await client
       .from("offices")
       .update(dbRow)
       .eq("id", id)
       .select("*, buildings(name), rooms(room_number)");
 
-    if (!error && data && data.length > 0) {
-      return mapDbOfficeToOffice(data[0]);
-    }
     if (error) {
-      console.warn("Supabase update office error, using mock fallback:", error);
+      console.error("[Supabase Error] update office error:", error);
+      throw new Error(error.message || "Database failed to update office.");
+    }
+    if (data && data.length > 0) {
+      return mapDbOfficeToOffice(data[0]);
     }
   }
 
@@ -1492,13 +1519,15 @@ export async function updateLocalOffice(
   return target;
 }
 
-export async function deleteLocalOffice(id: string): Promise<boolean> {
-  if (isSupabaseConfigured && supabase) {
-    const { error } = await getDbClient().from("offices").delete().eq("id", id);
-    if (!error) {
-      return true;
+export async function deleteLocalOffice(id: string, overrideClient?: any): Promise<boolean> {
+  const client = getDbClient(overrideClient);
+  if (isSupabaseConfigured && client) {
+    const { error } = await client.from("offices").delete().eq("id", id);
+    if (error) {
+      console.error("[Supabase Error] delete office error:", error);
+      throw new Error(error.message || "Database failed to delete office.");
     }
-    console.warn("Supabase delete office error, using mock fallback:", error);
+    return true;
   }
 
   const initialLength = getCalapexisStore().offices.length;
