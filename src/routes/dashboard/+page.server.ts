@@ -2,25 +2,25 @@ import { redirect } from "@sveltejs/kit";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
-	const session = locals.session;
+  const session = locals.session;
 
-	// Session check is already validated at layout level, but verify role redirections
-	if (session) {
-		if (session.role === "security") {
-			throw redirect(303, "/dashboard/security");
-		}
-		if (session.role === "staff") {
-			throw redirect(303, "/dashboard/staff");
-		}
-		if (session.role !== "admin") {
-			throw redirect(303, "/login?error=unauthorized_dashboard");
-		}
-	} else {
-		throw redirect(303, "/login");
-	}
+  // Redirect non-admin roles to their respective portals
+  if (session) {
+    if (session.role === "security") {
+      throw redirect(303, "/dashboard/security");
+    }
+    if (session.role === "staff") {
+      throw redirect(303, "/dashboard/staff");
+    }
+    if (session.role === "admin") {
+      // /dashboard IS the Admin Dashboard page — do not redirect!
 
-	return {
-		role: session.role
-	};
+      return {
+        role: session.role,
+      };
+    }
+    throw redirect(303, "/login?error=unauthorized_dashboard");
+  }
+
+  throw redirect(303, "/login");
 };
-
