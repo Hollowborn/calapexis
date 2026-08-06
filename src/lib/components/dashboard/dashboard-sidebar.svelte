@@ -11,9 +11,11 @@
 	import { Separator } from "$lib/components/ui/separator/index.js";
 	import { page } from "$app/state";
 
-	let { ref = $bindable(null), role = 'staff', email = '', ...restProps }: ComponentProps<typeof Sidebar.Root> & {
+	let { ref = $bindable(null), role = 'staff', email = '', name = '', avatar = '', ...restProps }: ComponentProps<typeof Sidebar.Root> & {
 		role: string;
 		email: string;
+		name?: string;
+		avatar?: string;
 	} = $props();
 
 	// Route mapping coordinates
@@ -91,9 +93,9 @@
 	const sidebar = useSidebar();
 
 	const userProfile = $derived({
-		name: role === 'admin' ? 'Administrator' : (role === 'security' ? 'Security Personnel' : 'Office Staff'),
+		name: name || (role === 'admin' ? 'Administrator' : (role === 'security' ? 'Security Personnel' : 'Office Staff')),
 		email: email || 'user@calapexis.local',
-		avatar: ''
+		avatar: avatar || ''
 	});
 </script>
 
