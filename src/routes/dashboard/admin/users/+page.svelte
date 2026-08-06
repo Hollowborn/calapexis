@@ -401,7 +401,7 @@
 						id="new-email"
 						name="email"
 						type="text"
-						placeholder="e.g. registrar_staff or staff@calape.edu.ph"
+						placeholder="e.g. registrar_staff or staff@bisu.edu.ph"
 						bind:value={newEmail}
 						required
 						class="rounded-xl h-10"

@@ -46,6 +46,10 @@ export const actions: Actions = {
 			return fail(400, { message: 'Username/Email, Password, and Role are required.' });
 		}
 
+		if (password.length < 6) {
+			return fail(400, { message: 'Password must be at least 6 characters long for Supabase Auth.' });
+		}
+
 		// Check if username already exists
 		const profiles = await getLocalProfiles(supabaseAdmin);
 		if (profiles.some(p => p.email.toLowerCase() === email.toLowerCase())) {
