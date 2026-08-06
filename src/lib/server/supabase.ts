@@ -5,7 +5,7 @@ import {
 import { env } from "$env/dynamic/private";
 
 const supabaseUrl = PUBLIC_SUPABASE_URL || "";
-const rawServiceKey = env.SUPABASE_SERVICE_ROLE_KEY || "";
+const rawServiceKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY || "";
 const serviceRoleKey = rawServiceKey.replace(/^["']|["']$/g, "").trim();
 
 export const isServerSupabaseAdminConfigured = Boolean(supabaseUrl && serviceRoleKey);

@@ -23,9 +23,9 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
+        persistSession: typeof window === "undefined",
+        autoRefreshToken: typeof window === "undefined",
+        detectSessionInUrl: typeof window === "undefined",
       },
     })
   : null;
@@ -771,18 +771,77 @@ export async function addLocalProfile(
     ? email.trim()
     : `${email.trim()}@${DEFAULT_EMAIL_DOMAIN}`;
 
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(officeId || "");
+  const validOfficeId = isUuid ? officeId : null;
+
   console.log(
-    `[User Creation] Direct database profile insertion for "${formattedEmail}" (${role})...`,
+    `[User Creation] Provisioning user account for "${formattedEmail}" (${role}, officeId: ${validOfficeId})...`,
   );
 
   if (isSupabaseConfigured && supabase) {
     const client = overrideClient || supabase;
 
-    // Direct database insert into public.profiles (Exact same method used by update and delete!)
+    // 1. If admin client is available, create user in Auth first (clean, no metadata trigger crash)
+    if (client?.auth?.admin) {
+      if (!password) {
+        throw new Error("Password is required to create a new user account.");
+      }
+
+      // Step 1: Create user in Supabase Auth
+      const { data: authData, error: authError } = await client.auth.admin.createUser({
+        email: formattedEmail,
+        password: password,
+        email_confirm: true
+      });
+
+      if (authError) {
+        console.error("[Supabase Auth Admin Create User Error]", authError);
+        throw new Error(authError.message || "Failed to create user account in Supabase Auth.");
+      }
+
+      const newAuthUser = authData?.user;
+      if (!newAuthUser) {
+        throw new Error("Supabase Auth returned no user object.");
+      }
+
+      // Step 2: Insert corresponding profile into public.profiles
+      const dbRow: any = {
+        id: newAuthUser.id,
+        email: formattedEmail,
+        role,
+        office_id: validOfficeId,
+      };
+
+      const { data: profileData, error: profileErr } = await client
+        .from("profiles")
+        .upsert([dbRow], { onConflict: "id" })
+        .select()
+        .maybeSingle();
+
+      if (profileErr) {
+        // Rollback: If profile creation fails, delete the created Auth user
+        console.error("[Profile Creation Error] Rolling back Auth user:", profileErr.message);
+        await client.auth.admin.deleteUser(newAuthUser.id);
+        throw new Error(`Profile creation failed: ${profileErr.message}`);
+      }
+
+      const mapped = profileData ? mapDbProfileToProfile(profileData) : {
+        id: newAuthUser.id,
+        email: formattedEmail,
+        role,
+        officeId: validOfficeId || undefined,
+        createdAt: new Date().toISOString(),
+      };
+
+      getCalapexisStore().profiles = [...getCalapexisStore().profiles, mapped];
+      return mapped;
+    }
+
+    // Direct database fallback insert into public.profiles if admin client is unconfigured
     const dbRow: any = {
       email: formattedEmail,
       role,
-      office_id: officeId || null,
+      office_id: validOfficeId,
     };
 
     const { data, error } = await client
@@ -921,16 +980,17 @@ export async function deleteLocalProfile(
   return getCalapexisStore().profiles.length < initialLength;
 }
 
-export async function signInWithGoogle() {
-  if (!isSupabaseConfigured || !supabase) {
+export async function signInWithGoogle(customClient?: any) {
+  const client = customClient || supabase;
+  if (!client) {
     throw new Error("Supabase is not configured for OAuth authentication.");
   }
-  return await supabase.auth.signInWithOAuth({
+  return await client.auth.signInWithOAuth({
     provider: "google",
     options: {
       redirectTo:
         typeof window !== "undefined"
-          ? `${window.location.origin}/dashboard`
+          ? `${window.location.origin}/auth/callback`
           : undefined,
     },
   });
