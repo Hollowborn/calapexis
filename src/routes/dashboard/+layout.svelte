@@ -42,7 +42,19 @@
 		dashboardState.loadData();
 		const interval = setInterval(() => dashboardState.loadData(), 2000);
 		
-		// Check for unauthorized access messages inside query params
+		// Check for login query params or error messages
+		const loginParam = page.url.searchParams.get("login");
+		if (loginParam === "google_success" || loginParam === "success") {
+			toast.promise(
+				new Promise((resolve) => setTimeout(() => resolve(data.name || "User"), 350)),
+				{
+					loading: "Establishing secure portal session...",
+					success: (userName) => `Welcome back, ${userName}! Login successful.`,
+					error: "Failed to establish portal session."
+				}
+			);
+		}
+
 		const errorParam = page.url.searchParams.get("error");
 		if (errorParam === "unauthorized_role") {
 			toast.error("Access Denied", {
@@ -69,7 +81,7 @@
 
 <Sidebar.Provider style="--sidebar-width: 350px;">
 	<!-- Mount the dashboard sidebar -->
-	<DashboardSidebar role={data.role} email={data.email} />
+	<DashboardSidebar role={data.role} email={data.email} name={data.name} avatar={data.avatar} />
 	
 	<Sidebar.Inset class="bg-background flex flex-col min-h-screen">
 		<!-- Header Banner -->

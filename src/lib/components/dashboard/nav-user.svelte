@@ -5,6 +5,7 @@
 	import LogOutIcon from "@lucide/svelte/icons/log-out";
 	import UserIcon from "@lucide/svelte/icons/user";
 	import { enhance } from "$app/forms";
+	import { invalidate } from "$app/navigation";
 	import { toast } from "svelte-sonner";
 	import * as Avatar from "$lib/components/ui/avatar/index.js";
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
@@ -68,7 +69,17 @@
 					</DropdownMenu.Item>
 				</DropdownMenu.Group>
 				<DropdownMenu.Separator />
-				<form method="POST" action="/login?/logout" use:enhance class="w-full">
+				<form
+					method="POST"
+					action="/login?/logout"
+					use:enhance={() => {
+						return async ({ update }) => {
+							await invalidate('supabase:auth');
+							await update();
+						};
+					}}
+					class="w-full"
+				>
 					<button type="submit" class="w-full text-start">
 						<DropdownMenu.Item class="cursor-pointer w-full text-destructive hover:bg-destructive/15">
 							<LogOutIcon class="size-4 mr-2" />

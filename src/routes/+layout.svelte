@@ -2,10 +2,25 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import Toaster from '$lib/components/ui/sonner/sonner.svelte';
 	import { ModeWatcher } from 'mode-watcher';
+	import { invalidate } from '$app/navigation';
+	import { onMount } from 'svelte';
 	import '../app.css';
-	
-	let { children } = $props();
+
+	let { data, children } = $props();
+
+	onMount(() => {
+		const { data: authListener } = data.supabase.auth.onAuthStateChange((event, _session) => {
+			if (_session?.expires_at !== data.session?.expires_at) {
+				invalidate('supabase:auth');
+			}
+		});
+
+		return () => {
+			authListener.subscription.unsubscribe();
+		};
+	});
 </script>
+
 
 <svelte:head>
 	<link rel="icon" href={"favicon.png"} />
