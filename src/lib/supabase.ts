@@ -980,18 +980,19 @@ export async function deleteLocalProfile(
   return getCalapexisStore().profiles.length < initialLength;
 }
 
-export async function signInWithGoogle(customClient?: any) {
+export async function signInWithGoogle(customClient?: any, redirectToUrl?: string) {
   const client = customClient || supabase;
   if (!client) {
     throw new Error("Supabase is not configured for OAuth authentication.");
   }
+  const defaultRedirect =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/auth/callback`
+      : undefined;
   return await client.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo:
-        typeof window !== "undefined"
-          ? `${window.location.origin}/auth/callback`
-          : undefined,
+      redirectTo: redirectToUrl || defaultRedirect,
     },
   });
 }
