@@ -148,46 +148,46 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Profiles Policies
-CREATE POLICY "Allow public select profiles" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "Allow public insert profiles" ON public.profiles FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow admins all access to profiles" ON public.profiles FOR ALL USING (
+CREATE POLICY "Allow public select profiles" ON public.profiles FOR SELECT TO public USING (true);
+CREATE POLICY "Allow public insert profiles" ON public.profiles FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "Allow admins all access to profiles" ON public.profiles FOR ALL TO authenticated USING (
     public.get_user_role(auth.uid()) = 'admin'
 );
 
 -- Buildings Policies
-CREATE POLICY "Public buildings read access" ON public.buildings FOR SELECT USING (true);
-CREATE POLICY "Admin write access to buildings" ON public.buildings FOR ALL USING (
+CREATE POLICY "Public buildings read access" ON public.buildings FOR SELECT TO public USING (true);
+CREATE POLICY "Admin write access to buildings" ON public.buildings FOR ALL TO authenticated USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
 -- Rooms Policies
-CREATE POLICY "Public rooms read access" ON public.rooms FOR SELECT USING (true);
-CREATE POLICY "Admin write access to rooms" ON public.rooms FOR ALL USING (
+CREATE POLICY "Public rooms read access" ON public.rooms FOR SELECT TO public USING (true);
+CREATE POLICY "Admin write access to rooms" ON public.rooms FOR ALL TO authenticated USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
 -- Registered Visitors Policies
-CREATE POLICY "Public visitor registration insert" ON public.registered_visitors FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public visitor profile read" ON public.registered_visitors FOR SELECT USING (true);
-CREATE POLICY "Public visitor profile update" ON public.registered_visitors FOR UPDATE USING (true);
-CREATE POLICY "Staff/Guard read all registered visitors" ON public.registered_visitors FOR SELECT USING (
+CREATE POLICY "Public visitor registration insert" ON public.registered_visitors FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "Public visitor profile read" ON public.registered_visitors FOR SELECT TO public USING (true);
+CREATE POLICY "Public visitor profile update" ON public.registered_visitors FOR UPDATE TO public USING (true);
+CREATE POLICY "Staff/Guard read all registered visitors" ON public.registered_visitors FOR SELECT TO authenticated USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'security', 'staff'))
 );
 
 -- Visitor Logs Policies (Public inserts & checkouts, Guard/Staff management)
-CREATE POLICY "Public visitor log insert" ON public.visitor_logs FOR INSERT WITH CHECK (true);
-CREATE POLICY "Public visitor log read" ON public.visitor_logs FOR SELECT USING (true);
-CREATE POLICY "Public visitor log update" ON public.visitor_logs FOR UPDATE USING (true);
-CREATE POLICY "Staff/Guard read all visitor logs" ON public.visitor_logs FOR SELECT USING (
+CREATE POLICY "Public visitor log insert" ON public.visitor_logs FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "Public visitor log read" ON public.visitor_logs FOR SELECT TO public USING (true);
+CREATE POLICY "Public visitor log update" ON public.visitor_logs FOR UPDATE TO public USING (true);
+CREATE POLICY "Staff/Guard read all visitor logs" ON public.visitor_logs FOR SELECT TO authenticated USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'security', 'staff'))
 );
-CREATE POLICY "Staff/Guard update visitor logs" ON public.visitor_logs FOR UPDATE USING (
+CREATE POLICY "Staff/Guard update visitor logs" ON public.visitor_logs FOR UPDATE TO authenticated USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'security', 'staff'))
 );
 
 -- Map Edges Policies
-CREATE POLICY "Public map_edges read access" ON public.map_edges FOR SELECT USING (true);
-CREATE POLICY "Admin write access to map_edges" ON public.map_edges FOR ALL USING (
+CREATE POLICY "Public map_edges read access" ON public.map_edges FOR SELECT TO public USING (true);
+CREATE POLICY "Admin write access to map_edges" ON public.map_edges FOR ALL TO authenticated USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
