@@ -38,10 +38,19 @@ async function resolveValidOfficeUuid(dbClient: any, rawOfficeId: string): Promi
 	return fallback ? fallback.id : null;
 }
 
-export const load: PageServerLoad = async () => {
+export const load: PageServerLoad = async ({ locals }) => {
 	let offices = MOCK_OFFICES;
 	let buildings = MOCK_BUILDINGS;
 	let rooms = MOCK_ROOMS;
+	let googleVisitorData: {
+		fullName: string;
+		firstName: string;
+		middleName: string;
+		lastName: string;
+		email: string;
+		photoUrl: string;
+		phone?: string;
+	} | null = null;
 
 	if (isSupabaseConfigured && supabase) {
 		try {
@@ -95,6 +104,68 @@ export const load: PageServerLoad = async () => {
 					imageUrl: r.image_url || ""
 				}));
 			}
+
+			if (locals.safeGetSession) {
+				const { user } = await locals.safeGetSession();
+				if (user?.email) {
+					let email = user.email;
+					let fullName = user.user_metadata?.full_name || user.user_metadata?.name || "";
+					let photoUrl = user.user_metadata?.avatar_url || user.user_metadata?.picture || "";
+					let phone = user.user_metadata?.phone || "";
+
+					let firstName = "";
+					let middleName = "";
+					let lastName = "";
+
+					// Query registered_visitors table in database for matching email
+					if (isSupabaseConfigured) {
+						try {
+							const dbClient = getDbClient();
+							const { data: regVisitor } = await dbClient
+								.from("registered_visitors")
+								.select("*")
+								.ilike("email", email)
+								.maybeSingle();
+
+							if (regVisitor) {
+								fullName = regVisitor.full_name || fullName;
+								firstName = regVisitor.first_name || "";
+								middleName = regVisitor.middle_name || "";
+								lastName = regVisitor.last_name || "";
+								email = regVisitor.email || email;
+								phone = regVisitor.phone || phone;
+								photoUrl = regVisitor.photo_url || photoUrl;
+							}
+						} catch (e) {
+							console.warn("Failed to lookup registered_visitors by email on /v:", e);
+						}
+					}
+
+					if (!firstName && fullName) {
+						const nameParts = fullName.trim().split(/\s+/);
+						if (nameParts.length === 1) {
+							firstName = nameParts[0];
+						} else if (nameParts.length === 2) {
+							firstName = nameParts[0];
+							lastName = nameParts[1];
+						} else if (nameParts.length >= 3) {
+							firstName = nameParts[0];
+							middleName = nameParts.slice(1, -1).join(" ");
+							lastName = nameParts[nameParts.length - 1];
+						}
+					}
+
+					googleVisitorData = {
+						fullName,
+						firstName,
+						middleName,
+						lastName,
+						email,
+						photoUrl,
+						phone
+					};
+				}
+			}
 		} catch (e) {
 			console.warn("Supabase load offices/buildings/rooms error on /v, using fallback:", e);
 		}
@@ -103,7 +174,8 @@ export const load: PageServerLoad = async () => {
 	return {
 		offices,
 		buildings,
-		rooms
+		rooms,
+		googleVisitorData
 	};
 };
 
@@ -176,13 +248,27 @@ export const actions: Actions = {
 
 				// 2. Name Matching & Deduplication in registered_visitors table
 				let regData: any = null;
-				const { data: existingVisitor } = await dbClient
-					.from("registered_visitors")
-					.select("*")
-					.ilike("first_name", firstName)
-					.ilike("last_name", lastName)
-					.limit(1)
-					.maybeSingle();
+				let existingVisitor: any = null;
+
+				if (email) {
+					const { data: matchByEmail } = await dbClient
+						.from("registered_visitors")
+						.select("*")
+						.ilike("email", email)
+						.maybeSingle();
+					existingVisitor = matchByEmail;
+				}
+
+				if (!existingVisitor) {
+					const { data: matchByName } = await dbClient
+						.from("registered_visitors")
+						.select("*")
+						.ilike("first_name", firstName)
+						.ilike("last_name", lastName)
+						.limit(1)
+						.maybeSingle();
+					existingVisitor = matchByName;
+				}
 
 				if (existingVisitor) {
 					// Update existing visitor entry to avoid multiple entries of the same visitor
