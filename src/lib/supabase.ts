@@ -7,6 +7,7 @@ import type {
   MapNode,
   VerificationStatus,
   Profile,
+  MapEdge,
 } from "./types";
 
 import {
@@ -1535,4 +1536,105 @@ export async function deleteLocalOffice(id: string, overrideClient?: any): Promi
     (o: Office) => o.id !== id,
   );
   return getCalapexisStore().offices.length < initialLength;
+}
+
+// Map Edges database functions
+export function mapDbMapEdgeToMapEdge(row: any): MapEdge {
+  return {
+    id: row.id,
+    fromNode: row.from_node || "",
+    toNode: row.to_node || "",
+    path: Array.isArray(row.path) ? row.path : [],
+    createdAt: row.created_at
+  };
+}
+
+export async function getLocalMapEdges(overrideClient?: any): Promise<MapEdge[]> {
+  const client = getDbClient(overrideClient);
+  if (isSupabaseConfigured && client) {
+    const { data, error } = await client
+      .from("map_edges")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.error("[Supabase Error] Failed to fetch map_edges:", error);
+      throw new Error(`[Database Error] ${error.message}`);
+    }
+    return (data || []).map(mapDbMapEdgeToMapEdge);
+  }
+  return [];
+}
+
+export async function addLocalMapEdge(
+  edge: Omit<MapEdge, "id">,
+  overrideClient?: any
+): Promise<MapEdge> {
+  const client = getDbClient(overrideClient);
+  if (isSupabaseConfigured && client) {
+    const dbRow = {
+      from_node: edge.fromNode,
+      to_node: edge.toNode,
+      path: edge.path
+    };
+
+    const { data, error } = await client
+      .from("map_edges")
+      .insert([dbRow])
+      .select("*");
+
+    if (error) {
+      console.error("[Supabase Error] insert map_edges error:", error);
+      throw new Error(error.message || "Database failed to insert map edge.");
+    }
+    if (data && data.length > 0) {
+      return mapDbMapEdgeToMapEdge(data[0]);
+    }
+  }
+
+  return {
+    id: "edge-" + Math.floor(1000 + Math.random() * 9000),
+    ...edge
+  };
+}
+
+export async function updateLocalMapEdge(
+  id: string,
+  updates: Partial<MapEdge>,
+  overrideClient?: any
+): Promise<MapEdge | null> {
+  const client = getDbClient(overrideClient);
+  if (isSupabaseConfigured && client) {
+    const dbRow: any = {};
+    if (updates.fromNode !== undefined) dbRow.from_node = updates.fromNode;
+    if (updates.toNode !== undefined) dbRow.to_node = updates.toNode;
+    if (updates.path !== undefined) dbRow.path = updates.path;
+
+    const { data, error } = await client
+      .from("map_edges")
+      .update(dbRow)
+      .eq("id", id)
+      .select("*");
+
+    if (error) {
+      console.error("[Supabase Error] update map_edges error:", error);
+      throw new Error(error.message || "Database failed to update map edge.");
+    }
+    if (data && data.length > 0) {
+      return mapDbMapEdgeToMapEdge(data[0]);
+    }
+  }
+  return null;
+}
+
+export async function deleteLocalMapEdge(id: string, overrideClient?: any): Promise<boolean> {
+  const client = getDbClient(overrideClient);
+  if (isSupabaseConfigured && client) {
+    const { error } = await client.from("map_edges").delete().eq("id", id);
+    if (error) {
+      console.error("[Supabase Error] delete map_edges error:", error);
+      throw new Error(error.message || "Database failed to delete map edge.");
+    }
+    return true;
+  }
+  return true;
 }

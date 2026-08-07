@@ -137,3 +137,11 @@ export interface Profile {
 	roomId?: string;
 	createdAt?: string;
 }
+
+export interface MapEdge {
+	id: string;
+	fromNode: string;
+	toNode: string;
+	path: [number, number][];
+	createdAt?: string;
+}
