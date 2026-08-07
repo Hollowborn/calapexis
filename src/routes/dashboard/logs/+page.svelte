@@ -212,7 +212,12 @@
 {/snippet}
 
 {#snippet statusBadge({ visitor }: { visitor: Visitor })}
-	{#if visitor.status === 'checked_out'}
+	{#if visitor.status === 'preliminary'}
+		<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+			<span class="size-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+			<span>Preliminary Pre-Pass</span>
+		</span>
+	{:else if visitor.status === 'checked_out'}
 		<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted border border-border text-muted-foreground">
 			Checked Out
 		</span>

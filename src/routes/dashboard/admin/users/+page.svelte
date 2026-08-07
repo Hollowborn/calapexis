@@ -258,7 +258,7 @@
 
 {#snippet roleCell({ role }: { role: string })}
 	{#if role === 'admin'}
-		<Badge class="bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/10 border-red-500/20 text-[10px] font-bold rounded-full">Administrator</Badge>
+		<Badge variant="outline" class="  hover:bg-red-500/10  text-[10px] font-bold rounded-full">Administrator</Badge>
 	{:else if role === 'security'}
 		<Badge class="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 border-indigo-500/20 text-[10px] font-bold rounded-full">Security Guard</Badge>
 	{:else}

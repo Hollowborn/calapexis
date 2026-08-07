@@ -103,7 +103,7 @@
 
 	// Dynamic derived listings directly from database context
 	let liveMonitorList = $derived(
-		visitors.filter((v: any) => v.status === 'checked_in' && v.verificationStatus !== 'rejected')
+		visitors.filter((v: any) => (v.status === 'checked_in' || v.status === 'preliminary') && v.verificationStatus !== 'rejected')
 	);
 
 	let filteredLiveMonitorList = $derived(
@@ -143,7 +143,15 @@
 	let securityAuditLog = $derived.by(() => {
 		const logs: { id: string; time: string; title: string; detail: string; type: 'entry' | 'checkout' | 'verify' }[] = [];
 		visitors.forEach((v: any) => {
-			if (v.checkInTime) {
+			if (v.status === 'preliminary') {
+				logs.push({
+					id: `pre-${v.id}`,
+					time: formatTime(v.createdAt || v.checkInTime),
+					title: `${v.fullName} Registered Pre-Pass`,
+					detail: `Target: ${v.officeName || 'Campus'} • ${v.passCode}`,
+					type: 'verify'
+				});
+			} else if (v.checkInTime && v.status === 'checked_in') {
 				logs.push({
 					id: `in-${v.id}`,
 					time: formatTime(v.checkInTime),
@@ -703,6 +711,7 @@
 							<Table.Head class="pl-5 py-3">Visitor Profile</Table.Head>
 							<Table.Head>Pass Code</Table.Head>
 							<Table.Head>Destination Office</Table.Head>
+							<Table.Head>Purpose</Table.Head>
 							<Table.Head>Nearest Landmark / Node</Table.Head>
 							<Table.Head>Duration</Table.Head>
 							<Table.Head>Status</Table.Head>
@@ -723,6 +732,9 @@
 								</Table.Cell>
 								<Table.Cell class="font-mono text-xs font-black text-primary">{v.passCode}</Table.Cell>
 								<Table.Cell>{v.officeName || 'Campus'}</Table.Cell>
+								<Table.Cell class="text-xs text-muted-foreground font-medium max-w-[150px] truncate" title={v.purpose}>
+									{v.purpose || 'Campus Visit'}
+								</Table.Cell>
 								<Table.Cell>
 									<Badge variant="outline" class="text-[10px] font-mono gap-1 rounded-lg">
 										<MapPinIcon class="size-3 text-primary" />
@@ -733,7 +745,12 @@
 									{calculateVisitDuration(v.checkInTime, v.checkOutTime)}
 								</Table.Cell>
 								<Table.Cell>
-									{#if v.status === 'checked_in'}
+									{#if v.status === 'preliminary'}
+										<Badge variant="outline" class="bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[10px] font-black rounded-lg gap-1">
+											<span class="size-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+											<span>Preliminary Pre-Pass</span>
+										</Badge>
+									{:else if v.status === 'checked_in'}
 										<Badge class="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[10px] font-extrabold rounded-lg">Active Pass</Badge>
 									{:else}
 										<Badge variant="secondary" class="text-[10px] font-bold rounded-lg">Checked Out</Badge>
@@ -745,6 +762,8 @@
 											<LogOutIcon class="size-3.5 pointer-events-none" />
 											<span>Check Out</span>
 										</Button>
+									{:else if v.status === 'preliminary'}
+										<span class="text-[10px] text-amber-600 dark:text-amber-400 font-bold font-mono">Pending Check-In</span>
 									{:else}
 										<span class="text-[10px] text-muted-foreground font-mono">Archived</span>
 									{/if}

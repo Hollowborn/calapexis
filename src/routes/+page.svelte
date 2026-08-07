@@ -1,16 +1,16 @@
 <script lang="ts">
-	import { MOCK_BUILDINGS } from '$lib/supabase';
-
-// Icons
+	// Icons
 	import CompassIcon from '@lucide/svelte/icons/compass';
 	import UserCheckIcon from '@lucide/svelte/icons/user-check';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
+	import Building2Icon from '@lucide/svelte/icons/building-2';
+	import DoorClosedIcon from '@lucide/svelte/icons/door-closed';
 	import SparklesIcon from '@lucide/svelte/icons/sparkles';
 	import ArrowUpRightIcon from '@lucide/svelte/icons/arrow-up-right';
 
-// shadcn-svelte and sv-animations components
+	// shadcn-svelte and sv-animations components
 	import AnimatedShinyText from '$lib/components/magic/animated-shiny-text/animated-shiny-text.svelte';
 	import AuroraText from '$lib/components/magic/aurora-text/aurora-text.svelte';
 	import { AnimatedThemeToggler } from "$lib/components/magic/animated-theme-toggler";
@@ -18,6 +18,12 @@
 	import { Kbd } from '$lib/components/ui/kbd/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import * as Command from '$lib/components/ui/command/index.js';
+
+	let { data } = $props();
+
+	let buildingsList = $derived(data?.buildings || []);
+	let officesList = $derived(data?.offices || []);
+	let roomsList = $derived(data?.rooms || []);
 
 	let isCommandOpen = $state(false);
 	let searchQuery = $state('');
@@ -84,7 +90,7 @@
 			>
 				<div class="flex items-center gap-3">
 					<SearchIcon class="size-5 text-muted-foreground pointer-events-none" />
-					<span class="font-semibold text-xs sm:text-sm">Search building complex or room...</span>
+					<span class="font-semibold text-xs sm:text-sm">Search building complex, office, or room...</span>
 				</div>
 				<Kbd class="h-6 px-1.5 border border-border shadow-xs bg-muted text-[10px] font-bold">
 					Ctrl K
@@ -127,12 +133,12 @@
 	description="Search for rooms, buildings, or access console gateways."
 	class="border border-border/80 shadow-2xl overflow-hidden"
 >
-	<Command.Input placeholder="Search building complex or room..." bind:value={searchQuery} />
-	<Command.List class="p-2">
+	<Command.Input placeholder="Search building complex, office, or room..." bind:value={searchQuery} />
+	<Command.List class="p-2 max-h-[380px] overflow-y-auto">
 		<Command.Empty class="py-6 text-center text-xs text-muted-foreground">No results found.</Command.Empty>
 		
 		<Command.Group heading="Access Gateways" class="px-2 font-bold text-[10px] uppercase tracking-wider text-muted-foreground">
-			<Command.LinkItem href="/checkin" class="rounded-xl flex items-center gap-2 px-3 py-2 cursor-pointer">
+			<Command.LinkItem href="/v" class="rounded-xl flex items-center gap-2 px-3 py-2 cursor-pointer">
 				<UserCheckIcon class="size-4 text-primary pointer-events-none" />
 				<span class="font-semibold text-xs text-foreground">Visitor Check-In</span>
 				<Command.Shortcut class="text-[9px] font-bold">Check-In</Command.Shortcut>
@@ -151,19 +157,52 @@
 			</Command.LinkItem>
 		</Command.Group>
 		
-		<Command.Separator class="my-2 bg-border/60" />
-		
-		<Command.Group heading="Campus Buildings & Landmarks" class="px-2 font-bold text-[10px] uppercase tracking-wider text-muted-foreground">
-			{#each MOCK_BUILDINGS as building}
-				<Command.LinkItem href="/map?building={building.id}" class="rounded-xl flex items-center gap-2.5 px-3 py-2.5 cursor-pointer font-semibold text-xs">
-					<MapPinIcon class="size-4 text-primary pointer-events-none" />
-					<div class="flex flex-col gap-0.5">
-						<span class="font-bold text-xs text-foreground leading-tight">{building.name}</span>
-						<span class="text-[10px] text-muted-foreground font-semibold leading-relaxed">{building.floors} Floors</span>
-					</div>
-					<Command.Shortcut class="font-mono text-[9px] font-bold">{building.code}</Command.Shortcut>
-				</Command.LinkItem>
-			{/each}
-		</Command.Group>
+		{#if buildingsList.length > 0}
+			<Command.Separator class="my-2 bg-border/60" />
+			<Command.Group heading="Campus Buildings & Landmarks" class="px-2 font-bold text-[10px] uppercase tracking-wider text-muted-foreground">
+				{#each buildingsList as building}
+					<Command.LinkItem href="/v?building={building.id}" class="rounded-xl flex items-center gap-2.5 px-3 py-2.5 cursor-pointer font-semibold text-xs">
+						<MapPinIcon class="size-4 text-primary pointer-events-none" />
+						<div class="flex flex-col gap-0.5">
+							<span class="font-bold text-xs text-foreground leading-tight">{building.name}</span>
+							<span class="text-[10px] text-muted-foreground font-semibold leading-relaxed">{building.floors || 1} Floors</span>
+						</div>
+						<Command.Shortcut class="font-mono text-[9px] font-bold">{building.code}</Command.Shortcut>
+					</Command.LinkItem>
+				{/each}
+			</Command.Group>
+		{/if}
+
+		{#if officesList.length > 0}
+			<Command.Separator class="my-2 bg-border/60" />
+			<Command.Group heading="Offices & Services" class="px-2 font-bold text-[10px] uppercase tracking-wider text-muted-foreground">
+				{#each officesList as office}
+					<Command.LinkItem href="/v?office={office.id}" class="rounded-xl flex items-center gap-2.5 px-3 py-2.5 cursor-pointer font-semibold text-xs">
+						<Building2Icon class="size-4 text-blue-500 pointer-events-none" />
+						<div class="flex flex-col gap-0.5">
+							<span class="font-bold text-xs text-foreground leading-tight">{office.name}</span>
+							<span class="text-[10px] text-muted-foreground font-semibold leading-relaxed">{office.buildingName || 'Campus Office'}</span>
+						</div>
+						<Command.Shortcut class="font-mono text-[9px] font-bold">{office.code}</Command.Shortcut>
+					</Command.LinkItem>
+				{/each}
+			</Command.Group>
+		{/if}
+
+		{#if roomsList.length > 0}
+			<Command.Separator class="my-2 bg-border/60" />
+			<Command.Group heading="Campus Rooms & Labs" class="px-2 font-bold text-[10px] uppercase tracking-wider text-muted-foreground">
+				{#each roomsList as room}
+					<Command.LinkItem href="/v?room={room.id}" class="rounded-xl flex items-center gap-2.5 px-3 py-2.5 cursor-pointer font-semibold text-xs">
+						<DoorClosedIcon class="size-4 text-amber-500 pointer-events-none" />
+						<div class="flex flex-col gap-0.5">
+							<span class="font-bold text-xs text-foreground leading-tight">{room.roomName} ({room.roomNumber})</span>
+							<span class="text-[10px] text-muted-foreground font-semibold leading-relaxed">{room.buildingName || 'Building'} • Floor {room.floor}</span>
+						</div>
+						<Command.Shortcut class="font-mono text-[9px] font-bold">{room.roomNumber}</Command.Shortcut>
+					</Command.LinkItem>
+				{/each}
+			</Command.Group>
+		{/if}
 	</Command.List>
 </Command.Dialog>

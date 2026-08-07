@@ -987,8 +987,15 @@
 		if (distanceMeters < 15 && (selectedOfficeId || activeOfficialPass || prePassData) && !hasArrivedToastShown) {
 			hasArrivedToastShown = true;
 			toast.success(`🎉 You have arrived at ${destinationName}!`, {
-				description: "Please report to reception desk for check-in verification."
+				description: "GPS Location verified at building desk. Digital Pass activated!"
 			});
+
+			// If visitor is currently in pre-pass preliminary state, auto-trigger checkIn form submit to update status in database
+			if (prePassData && !activeOfficialPass && checkInFormElement) {
+				const currentCode = (prePassData as any).officeCode || prePassData.officeId;
+				if (hiddenOfficeCodeInput) hiddenOfficeCodeInput.value = currentCode;
+				checkInFormElement.requestSubmit();
+			}
 		} else if (distanceMeters >= 20) {
 			hasArrivedToastShown = false;
 		}
@@ -2206,6 +2213,7 @@
 
 				<!-- Hidden Programmatic Auto-Submission Form for QR Scanner -->
 				<form bind:this={checkInFormElement} action="?/checkIn" method="POST" use:enhance={handleCheckInEnhance} class="hidden">
+					<input type="hidden" name="logId" value={prePassData?.logId || activeOfficialPass?.id || ''} />
 					<input type="hidden" name="registeredVisitorId" value={prePassData?.registeredVisitorId || ''} />
 					<input type="hidden" name="fullName" value={prePassData?.fullName || ''} />
 					<input type="hidden" name="firstName" value={prePassData?.firstName || ''} />
@@ -2244,6 +2252,7 @@
 					}} 
 					class="w-full flex flex-col gap-1.5 text-start"
 				>
+					<input type="hidden" name="logId" value={prePassData?.logId || activeOfficialPass?.id || ''} />
 					<input type="hidden" name="registeredVisitorId" value={prePassData?.registeredVisitorId || ''} />
 					<input type="hidden" name="fullName" value={prePassData?.fullName || ''} />
 					<input type="hidden" name="firstName" value={prePassData?.firstName || ''} />

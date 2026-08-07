@@ -32,7 +32,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 				dbClient
 					.from("visitors")
 					.select("*")
-					.or(`status.eq.checked_in,check_in_time.gte.${todayStartIso}`)
+					.or(`status.eq.checked_in,status.eq.preliminary,check_in_time.gte.${todayStartIso}`)
 					.order("check_in_time", { ascending: false }),
 				dbClient.from("offices").select("*").eq("is_active", true),
 				dbClient.from("buildings").select("*")

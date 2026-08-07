@@ -41,7 +41,7 @@ export interface Office {
 	isActive: boolean;
 }
 
-export type VisitorStatus = 'checked_in' | 'checked_out' | 'expired';
+export type VisitorStatus = 'preliminary' | 'checked_in' | 'checked_out' | 'expired';
 export type VerificationStatus = 'pending' | 'approved' | 'rejected';
 
 export interface RegisteredVisitor {

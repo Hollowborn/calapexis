@@ -342,7 +342,7 @@ export const actions: Actions = {
 							office_id: validOfficeUuid,
 							purpose: purpose || "Campus Visit",
 							check_in_time: new Date().toISOString(),
-							status: "checked_in",
+							status: "preliminary",
 							verification_status: "approved",
 							pass_code: passCode,
 							last_latitude: officeLat,
@@ -424,6 +424,7 @@ export const actions: Actions = {
 
 	checkIn: async ({ request }) => {
 		const formData = await request.formData();
+		const logId = ((formData.get("logId") as string) || "").trim();
 		const registeredVisitorId = (formData.get("registeredVisitorId") as string) || "";
 		const officeCode = ((formData.get("officeCode") as string) || "").trim();
 		const fullName = (formData.get("fullName") as string) || "Visitor";
@@ -440,7 +441,7 @@ export const actions: Actions = {
 		let lat = latStr ? parseFloat(latStr) : null;
 		let lng = lngStr ? parseFloat(lngStr) : null;
 
-		if (!registeredVisitorId && !fullName) {
+		if (!registeredVisitorId && !fullName && !logId) {
 			return fail(400, { message: "Visitor profile details missing." });
 		}
 
@@ -465,28 +466,76 @@ export const actions: Actions = {
 					}
 				}
 
-				const newVisitorLog = {
-					visitor_id: registeredVisitorId || null,
-					office_id: validOfficeUuid,
-					purpose: purpose || "Campus Visit",
-					check_in_time: new Date().toISOString(),
-					status: "checked_in",
-					verification_status: "approved",
-					pass_code: finalPassCode,
-					last_latitude: lat || 9.894144489361919,
-					last_longitude: lng || 123.88273758838274,
-					last_located_at: new Date().toISOString()
-				};
+				let logData: any = null;
 
-				const { data: logData, error: logErr } = await dbClient
-					.from("visitor_logs")
-					.insert([newVisitorLog])
-					.select()
-					.single();
+				// 1. Prioritize updating existing preliminary log by logId
+				if (logId) {
+					const { data: updatedLog } = await dbClient
+						.from("visitor_logs")
+						.update({
+							status: "checked_in",
+							check_in_time: new Date().toISOString(),
+							office_id: validOfficeUuid || undefined,
+							last_latitude: lat || 9.894144489361919,
+							last_longitude: lng || 123.88273758838274,
+							last_located_at: new Date().toISOString()
+						})
+						.eq("id", logId)
+						.select()
+						.maybeSingle();
 
-				if (logErr) {
-					console.error("visitor_logs checkIn insert error:", logErr.message);
-				} else if (logData) {
+					if (updatedLog) {
+						logData = updatedLog;
+					}
+				}
+
+				// 2. Fall back to updating any preliminary log for this visitor
+				if (!logData && registeredVisitorId) {
+					const { data: prelimLog } = await dbClient
+						.from("visitor_logs")
+						.update({
+							status: "checked_in",
+							check_in_time: new Date().toISOString(),
+							office_id: validOfficeUuid || undefined,
+							last_latitude: lat || 9.894144489361919,
+							last_longitude: lng || 123.88273758838274,
+							last_located_at: new Date().toISOString()
+						})
+						.eq("visitor_id", registeredVisitorId)
+						.eq("status", "preliminary")
+						.select()
+						.maybeSingle();
+
+					if (prelimLog) {
+						logData = prelimLog;
+					}
+				}
+
+				// 3. Fall back to inserting a new row only if no existing log row was found
+				if (!logData) {
+					const newVisitorLog = {
+						visitor_id: registeredVisitorId || null,
+						office_id: validOfficeUuid,
+						purpose: purpose || "Campus Visit",
+						check_in_time: new Date().toISOString(),
+						status: "checked_in",
+						verification_status: "approved",
+						pass_code: finalPassCode,
+						last_latitude: lat || 9.894144489361919,
+						last_longitude: lng || 123.88273758838274,
+						last_located_at: new Date().toISOString()
+					};
+
+					const { data: insertedLog, error: logErr } = await dbClient
+						.from("visitor_logs")
+						.insert([newVisitorLog])
+						.select()
+						.single();
+
+					if (insertedLog) logData = insertedLog;
+				}
+
+				if (logData) {
 					const mappedVisitor = mapDbVisitorToVisitor({ ...logData });
 					return {
 						success: true,
