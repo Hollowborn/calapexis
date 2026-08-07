@@ -131,8 +131,9 @@ export const actions: Actions = {
               insertResult.error,
             );
             return fail(400, {
+              code: "unprovisioned_account",
               message:
-                "Access profile role mapping not configured and auto-provisioning failed.",
+                "Access profile role mapping is not configured for your account and auto-provisioning failed. Please contact your administrator.",
             });
           }
           profile = insertResult.data;
@@ -141,7 +142,6 @@ export const actions: Actions = {
         setSessionCookies(cookies, profile.role, profile.room_id || profile.office_id);
         throw redirect(303, getRedirectUrl(profile.role, url));
       }
-
 
       // If auth fails, try checking mock profiles fallback (e.g. for offline local dev support)
       const profiles = await getLocalProfiles();
@@ -154,7 +154,8 @@ export const actions: Actions = {
       }
 
       return fail(400, {
-        message: authError?.message || "Invalid account credentials.",
+        code: "invalid_credentials",
+        message: authError?.message || "Invalid username or password.",
       });
     }
 
@@ -165,11 +166,17 @@ export const actions: Actions = {
     );
 
     if (!userProfile) {
-      return fail(400, { message: "Account username unrecognized." });
+      return fail(400, {
+        code: "account_unrecognized",
+        message: "Account username unrecognized in system database.",
+      });
     }
 
     if (userProfile.password !== password) {
-      return fail(400, { message: "Invalid password." });
+      return fail(400, {
+        code: "invalid_credentials",
+        message: "Invalid password entered.",
+      });
     }
 
     setSessionCookies(cookies, userProfile.role, userProfile.roomId);

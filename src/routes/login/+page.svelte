@@ -15,10 +15,13 @@
 	import { signInWithGoogle } from '$lib/supabase';
 	import { toast } from 'svelte-sonner';
 	import { fade, slide } from 'svelte/transition';
-	
+	import * as Alert from '$lib/components/ui/alert/index.js';
+
 	// Icons
 	import BookOpenIcon from '@lucide/svelte/icons/book-open';
 	import AlertCircleIcon from '@lucide/svelte/icons/alert-circle';
+	import ShieldAlertIcon from '@lucide/svelte/icons/shield-alert';
+	import MailIcon from '@lucide/svelte/icons/mail';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import XIcon from '@lucide/svelte/icons/x';
 	import MapIcon from '@lucide/svelte/icons/map';
@@ -74,15 +77,47 @@
 		};
 	};
 
-	// Trigger notifications if redirect auth flags status
+	// Trigger Sonner toast notifications with action buttons for error cases
 	$effect(() => {
 		if (data?.error === 'unprovisioned_google_account') {
-			toast.error('Access Denied: Your Google account is not pre-provisioned in system user profiles.');
+			toast.error('Unprovisioned Google Account', {
+				description: 'Your Google Account is not provisioned with system access roles. Contact system admin for access.',
+				action: {
+					label: 'Contact Admin',
+					onClick: () => {
+						window.location.href = 'mailto:admin@bisu.edu.ph?subject=Account%20Access%20Request';
+					}
+				},
+				duration: 10000
+			});
 		} else if (data?.error === 'oauth_failed') {
-			toast.error('Google OAuth Authentication failed. Please try again.');
+			toast.error('Google OAuth Failed', {
+				description: 'The Google OAuth authentication process encountered an error or was canceled.',
+				action: {
+					label: 'Retry Sign In',
+					onClick: () => handleGoogleSignIn()
+				},
+				duration: 8000
+			});
 		} else if (data?.error) {
-			const reason = data.error.replace('unauthorized_', '');
-			toast.error(`Unauthorized: Log in as a verified ${reason} to view that portal.`);
+			const reason = data.error.replace('unauthorized_', '').toUpperCase();
+			toast.error('Portal Access Restricted', {
+				description: `Permission Denied: Log in as a verified ${reason} account to view that portal.`,
+				duration: 8000
+			});
+		}
+
+		if ((form as any)?.code === 'unprovisioned_account') {
+			toast.error('Account Profile Not Provisioned', {
+				description: form?.message || 'Access profile role mapping is not configured for your account.',
+				action: {
+					label: 'Contact Admin',
+					onClick: () => {
+						window.location.href = 'mailto:admin@bisu.edu.ph?subject=Account%20Access%20Request';
+					}
+				},
+				duration: 10000
+			});
 		}
 
 		if (data?.login === 'google_success') {
@@ -155,21 +190,15 @@
 				</p>
 			</div>
 
-			<!-- Error Alert display -->
-			{#if data?.error || form?.message}
-				<div class="rounded-xl bg-destructive/10 p-4 border border-destructive/20 transition-all">
-					<div class="flex items-start gap-3">
-						<AlertCircleIcon class="h-5 w-5 text-destructive pointer-events-none shrink-0" />
-						<div class="space-y-0.5">
-							<h3 class="text-xs font-bold text-destructive">
-								Authentication Error
-							</h3>
-							<p class="text-[11px] text-destructive/80 font-medium">
-								{form?.message || "Invalid login credentials."}
-							</p>
-						</div>
-					</div>
-				</div>
+			<!-- Inline Form Validation Error Alert -->
+			{#if form?.message && (form as any)?.code !== 'unprovisioned_account'}
+				<Alert.Root variant="destructive" class="rounded-2xl border-destructive/50 bg-destructive/10 text-destructive">
+					<AlertCircleIcon class="size-4 shrink-0 pointer-events-none" />
+					<Alert.Title class="font-extrabold text-xs">Authentication Error</Alert.Title>
+					<Alert.Description class="text-xs leading-relaxed font-semibold">
+						{form.message}
+					</Alert.Description>
+				</Alert.Root>
 			{/if}
 
 			<form method="POST" action="?/login" use:enhance={handleLoginEnhance} class="flex flex-col gap-5">
@@ -242,10 +271,10 @@
 							Don't have an account?
 							<a
 								href="##"
-								onclick={(e) => { e.preventDefault(); isGuideOpen = true; }}
+								onclick={() => { toast.info('Please contact the system administrator to request access.'); }}
 								class="underline underline-offset-4 font-bold text-foreground hover:text-primary"
 							>
-								Sign up guide
+								Contact admin.
 							</a>
 						</FieldDescription>
 					</Field>
