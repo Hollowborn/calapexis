@@ -433,8 +433,16 @@
 			}
 		}
 
-		// 3. Check URL parameter to skip gate setup wizard and land directly on map
-		const skipSetup = page.url.searchParams.get('skipSetup') === 'true' || page.url.searchParams.get('mode') === 'map' || page.url.searchParams.get('view') === 'map';
+		// 3. Check URL parameter to skip gate setup wizard and land directly on map / target building
+		const buildingParam = page.url.searchParams.get('building');
+		const officeParam = page.url.searchParams.get('office');
+		const roomParam = page.url.searchParams.get('room');
+		const targetParam = page.url.searchParams.get('target');
+		const skipSetup = page.url.searchParams.get('skipSetup') === 'true' || 
+		                  page.url.searchParams.get('mode') === 'map' || 
+		                  page.url.searchParams.get('view') === 'map' ||
+		                  Boolean(buildingParam || officeParam || roomParam || targetParam);
+
 		if (skipSetup) {
 			isGateOverlayOpen = false;
 		}
@@ -453,17 +461,21 @@
 		if (!L || !mapContainer) return;
 		leafletInstance = L;
 
-		const bounds = L.latLngBounds(campusBoundsCoords[0], campusBoundsCoords[1]);
-		const map = L.map(mapContainer, {
-			zoomControl: false,
-			maxBounds: bounds,
-			maxBoundsViscosity: 1.0,
-			minZoom: 18,
-			maxZoom: 22
-		}).setView([mainGateCoords.lat, mainGateCoords.lng], 19);
+		// 4. Create custom map panes
+		const bounds: [number, number][] = campusBoundsCoords as any;
 
-		osmLayerInstance = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-			attribution: '&copy; OpenStreetMap',
+		const map = L.map(mapContainer, {
+			center: [9.894414, 123.882580],
+			zoom: 19,
+			minZoom: 17,
+			maxZoom: 22,
+			maxBounds: bounds,
+			maxBoundsViscosity: 0.8,
+			zoomControl: false
+		});
+
+		osmLayerInstance = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+			attribution: "OpenStreetMap",
 			maxNativeZoom: 19,
 			maxZoom: 22
 		}).addTo(map);
@@ -474,7 +486,7 @@
 			maxZoom: 22
 		});
 
-		campusOverlayInstance = L.imageOverlay("/campusMap-adjusted.png", bounds, {
+		campusOverlayInstance = L.imageOverlay("/campusMap-adjusted.png", L.latLngBounds(bounds), {
 			opacity: 1.0,
 			interactive: false,
 			zIndex: 300
@@ -498,6 +510,34 @@
 
 		// 4. Plot Interactive Building Nodes on Map
 		plotBuildingNodesOnMap();
+
+		// Handle direct URL parameter targeting (building, office, room)
+		if (buildingParam || officeParam || roomParam || targetParam) {
+			const targetId = buildingParam || officeParam || roomParam || targetParam || '';
+			let targetBuilding: any = buildingsList.find((b: any) => b.id === targetId || b.code.toLowerCase() === targetId.toLowerCase());
+
+			if (!targetBuilding && officeParam) {
+				const off = officesList.find((o: any) => o.id === officeParam || o.code.toLowerCase() === officeParam.toLowerCase());
+				if (off) {
+					selectedOfficeId = off.id;
+					targetBuilding = buildingsList.find((b: any) => b.id === off.buildingId || b.name === off.buildingName);
+				}
+			}
+
+			if (!targetBuilding && roomParam) {
+				const rm = roomsList.find((r: any) => r.id === roomParam || r.roomNumber.toLowerCase() === roomParam.toLowerCase());
+				if (rm) {
+					targetBuilding = buildingsList.find((b: any) => b.id === rm.buildingId);
+				}
+			}
+
+			if (targetBuilding) {
+				selectedBuildingForModal = targetBuilding;
+				isBuildingModalOpen = true;
+				const coords = getBuildingLatLng(targetBuilding);
+				leafMap.flyTo(coords, 20, { duration: 1.2 });
+			}
+		}
 
 		// Initial plot of visitor marker at Main Gate or checked-in office location
 		if (activeOfficialPass) {
