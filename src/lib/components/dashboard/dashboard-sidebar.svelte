@@ -26,7 +26,8 @@
 		'staff-desk': '/dashboard/staff',
 		'user-accounts': '/dashboard/admin/users',
 		'offices-config': '/dashboard/admin/offices',
-		'office-config': '/dashboard/admin/buildings'
+		'office-config': '/dashboard/admin/buildings',
+		'map-edges': '/dashboard/admin/edges'
 	};
 
 	const activeView = $derived(
@@ -60,7 +61,8 @@
 			items: [
 				{ id: "user-accounts", title: "User Accounts", roles: ["admin"], description: "Provision security and staff portals access" },
 				{ id: "offices-config", title: "Check-In Offices", roles: ["admin"], description: "Designate official reception counters and desks" },
-				{ id: "office-config", title: "Buildings & Rooms", roles: ["admin"], description: "Manage campus layouts and printable QR passes" }
+				{ id: "office-config", title: "Buildings & Rooms", roles: ["admin"], description: "Manage campus layouts and printable QR passes" },
+				{ id: "map-edges", title: "Map Edges & Paths", roles: ["admin"], description: "Configure campus navigation pathways & curves" }
 			]
 		}
 	];
