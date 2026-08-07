@@ -16,9 +16,11 @@
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import { toast } from 'svelte-sonner';
-	import { MOCK_BUILDINGS, MOCK_OFFICES, MOCK_ROOMS, checkoutLocalVisitor, signInWithGoogle } from '$lib/supabase';
+	import * as Alert from "$lib/components/ui/alert/index.js";
+	import { checkoutLocalVisitor, signInWithGoogle } from '$lib/supabase';
 	import type { Visitor, Office, Building, Room } from '$lib/types';
 	import { AnimatedThemeToggler } from "$lib/components/magic/animated-theme-toggler";
+	import LazyImage from '$lib/components/LazyImage.svelte';
 
 	// Lucide Icons
 	import SearchIcon from "@lucide/svelte/icons/search";
@@ -38,6 +40,8 @@
 	import AlertCircleIcon from "@lucide/svelte/icons/alert-circle";
 	import ChevronUpIcon from "@lucide/svelte/icons/chevron-up";
 	import RadioIcon from "@lucide/svelte/icons/radio";
+	import CompassIcon from "@lucide/svelte/icons/compass";
+	import RouteIcon from "@lucide/svelte/icons/route";
 	import UploadIcon from "@lucide/svelte/icons/upload";
 	import ArrowRightIcon from "@lucide/svelte/icons/arrow-right";
 	import ArrowLeftIcon from "@lucide/svelte/icons/arrow-left";
@@ -48,12 +52,16 @@
 	import MailIcon from "@lucide/svelte/icons/mail";
 	import UserIcon from "@lucide/svelte/icons/user";
 	import Layers2Icon from "@lucide/svelte/icons/layers-2";
+	import XIcon from "@lucide/svelte/icons/x";
+	import MapPinOffIcon from "@lucide/svelte/icons/map-pin-off";
+	import ListIcon from "@lucide/svelte/icons/list";
+	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
 
 	let { data } = $props();
 
-	let officesList = $derived(data?.offices?.length ? data.offices : MOCK_OFFICES);
-	let buildingsList = $derived(data?.buildings?.length ? data.buildings : MOCK_BUILDINGS);
-	let roomsList = $derived(data?.rooms?.length ? data.rooms : MOCK_ROOMS);
+	let officesList = $derived(data?.offices || []);
+	let buildingsList = $derived(data?.buildings || []);
+	let roomsList = $derived(data?.rooms || []);
 
 	// Leaflet Map & GPS references
 	let mapContainer: HTMLDivElement;
@@ -65,6 +73,23 @@
 	let osmLayerInstance: any = null;
 	let satelliteLayerInstance: any = null;
 	let campusOverlayInstance: any = null;
+
+	// Dynamic Graph Pathfinding & Device Orientation state
+	let mapEdgesList = $derived(data.mapEdges || []);
+	let activeRouteMode = $state<'primary' | 'alternative'>('primary');
+	let primaryPathPoints = $state<[number, number][]>([]);
+	let alternativePathPoints = $state<[number, number][]>([]);
+	let primaryDistanceMeters = $state<number>(0);
+	let alternativeDistanceMeters = $state<number>(0);
+	let deviceHeading = $state<number>(0);
+	let isCompassActive = $state<boolean>(false);
+
+	let activeRouteDistance = $derived(activeRouteMode === 'primary' ? primaryDistanceMeters : alternativeDistanceMeters);
+	let activeRouteMins = $derived(Math.floor(activeRouteDistance / 81));
+	let activeRouteSecs = $derived(Math.round((activeRouteDistance % 81) / 1.35));
+
+	let primaryPolyline: any = null;
+	let alternativePolyline: any = null;
 
 	// Layer Control & Map state
 	let activeTileLayer = $state<'osm' | 'esri'>('osm');
@@ -163,11 +188,11 @@
 	let userGps = $state<{ lat: number; lng: number } | null>(null);
 	let gpsStatus = $state<'disabled' | 'locating' | 'active'>('disabled');
 
-	// Manual QR Scanner Fallback Code Input
 	let manualScanCode = $state('');
 	let qrScannerInstance: Html5Qrcode | null = $state(null);
 	let isQrScanning = $state(false);
 	let qrScanError = $state<string | null>(null);
+	let qrScanErrorAlert = $state<string | null>(null);
 	let checkInFormElement = $state<HTMLFormElement | null>(null);
 	let hiddenOfficeCodeInput = $state<HTMLInputElement | null>(null);
 
@@ -217,11 +242,56 @@
 		isQrScanning = false;
 	}
 
+	function validateScannedOfficeCode(code: string): boolean {
+		if (!code || !code.trim()) {
+			qrScanErrorAlert = "Please scan or enter an office desk QR code.";
+			return false;
+		}
+
+		const currentDesignatedId = selectedOfficeId || prePassData?.officeId || activeOfficialPass?.officeId;
+		const targetOfficeObj = officesList.find((o: any) => o.id === currentDesignatedId || o.code === currentDesignatedId);
+
+		const cleanCode = code.trim().toLowerCase();
+
+		// If no office has been designated yet, verify against any live registered office
+		if (!targetOfficeObj) {
+			const matchingAny = officesList.find((o: any) => o.id.toLowerCase() === cleanCode || o.code.toLowerCase() === cleanCode);
+			if (!matchingAny) {
+				const errorMsg = `Invalid QR Code "${code.toUpperCase()}". Office code not recognized in campus system.`;
+				qrScanErrorAlert = errorMsg;
+				toast.error("Unrecognized Office Code", { description: errorMsg });
+				return false;
+			}
+			qrScanErrorAlert = null;
+			return true;
+		}
+
+		// Strictly validate against assigned destination office
+		const matchesId = targetOfficeObj.id.toLowerCase() === cleanCode;
+		const matchesCode = targetOfficeObj.code.toLowerCase() === cleanCode;
+
+		if (!matchesId && !matchesCode) {
+			const assignedName = `${targetOfficeObj.name} (${targetOfficeObj.code})`;
+			const errorMsg = `QR Mismatch! Scanned code "${code.toUpperCase()}" does not match your assigned office: ${assignedName}. Check-in rejected.`;
+			qrScanErrorAlert = errorMsg;
+			toast.error("Incorrect Office QR Code", {
+				description: `You scanned a QR code for a different office. Please scan the desk QR at ${assignedName}.`
+			});
+			return false;
+		}
+
+		qrScanErrorAlert = null;
+		return true;
+	}
+
 	function handleQrScannedCode(code: string) {
+		if (!validateScannedOfficeCode(code)) {
+			return;
+		}
 		stopQrScanner();
 		isScannerModalOpen = false;
-		toast.success('Office QR Code Scanned!', {
-			description: `Scanned Code: ${code.toUpperCase()}`
+		toast.success('Office Desk Verified!', {
+			description: `Desk code ${code.toUpperCase()} matches your assigned destination office.`
 		});
 
 		if (hiddenOfficeCodeInput && checkInFormElement) {
@@ -410,6 +480,20 @@
 			zIndex: 300
 		}).addTo(map);
 
+		// Create dedicated high-priority route pane for polylines above image overlays
+		if (!map.getPane('routePane')) {
+			const routePane = map.createPane('routePane');
+			routePane.style.zIndex = '650';
+			routePane.style.pointerEvents = 'none';
+		}
+
+		// Create dedicated user marker pane above polylines
+		if (!map.getPane('userMarkerPane')) {
+			const markerPane = map.createPane('userMarkerPane');
+			markerPane.style.zIndex = '700';
+			markerPane.style.pointerEvents = 'auto';
+		}
+
 		leafMap = map;
 
 		// 4. Plot Interactive Building Nodes on Map
@@ -527,45 +611,145 @@
 		});
 	}
 
+	function getHeadingText(deg: number): string {
+		const directions = ['North', 'North-East', 'East', 'South-East', 'South', 'South-West', 'West', 'North-West'];
+		const index = Math.round(deg / 45) % 8;
+		return `${directions[index]} (${deg}°)`;
+	}
+
+	function setupDeviceOrientationListener() {
+		if (typeof window === 'undefined') return;
+
+		const handleOrientation = (e: DeviceOrientationEvent) => {
+			let heading = 0;
+			if ((e as any).webkitCompassHeading !== undefined) {
+				heading = (e as any).webkitCompassHeading;
+			} else if (e.alpha !== null) {
+				heading = 360 - e.alpha;
+			}
+			deviceHeading = Math.round((heading + 360) % 360);
+			isCompassActive = true;
+
+			const lat = userGps?.lat || mainGateCoords.lat;
+			const lng = userGps?.lng || mainGateCoords.lng;
+			updateVisitorMarkerWithHeading(lat, lng, deviceHeading);
+		};
+
+		if (window.DeviceOrientationEvent) {
+			if (typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+				(DeviceOrientationEvent as any).requestPermission().then((state: string) => {
+					if (state === 'granted') {
+						window.addEventListener('deviceorientation', handleOrientation, true);
+					}
+				}).catch(console.warn);
+			} else {
+				window.addEventListener('deviceorientation', handleOrientation, true);
+			}
+		}
+	}
+
+	function updateVisitorMarkerWithHeading(lat: number, lng: number, heading: number) {
+		if (!leafMap || !leafletInstance) return;
+		const L = leafletInstance;
+
+		const iconHtml = `
+			<div class="relative flex items-center justify-center pointer-events-none">
+				<!-- Directional Vision Cone -->
+				<div class="absolute -top-7 size-16 pointer-events-none flex items-center justify-center transition-transform duration-200" style="transform: rotate(${heading}deg);">
+					<div class="w-0 h-0 border-l-[18px] border-l-transparent border-r-[18px] border-r-transparent border-b-[36px] border-b-primary/40 blur-[1px]"></div>
+				</div>
+				<!-- Visitor Location Pin -->
+				<div class="relative size-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-2xl border-2 border-white animate-pulse z-10">
+					<span class="text-[9px] font-black leading-none">YOU</span>
+				</div>
+			</div>
+		`;
+
+		const customIcon = L.divIcon({
+			className: "bg-transparent border-none",
+			html: iconHtml,
+			iconSize: [40, 40],
+			iconAnchor: [20, 20]
+		});
+
+		const markerPaneExists = leafMap.getPane('userMarkerPane');
+
+		if (visitorMarker) {
+			visitorMarker.setLatLng([lat, lng]);
+			visitorMarker.setIcon(customIcon);
+		} else {
+			visitorMarker = L.marker([lat, lng], { 
+				icon: customIcon,
+				zIndexOffset: 1000,
+				...(markerPaneExists ? { pane: 'userMarkerPane' } : {})
+			}).addTo(leafMap);
+		}
+	}
+
 	function requestDeviceGps() {
 		if (typeof window === 'undefined' || !navigator.geolocation) return;
 		gpsStatus = 'locating';
+
+		setupDeviceOrientationListener();
+
+		const handleGpsUpdate = (pos: GeolocationPosition) => {
+			const lat = pos.coords.latitude;
+			const lng = pos.coords.longitude;
+			if (lat >= 9.8934 && lat <= 9.8956 && lng >= 123.8815 && lng <= 123.8836) {
+				userGps = { lat, lng };
+				gpsStatus = 'active';
+
+				if (isCompassActive) {
+					updateVisitorMarkerWithHeading(lat, lng, deviceHeading);
+				} else {
+					updateVisitorMarkerOnMap(lat, lng, "Live GPS Position");
+				}
+
+				const targetOffId = selectedOfficeId || activeOfficialPass?.officeId || prePassData?.officeId;
+				if (targetOffId) {
+					calculatePathfindingRoutes(lat, lng, targetOffId);
+				}
+
+				const targetLogId = activeOfficialPass?.id || prePassData?.logId;
+				if (targetLogId) {
+					const body = new FormData();
+					body.append('logId', targetLogId);
+					body.append('lat', lat.toString());
+					body.append('lng', lng.toString());
+					fetch('?/updateLocation', { method: 'POST', body }).catch(e => console.warn("GPS sync fail:", e));
+				}
+			} else {
+				gpsStatus = 'disabled';
+			}
+		};
+
 		navigator.geolocation.getCurrentPosition(
 			(pos) => {
-				const lat = pos.coords.latitude;
-				const lng = pos.coords.longitude;
-				if (lat >= 9.8934 && lat <= 9.8956 && lng >= 123.8815 && lng <= 123.8836) {
-					userGps = { lat, lng };
-					gpsStatus = 'active';
-					updateVisitorMarkerOnMap(lat, lng, "Live GPS Position");
-					
-					// Background GPS Sync to visitor_logs
-					const targetLogId = activeOfficialPass?.id || prePassData?.logId;
-					if (targetLogId) {
-						const body = new FormData();
-						body.append('logId', targetLogId);
-						body.append('lat', lat.toString());
-						body.append('lng', lng.toString());
-						fetch('?/updateLocation', { method: 'POST', body }).catch(e => console.warn("GPS sync fail:", e));
-					}
-
-					toast.success("GPS Location active on campus.");
-				} else {
-					gpsStatus = 'disabled';
-					toast.info("GPS outside campus boundaries. Defaulting to Main Gate.");
-				}
+				handleGpsUpdate(pos);
+				toast.success("GPS Location active on campus.");
 			},
 			(err) => {
-				console.warn("Geolocation access denied or unavailable:", err.message);
+				console.warn("Geolocation access denied:", err.message);
 				gpsStatus = 'disabled';
 			},
 			{ enableHighAccuracy: true, timeout: 5000 }
+		);
+
+		navigator.geolocation.watchPosition(
+			handleGpsUpdate,
+			(err) => console.warn("GPS watch fail:", err.message),
+			{ enableHighAccuracy: true }
 		);
 	}
 
 	function updateVisitorMarkerOnMap(lat: number, lng: number, label: string) {
 		if (!leafMap || !leafletInstance) return;
 		const L = leafletInstance;
+
+		if (isCompassActive) {
+			updateVisitorMarkerWithHeading(lat, lng, deviceHeading);
+			return;
+		}
 
 		const iconHtml = `
 			<div class="group relative flex items-center justify-center">
@@ -576,6 +760,8 @@
 			</div>
 		`;
 
+		const markerPaneExists = leafMap.getPane('userMarkerPane');
+
 		if (visitorMarker) {
 			visitorMarker.setLatLng([lat, lng]);
 		} else {
@@ -585,31 +771,347 @@
 					html: iconHtml,
 					iconSize: [32, 32],
 					iconAnchor: [16, 16]
-				})
+				}),
+				zIndexOffset: 1000,
+				...(markerPaneExists ? { pane: 'userMarkerPane' } : {})
 			}).bindPopup(`<div class="font-sans font-bold text-xs p-1">${label}</div>`).addTo(leafMap);
 		}
 	}
 
-	function drawNavigationPathToOffice(office: Office) {
+	function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+		const R = 6371000;
+		const dLat = (lat2 - lat1) * (Math.PI / 180);
+		const dLon = (lon2 - lon1) * (Math.PI / 180);
+		const a =
+			Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+			Math.cos(lat1 * (Math.PI / 180)) *
+				Math.cos(lat2 * (Math.PI / 180)) *
+				Math.sin(dLon / 2) *
+				Math.sin(dLon / 2);
+		const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+		return R * c;
+	}
+
+	// Step-by-step turn directions state & drawer toggle
+	let isDirectionsOpen = $state(false);
+	let stepDirections = $state<{ fromName: string; toName: string; distanceMeters: number }[]>([]);
+	let hasArrivedToastShown = $state(false);
+
+	function getBuildingNameById(nodeId: string): string {
+		const b = buildingsList.find((b: any) => b.id === nodeId || b.code === nodeId);
+		return b ? `${b.name} (${b.code})` : nodeId;
+	}
+
+	function calculateEdgeWeights(rawEdges: any[]) {
+		return rawEdges.map((ep: any) => {
+			let weight = 0;
+			const pts = Array.isArray(ep.path) ? ep.path : [];
+			for (let i = 0; i < pts.length - 1; i++) {
+				weight += haversineDistance(pts[i][0], pts[i][1], pts[i+1][0], pts[i+1][1]);
+			}
+			return {
+				from: ep.fromNode || ep.from,
+				to: ep.toNode || ep.to,
+				path: pts,
+				weight: Math.round(weight)
+			};
+		});
+	}
+
+	function buildAdjacencyList(edges: any[]) {
+		const adjacencyList: Record<string, { node: string; weight: number; path: [number, number][] }[]> = {};
+
+		buildingsList.forEach((b: any) => {
+			if (!adjacencyList[b.id]) adjacencyList[b.id] = [];
+		});
+
+		edges.forEach((edge: any) => {
+			if (!adjacencyList[edge.from]) adjacencyList[edge.from] = [];
+			if (!adjacencyList[edge.to]) adjacencyList[edge.to] = [];
+
+			adjacencyList[edge.from].push({
+				node: edge.to,
+				weight: edge.weight,
+				path: edge.path
+			});
+			adjacencyList[edge.to].push({
+				node: edge.from,
+				weight: edge.weight,
+				path: [...edge.path].reverse()
+			});
+		});
+
+		return adjacencyList;
+	}
+
+	function prototypeDijkstra(start: string, end: string, adjacencyList: Record<string, any[]>) {
+		const distances: Record<string, number> = {};
+		const previous: Record<string, string | null> = {};
+		const unvisited = new Set<string>();
+
+		const allNodes = Object.keys(adjacencyList);
+		if (allNodes.length === 0) return null;
+
+		allNodes.forEach((id) => {
+			distances[id] = Infinity;
+			previous[id] = null;
+			unvisited.add(id);
+		});
+
+		if (distances[start] === undefined) {
+			distances[start] = Infinity;
+			previous[start] = null;
+			unvisited.add(start);
+		}
+
+		distances[start] = 0;
+
+		while (unvisited.size > 0) {
+			let current: string | null = null;
+			let minDest = Infinity;
+			for (const nodeId of unvisited) {
+				if (distances[nodeId] < minDest) {
+					minDest = distances[nodeId];
+					current = nodeId;
+				}
+			}
+
+			if (current === null || distances[current] === Infinity || current === end) break;
+			unvisited.delete(current);
+
+			const neighbors = adjacencyList[current] || [];
+			neighbors.forEach((neighbor: any) => {
+				if (unvisited.has(neighbor.node)) {
+					const alt = distances[current!] + neighbor.weight;
+					if (alt < distances[neighbor.node]) {
+						distances[neighbor.node] = alt;
+						previous[neighbor.node] = current;
+					}
+				}
+			});
+		}
+
+		const nodePath: string[] = [];
+		let curr: string | null = end;
+		if (previous[curr] !== null || curr === start) {
+			while (curr !== null) {
+				nodePath.unshift(curr);
+				curr = previous[curr];
+			}
+		}
+
+		return nodePath.length > 0 ? { nodePath, distance: distances[end] } : null;
+	}
+
+	function calculatePathfindingRoutes(startLat: number, startLng: number, targetOfficeId: string) {
 		if (!leafMap || !leafletInstance) return;
 		const L = leafletInstance;
+
+		const selectedOff = officesList.find((o: any) => o.id === targetOfficeId || o.code === targetOfficeId);
+		const targetBuilding = buildingsList.find((b: any) => b.id === (selectedOff?.buildingId || targetOfficeId));
+		if (!targetBuilding) return;
+
+		const processedEdges = calculateEdgeWeights(mapEdgesList);
+		const adjList = buildAdjacencyList(processedEdges);
+
+		// Find closest start building node to current coordinates
+		let startNode = buildingsList[0]?.id || 'start';
+		let minStartDist = Infinity;
+
+		buildingsList.forEach((b: any) => {
+			const bCoords = getBuildingLatLng(b);
+			const d = haversineDistance(startLat, startLng, bCoords[0], bCoords[1]);
+			if (d < minStartDist) {
+				minStartDist = d;
+				startNode = b.id;
+			}
+		});
+
+		const targetNode = targetBuilding.id;
+
+		const result = prototypeDijkstra(startNode, targetNode, adjList);
+
+		if (result && result.nodePath.length > 0) {
+			const nodePath = result.nodePath;
+			const fullPathLatLngs: [number, number][] = [];
+			const steps: { fromName: string; toName: string; distanceMeters: number }[] = [];
+
+			for (let i = 0; i < nodePath.length - 1; i++) {
+				const current = nodePath[i];
+				const next = nodePath[i + 1];
+				const edge = adjList[current]?.find((e: any) => e.node === next);
+				if (edge) {
+					const pointsToAdd = i === 0 ? edge.path : edge.path.slice(1);
+					fullPathLatLngs.push(...pointsToAdd);
+					steps.push({
+						fromName: getBuildingNameById(current),
+						toName: getBuildingNameById(next),
+						distanceMeters: edge.weight
+					});
+				}
+			}
+
+			if (fullPathLatLngs.length === 0 || haversineDistance(fullPathLatLngs[0][0], fullPathLatLngs[0][1], startLat, startLng) > 5) {
+				fullPathLatLngs.unshift([startLat, startLng]);
+			}
+
+			primaryPathPoints = fullPathLatLngs;
+			primaryDistanceMeters = result.distance;
+			stepDirections = steps;
+			alternativePathPoints = fullPathLatLngs;
+			alternativeDistanceMeters = result.distance;
+
+			// Check Arrival Geofence (< 15 meters)
+			checkArrivalGeofence(result.distance, selectedOff?.name || targetBuilding.name);
+		} else {
+			// Direct fallback vector if graph nodes are unconnected
+			const targetCoords = getBuildingLatLng(targetBuilding);
+			const directDist = Math.round(haversineDistance(startLat, startLng, targetCoords[0], targetCoords[1]));
+			primaryPathPoints = [[startLat, startLng], targetCoords];
+			primaryDistanceMeters = directDist;
+			alternativePathPoints = primaryPathPoints;
+			alternativeDistanceMeters = directDist;
+			stepDirections = [{
+				fromName: "Current Position",
+				toName: targetBuilding.name,
+				distanceMeters: directDist
+			}];
+
+			checkArrivalGeofence(directDist, selectedOff?.name || targetBuilding.name);
+		}
+
+		renderCalculatedRoutesOnMap();
+	}
+
+	function checkArrivalGeofence(distanceMeters: number, destinationName: string) {
+		if (distanceMeters < 15 && (selectedOfficeId || activeOfficialPass || prePassData) && !hasArrivedToastShown) {
+			hasArrivedToastShown = true;
+			toast.success(`🎉 You have arrived at ${destinationName}!`, {
+				description: "Please report to reception desk for check-in verification."
+			});
+		} else if (distanceMeters >= 20) {
+			hasArrivedToastShown = false;
+		}
+	}
+
+	let isRouteCardActive = $state(true);
+	let touchStartY = $state(0);
+	let touchCurrentY = $state(0);
+
+	// Expandable Image Lightbox Modal State
+	let expandedImage = $state<{ url: string; title: string; caption?: string } | null>(null);
+	let isLightboxOpen = $state(false);
+
+	function openImageLightbox(url?: string, title?: string, caption?: string) {
+		if (!url) return;
+		expandedImage = { url, title: title || 'Campus Image', caption };
+		isLightboxOpen = true;
+	}
+
+	function handleTouchStart(e: TouchEvent) {
+		touchStartY = e.touches[0].clientY;
+	}
+
+	function handleTouchMove(e: TouchEvent) {
+		touchCurrentY = e.touches[0].clientY;
+	}
+
+	function handleTouchEnd() {
+		if (touchCurrentY > touchStartY + 45) {
+			closeNavigationRoute();
+		}
+		touchStartY = 0;
+		touchCurrentY = 0;
+	}
+
+	let activeDestinationName = $derived.by(() => {
+		if (selectedOfficeId) {
+			const off = officesList.find((o: any) => o.id === selectedOfficeId || o.code === selectedOfficeId);
+			if (off) return off.name;
+			const b = buildingsList.find((b: any) => b.id === selectedOfficeId || b.code === selectedOfficeId);
+			if (b) return `${b.name} (${b.code})`;
+		}
+		if (activeOfficialPass?.officeName && activeOfficialPass.officeName !== 'Designated Office') {
+			return activeOfficialPass.officeName;
+		}
+		if (prePassData?.officeName && prePassData.officeName !== 'Designated Office') {
+			return prePassData.officeName;
+		}
+		return "Designated Campus Office";
+	});
+
+	function closeNavigationRoute() {
+		if (primaryPolyline && leafMap) {
+			leafMap.removeLayer(primaryPolyline);
+			primaryPolyline = null;
+		}
+		if (alternativePolyline && leafMap) {
+			leafMap.removeLayer(alternativePolyline);
+			alternativePolyline = null;
+		}
+		primaryPathPoints = [];
+		alternativePathPoints = [];
+		selectedOfficeId = '';
+		isRouteCardActive = false;
+		toast.info("Navigation route cleared.");
+	}
+
+	function startNavigationToBuilding(building: any) {
+		if (!building) return;
+		isBuildingModalOpen = false;
+		selectedOfficeId = building.id;
+		isRouteCardActive = true;
 
 		const startLat = userGps?.lat || mainGateCoords.lat;
 		const startLng = userGps?.lng || mainGateCoords.lng;
 
-		const destLat = 9.894414;
-		const destLng = 123.882580;
+		calculatePathfindingRoutes(startLat, startLng, building.id);
+		toast.success(`Navigating to ${building.name} (${building.code})`);
+	}
 
-		if (pathPolyline) {
-			leafMap.removeLayer(pathPolyline);
+	function renderCalculatedRoutesOnMap() {
+		if (!leafMap || !leafletInstance) return;
+		const L = leafletInstance;
+
+		if (primaryPolyline) leafMap.removeLayer(primaryPolyline);
+		if (alternativePolyline) leafMap.removeLayer(alternativePolyline);
+
+		const activePoints = activeRouteMode === 'primary' ? primaryPathPoints : alternativePathPoints;
+		const altPoints = activeRouteMode === 'primary' ? alternativePathPoints : primaryPathPoints;
+
+		const routePaneExists = leafMap.getPane('routePane');
+
+		// Render Alternative polyline (dashed purple) on high-priority routePane
+		if (altPoints.length >= 2 && activeRouteMode === 'primary' && alternativeDistanceMeters > primaryDistanceMeters) {
+			alternativePolyline = L.polyline(altPoints, {
+				color: '#8b5cf6',
+				weight: 5,
+				opacity: 0.7,
+				dashArray: '8, 8',
+				...(routePaneExists ? { pane: 'routePane' } : {})
+			}).addTo(leafMap);
+			alternativePolyline.bindTooltip("Alternative Route", { sticky: true });
 		}
 
-		pathPolyline = L.polyline(
-			[[startLat, startLng], [destLat, destLng]],
-			{ color: '#3b82f6', weight: 4, opacity: 0.8, dashArray: '8, 8' }
-		).addTo(leafMap);
+		// Render Active Route polyline (solid emerald green) on high-priority routePane
+		if (activePoints.length >= 2) {
+			primaryPolyline = L.polyline(activePoints, {
+				color: '#10b981',
+				weight: 7,
+				opacity: 0.95,
+				...(routePaneExists ? { pane: 'routePane' } : {})
+			}).addTo(leafMap);
+			primaryPolyline.bindTooltip(`Active Route (${activeRouteDistance} m)`, { sticky: true });
 
-		leafMap.fitBounds([[startLat, startLng], [destLat, destLng]], { padding: [40, 40] });
+			leafMap.fitBounds(L.polyline(activePoints).getBounds(), { padding: [50, 50] });
+		}
+	}
+
+	function drawNavigationPathToOffice(office: Office) {
+		isRouteCardActive = true;
+		const startLat = userGps?.lat || mainGateCoords.lat;
+		const startLng = userGps?.lng || mainGateCoords.lng;
+		calculatePathfindingRoutes(startLat, startLng, office.id);
 	}
 
 	// Helper to safely write to localStorage without throwing QuotaExceededError
@@ -1107,6 +1609,22 @@
 															value={office.name}
 															onSelect={() => {
 																selectedOfficeId = office.id;
+																const foundOff = officesList.find((o: any) => o.id === office.id);
+																if (foundOff) {
+																	const targetB = buildingsList.find((b: any) => b.id === foundOff.buildingId);
+																	if (prePassData) {
+																		prePassData = {
+																			...prePassData,
+																			officeId: foundOff.id,
+																			officeName: foundOff.name,
+																			buildingId: targetB?.id || foundOff.buildingId,
+																			buildingName: targetB?.name || foundOff.name
+																		};
+																	}
+																	const startLat = userGps?.lat || mainGateCoords.lat;
+																	const startLng = userGps?.lng || mainGateCoords.lng;
+																	calculatePathfindingRoutes(startLat, startLng, foundOff.id);
+																}
 																isOfficeComboOpen = false;
 															}}
 															class="text-xs font-semibold cursor-pointer rounded-xl px-3 py-2.5 flex items-center justify-between hover:bg-muted/60 transition-colors"
@@ -1311,6 +1829,125 @@
 	<!-- MAIN LEAFLET MAP CANVAS -->
 	<div bind:this={mapContainer} class="absolute inset-0 z-0"></div>
 
+	<!-- FLOATING NAVIGATION METRIC CARD (Shortest Path, Distance, Walking Time & Route Switcher) -->
+	{#if isRouteCardActive && (selectedOfficeId || activeOfficialPass || prePassData) && !isGateOverlayOpen}
+		<div class="absolute top-20 left-4 right-4 md:left-auto md:right-4 z-40 md:w-96 pointer-events-auto">
+			<Card.Root 
+				ontouchstart={handleTouchStart} 
+				ontouchmove={handleTouchMove} 
+				ontouchend={handleTouchEnd}
+				class="p-4 rounded-3xl bg-card/95 backdrop-blur-2xl border border-border/80 shadow-2xl flex flex-col gap-3 relative transition-transform"
+			>
+				<!-- Swipe Down Pill Handle -->
+				<div class="w-10 h-1 bg-muted-foreground/30 hover:bg-muted-foreground/50 rounded-full mx-auto -mt-1 shrink-0 cursor-grab"></div>
+
+				<div class="flex items-center justify-between border-b border-border/60 pb-2">
+					<div class="flex items-center gap-2 max-w-[65%]">
+						<RouteIcon class="size-4 text-emerald-500 shrink-0 pointer-events-none" />
+						<div class="truncate">
+							<h3 class="text-xs font-black text-foreground truncate">
+								{activeDestinationName}
+							</h3>
+							<span class="text-[10px] text-muted-foreground font-semibold block">Live Pathfinding Active</span>
+						</div>
+					</div>
+
+					<div class="flex items-center gap-1.5 shrink-0">
+						{#if gpsStatus === 'active'}
+							<Badge variant="secondary" class="text-[9px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 gap-1">
+								<span class="size-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+								<span>GPS On</span>
+							</Badge>
+						{:else}
+							<Badge variant="outline" class="text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 gap-1">
+								<MapPinOffIcon class="size-3 pointer-events-none" />
+								<span>Location Off</span>
+							</Badge>
+						{/if}
+
+						<Button onclick={closeNavigationRoute} variant="ghost" size="icon" class="size-7 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer" title="Dismiss & Clear Route">
+							<XIcon class="size-4 pointer-events-none" />
+						</Button>
+					</div>
+				</div>
+
+				<!-- Navigation Metrics Grid (2-Column: Distance & Est. Walk Time) -->
+				<div class="grid grid-cols-2 gap-2 p-2.5 rounded-2xl bg-muted/60 border border-border/60">
+					<div class="flex flex-col items-center justify-center text-center">
+						<span class="text-[9px] font-extrabold uppercase text-muted-foreground">Distance</span>
+						<span class="text-xs font-black text-foreground">{activeRouteDistance} m</span>
+					</div>
+
+					<div class="flex flex-col items-center justify-center text-center border-l border-border/60">
+						<span class="text-[9px] font-extrabold uppercase text-muted-foreground">Est. Walk Time</span>
+						<span class="text-xs font-black text-emerald-500">
+							{activeRouteMins > 0 ? `${activeRouteMins}m ` : ''}{activeRouteSecs}s
+						</span>
+					</div>
+				</div>
+
+				<!-- Route Switcher Buttons (Primary Shortest vs Alternative Path) -->
+				<div class="flex items-center gap-2 pt-0.5">
+					<Button 
+						onclick={() => { activeRouteMode = 'primary'; renderCalculatedRoutesOnMap(); }}
+						variant={activeRouteMode === 'primary' ? 'default' : 'outline'}
+						size="xs" 
+						class="flex-1 h-7 rounded-xl text-[11px] font-bold cursor-pointer"
+					>
+						<span>Primary (Shortest)</span>
+					</Button>
+					<Button 
+						onclick={() => { activeRouteMode = 'alternative'; renderCalculatedRoutesOnMap(); }}
+						variant={activeRouteMode === 'alternative' ? 'default' : 'outline'}
+						size="xs" 
+						class="flex-1 h-7 rounded-xl text-[11px] font-bold cursor-pointer"
+					>
+						<span>Alternative Route</span>
+					</Button>
+				</div>
+
+				<!-- Step-by-Step Directions Accordion Drawer -->
+				{#if stepDirections.length > 0}
+					<div class="border-t border-border/60 pt-2 flex flex-col gap-1.5">
+						<Button 
+							onclick={() => isDirectionsOpen = !isDirectionsOpen} 
+							variant="ghost" 
+							size="xs" 
+							class="w-full justify-between h-7 px-2 text-[11px] font-bold text-muted-foreground hover:text-foreground cursor-pointer rounded-xl"
+						>
+							<span class="flex items-center gap-1.5">
+								<ListIcon class="size-3.5 text-primary pointer-events-none" />
+								<span>Step-by-Step Directions ({stepDirections.length} legs)</span>
+							</span>
+							<ChevronDownIcon class="size-3.5 transition-transform {isDirectionsOpen ? 'rotate-180' : ''}" />
+						</Button>
+
+						{#if isDirectionsOpen}
+							<div class="flex flex-col gap-1.5 max-h-40 overflow-y-auto pr-1">
+								{#each stepDirections as step, idx}
+									<div class="p-2 rounded-xl bg-muted/40 border border-border/50 flex items-center justify-between text-[11px] font-semibold">
+										<div class="flex items-center gap-2">
+											<span class="size-5 rounded-full bg-primary/10 text-primary font-black text-[9px] flex items-center justify-center shrink-0">
+												{idx + 1}
+											</span>
+											<div class="flex flex-col text-start">
+												<span class="font-bold text-foreground">{step.fromName} &rarr; {step.toName}</span>
+												<span class="text-[9px] text-muted-foreground">Follow campus pathway</span>
+											</div>
+										</div>
+										<Badge variant="outline" class="text-[9px] font-mono font-bold shrink-0">
+											{step.distanceMeters} m
+										</Badge>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
+				{/if}
+			</Card.Root>
+		</div>
+	{/if}
+
 	<!-- BOTTOM FLOATING MAP HUD BAR (Pass Details, QR Scan & Check-Out Controls) -->
 	<div class="absolute bottom-6 left-4 right-4 z-50 max-w-lg mx-auto pointer-events-auto">
 		<div class="p-4 rounded-3xl bg-card/95 backdrop-blur-2xl border border-border shadow-2xl flex flex-col gap-3 font-semibold text-xs text-card-foreground">
@@ -1405,16 +2042,12 @@
 
 				<!-- Building Landmark Photo -->
 				{#if selectedBuildingForModal.imageUrl}
-					<div class="relative w-full h-44 rounded-2xl overflow-hidden border border-border my-2 shadow-inner bg-muted">
-						{#if isBuildingImageLoading}
-							<Skeleton class="absolute inset-0 size-full rounded-2xl z-10" />
-						{/if}
-						<img 
+					<div class="w-full h-44 my-2 shadow-inner">
+						<LazyImage 
 							src={selectedBuildingForModal.imageUrl} 
-							alt={selectedBuildingForModal.name} 
-							onload={() => isBuildingImageLoading = false}
-							onerror={() => isBuildingImageLoading = false}
-							class="size-full object-cover transition-opacity duration-300 {isBuildingImageLoading ? 'opacity-0' : 'opacity-100'}" 
+							alt={selectedBuildingForModal.name}
+							onclick={() => openImageLightbox(selectedBuildingForModal.imageUrl, selectedBuildingForModal.name, selectedBuildingForModal.description)}
+							class="size-full h-44 border border-border"
 						/>
 					</div>
 				{/if}
@@ -1495,16 +2128,12 @@
 							{#each selectedBuildingRooms as room}
 								<div class="p-3 rounded-2xl border border-border/80 bg-background/80 hover:bg-muted/30 transition-colors flex items-start gap-3">
 									{#if room.imageUrl}
-										<div class="relative size-12 rounded-xl overflow-hidden border border-border shrink-0 bg-muted">
-											<Skeleton class="absolute inset-0 size-full rounded-xl pointer-events-none" />
-											<img 
-												src={room.imageUrl} 
-												alt={room.roomName} 
-												onload={(e) => { (e.currentTarget as HTMLImageElement).previousElementSibling?.classList.add('hidden'); }}
-												onerror={(e) => { (e.currentTarget as HTMLImageElement).previousElementSibling?.classList.add('hidden'); }}
-												class="relative size-full object-cover z-10" 
-											/>
-										</div>
+										<LazyImage 
+											src={room.imageUrl} 
+											alt={room.roomName} 
+											onclick={() => openImageLightbox(room.imageUrl, `${room.roomName} (${room.roomNumber})`, room.description)}
+											class="size-12 rounded-xl border border-border shrink-0"
+										/>
 									{:else}
 										<div class="size-12 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center font-bold text-xs shrink-0">
 											{room.roomNumber.slice(0, 4)}
@@ -1530,9 +2159,13 @@
 					{/if}
 				</div>
 
-				<Dialog.Footer class="pt-3 border-t border-border/60">
-					<Button onclick={() => isBuildingModalOpen = false} variant="outline" class="w-full text-xs font-semibold rounded-xl h-10 cursor-pointer">
-						Close Building Details
+				<Dialog.Footer class="pt-3 border-t border-border/60 flex  gap-2">
+					<Button onclick={() => isBuildingModalOpen = false} variant="outline">
+						Close Details
+					</Button>
+					<Button onclick={() => startNavigationToBuilding(selectedBuildingForModal)} variant="default">
+						<RouteIcon class="size-4 pointer-events-none" />
+						<span>Navigate Here</span>
 					</Button>
 				</Dialog.Footer>
 			{/if}
@@ -1586,10 +2219,31 @@
 					<input bind:this={hiddenOfficeCodeInput} type="hidden" name="officeCode" value="" />
 				</form>
 
-				<Separator />
+				{#if qrScanErrorAlert}
+					<Alert.Root variant="destructive" class="rounded-2xl border-destructive/50 bg-destructive/10 text-destructive my-1">
+						<AlertCircleIcon class="size-4 shrink-0 pointer-events-none" />
+						<Alert.Title class="font-extrabold text-xs">Mismatched Office Location</Alert.Title>
+						<Alert.Description class="text-xs leading-relaxed font-semibold">
+							{qrScanErrorAlert}
+						</Alert.Description>
+					</Alert.Root>
+				{/if}
+
+				<Separator class="my-1" />
 
 				<!-- Manual Code Fallback Input Server Action Form (`InputGroup`) -->
-				<form action="?/checkIn" method="POST" use:enhance={handleCheckInEnhance} class="w-full flex flex-col gap-1.5 text-start">
+				<form 
+					action="?/checkIn" 
+					method="POST" 
+					use:enhance={({ cancel }) => {
+						if (!validateScannedOfficeCode(manualScanCode)) {
+							cancel();
+							return;
+						}
+						return handleCheckInEnhance();
+					}} 
+					class="w-full flex flex-col gap-1.5 text-start"
+				>
 					<input type="hidden" name="registeredVisitorId" value={prePassData?.registeredVisitorId || ''} />
 					<input type="hidden" name="fullName" value={prePassData?.fullName || ''} />
 					<input type="hidden" name="firstName" value={prePassData?.firstName || ''} />
@@ -1618,6 +2272,37 @@
 					Close Scanner
 				</Button>
 			</Dialog.Footer>
+		</Dialog.Content>
+	</Dialog.Portal>
+</Dialog.Root>
+
+<!-- FULL-SCREEN IMAGE EXPANSION LIGHTBOX MODAL (`Dialog.Root`) -->
+<Dialog.Root bind:open={isLightboxOpen}>
+	<Dialog.Portal>
+		<Dialog.Overlay class="z-[2999] bg-black/80 backdrop-blur-2xl transition-all duration-300" />
+		<Dialog.Content class="z-[3000] max-w-3xl p-4 border-border/80 bg-card/95 backdrop-blur-3xl text-card-foreground shadow-2xl rounded-3xl overflow-hidden flex flex-col gap-3">
+			{#if expandedImage}
+				<Dialog.Header class="flex items-center justify-between border-b border-border/60 pb-2">
+					<div class="text-start">
+						<Dialog.Title class="text-sm font-black text-foreground">{expandedImage.title}</Dialog.Title>
+						{#if expandedImage.caption}
+							<Dialog.Description class="text-xs text-muted-foreground line-clamp-2 mt-0.5">{expandedImage.caption}</Dialog.Description>
+						{/if}
+					</div>
+				</Dialog.Header>
+				<div class="relative w-full max-h-[75vh] flex items-center justify-center rounded-2xl overflow-hidden bg-black/90 border border-border/80 p-2 shadow-2xl">
+					<LazyImage 
+						src={expandedImage.url} 
+						alt={expandedImage.title} 
+						class="w-full max-h-[70vh] object-contain rounded-xl" 
+					/>
+				</div>
+				<Dialog.Footer class="pt-2 border-t border-border/60">
+					<Button onclick={() => isLightboxOpen = false} variant="outline" class="w-full text-xs font-bold rounded-xl h-9 cursor-pointer">
+						Close Image Viewer
+					</Button>
+				</Dialog.Footer>
+			{/if}
 		</Dialog.Content>
 	</Dialog.Portal>
 </Dialog.Root>

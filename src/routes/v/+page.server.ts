@@ -3,10 +3,8 @@ import {
 	getDbClient,
 	isSupabaseConfigured,
 	supabase,
-	MOCK_OFFICES,
-	MOCK_BUILDINGS,
-	MOCK_ROOMS,
-	mapDbVisitorToVisitor
+	mapDbVisitorToVisitor,
+	getLocalMapEdges
 } from "$lib/supabase";
 import type { Actions, PageServerLoad } from "./$types";
 import type { Visitor } from "$lib/types";
@@ -39,9 +37,9 @@ async function resolveValidOfficeUuid(dbClient: any, rawOfficeId: string): Promi
 }
 
 export const load: PageServerLoad = async ({ locals }) => {
-	let offices = MOCK_OFFICES;
-	let buildings = MOCK_BUILDINGS;
-	let rooms = MOCK_ROOMS;
+	let offices: any[] = [];
+	let buildings: any[] = [];
+	let rooms: any[] = [];
 	let googleVisitorData: {
 		fullName: string;
 		firstName: string;
@@ -171,10 +169,18 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}
 	}
 
+	let mapEdges: any[] = [];
+	try {
+		mapEdges = await getLocalMapEdges(locals.supabase);
+	} catch (e) {
+		console.warn("Failed to load mapEdges on /v:", e);
+	}
+
 	return {
 		offices,
 		buildings,
 		rooms,
+		mapEdges,
 		googleVisitorData
 	};
 };
@@ -358,13 +364,36 @@ export const actions: Actions = {
 			}
 		}
 
-		// Find target office metadata
-		const targetOffice = MOCK_OFFICES.find(o => o.id === officeId) || {
-			id: officeId,
-			name: "Designated Office",
-			buildingId: "off-1",
-			code: "OFFICE"
-		};
+		// Query target office metadata directly from live Supabase DB
+		let officeName = "Designated Office";
+		let officeCode = "OFFICE";
+		let buildingId = "";
+		let buildingName = "Campus Building";
+
+		if (isSupabaseConfigured && supabase) {
+			try {
+				const dbClient = getDbClient();
+				const validUuid = await resolveValidOfficeUuid(dbClient, officeId);
+				if (validUuid) {
+					const { data: dbOffice } = await dbClient
+						.from("offices")
+						.select("id, name, code, building_id, buildings(name)")
+						.eq("id", validUuid)
+						.maybeSingle();
+
+					if (dbOffice) {
+						officeName = dbOffice.name;
+						officeCode = dbOffice.code;
+						buildingId = dbOffice.building_id || "";
+						if (dbOffice.buildings) {
+							buildingName = dbOffice.buildings.name || buildingName;
+						}
+					}
+				}
+			} catch (err) {
+				console.warn("Error looking up target office metadata on register:", err);
+			}
+		}
 
 		const prePassData = {
 			logId: initialLogId,
@@ -376,10 +405,11 @@ export const actions: Actions = {
 			email,
 			phone,
 			purpose,
-			officeId: targetOffice.id,
-			officeName: targetOffice.name,
-			buildingId: targetOffice.buildingId,
-			buildingName: targetOffice.name,
+			officeId,
+			officeName,
+			officeCode,
+			buildingId,
+			buildingName,
 			photoUrl: storedPhotoUrl,
 			passCode,
 			lat,
