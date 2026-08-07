@@ -458,8 +458,8 @@
 							value={newOfficeId}
 							onValueChange={(val) => newOfficeId = val}
 						>
-							<Select.Trigger class="w-full h-10 rounded-xl cursor-pointer hover:bg-muted/30">
-								<span class="text-xs font-semibold text-foreground truncate">
+							<Select.Trigger class="w-full h-10 rounded-xl cursor-pointer hover:bg-muted/30 truncate ">
+								<span class="text-xs font-semibold text-foreground truncate ">
 									{#if newOfficeId}
 										{@const off = officesList.find(o => o.id === newOfficeId)}
 										{off ? `${off.code} - ${off.name} (${off.buildingName || ''})` : 'Select Check-In Office'}
@@ -559,8 +559,8 @@
 							value={editOfficeId}
 							onValueChange={(val) => editOfficeId = val}
 						>
-							<Select.Trigger class="w-full h-10 rounded-xl cursor-pointer hover:bg-muted/30">
-								<span class="text-xs font-semibold text-foreground">
+							<Select.Trigger class="w-full h-10 rounded-xl cursor-pointer hover:bg-muted/30 ">
+								<span class="text-xs font-semibold text-foreground truncate">
 									{#if editOfficeId}
 										{@const off = officesList.find(o => o.id === editOfficeId)}
 										{off ? `${off.code} - ${off.name} (${off.buildingName || ''})` : 'Select Check-In Office'}

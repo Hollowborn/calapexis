@@ -1098,7 +1098,7 @@
 									</Popover.Trigger>
 									<Popover.Content align="start" sideOffset={6} class="w-[var(--bits-popover-anchor-width)] max-w-xs p-0 max-h-60 overflow-y-auto z-[2500] border-border bg-popover text-popover-foreground rounded-2xl shadow-2xl">
 										<Command.Root class="w-full">
-											<Command.Input placeholder="Search office or department..." class="h-10 text-xs px-3 border-b border-border/60" />
+											<Command.Input placeholder="Search office or department..." class="h-10 text-xs px-3 border-border/60" />
 											<Command.List class="p-1 max-h-48 overflow-y-auto">
 												<Command.Empty class="p-3 text-xs text-muted-foreground text-center">No office found.</Command.Empty>
 												<Command.Group>
