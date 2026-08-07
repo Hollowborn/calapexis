@@ -87,6 +87,13 @@ export const actions: Actions = {
 			return fail(400, { message: 'Account ID, Username/Email, and Role are required.' });
 		}
 
+		// Server-side protection check: Protect administrator accounts
+		const profiles = await getLocalProfiles(supabaseAdmin);
+		const targetProfile = profiles.find(p => p.id === id);
+		if (targetProfile && targetProfile.role === 'admin') {
+			return fail(403, { message: 'Administrator accounts are protected and cannot be modified.' });
+		}
+
 		if (role === 'staff' && !officeId) {
 			return fail(400, { message: 'Check-in Office Desk binding is required for staff role.' });
 		}
@@ -114,6 +121,13 @@ export const actions: Actions = {
 
 		if (!id) {
 			return fail(400, { message: 'Account ID is required for deletion.' });
+		}
+
+		// Server-side protection check: Protect administrator accounts
+		const profiles = await getLocalProfiles(supabaseAdmin);
+		const targetProfile = profiles.find(p => p.id === id);
+		if (targetProfile && targetProfile.role === 'admin') {
+			return fail(403, { message: 'Administrator accounts are protected and cannot be deleted.' });
 		}
 
 		try {

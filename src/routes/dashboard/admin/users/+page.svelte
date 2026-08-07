@@ -26,6 +26,10 @@
 	import AlertTriangleIcon from "@lucide/svelte/icons/alert-triangle";
 	import Building2Icon from "@lucide/svelte/icons/building-2";
 	import FilterIcon from "@lucide/svelte/icons/filter";
+	import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
+	import ShieldIcon from "@lucide/svelte/icons/shield";
+	import UserIcon from "@lucide/svelte/icons/user";
+	import LockIcon from "@lucide/svelte/icons/lock";
 
 	let { data } = $props();
 
@@ -258,11 +262,20 @@
 
 {#snippet roleCell({ role }: { role: string })}
 	{#if role === 'admin'}
-		<Badge variant="outline" class="  hover:bg-red-500/10  text-[10px] font-bold rounded-full">Administrator</Badge>
+		<Badge variant="outline" class="gap-1.5 font-bold text-xs rounded-full px-2.5 py-0.5">
+			<ShieldCheckIcon class="size-3.5 shrink-0 pointer-events-none" />
+			<span>Administrator</span>
+		</Badge>
 	{:else if role === 'security'}
-		<Badge class="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 border-indigo-500/20 text-[10px] font-bold rounded-full">Security Guard</Badge>
+		<Badge variant="outline" class="gap-1.5 font-bold text-xs rounded-full px-2.5 py-0.5">
+			<ShieldIcon class="size-3.5 shrink-0 pointer-events-none" />
+			<span>Security Guard</span>
+		</Badge>
 	{:else}
-		<Badge class="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 border-emerald-500/20 text-[10px] font-bold rounded-full">Office Staff</Badge>
+		<Badge variant="outline" class="gap-1.5 font-bold text-xs rounded-full px-2.5 py-0.5">
+			<UserIcon class="size-3.5 shrink-0 pointer-events-none" />
+			<span>Office Staff</span>
+		</Badge>
 	{/if}
 {/snippet}
 
@@ -307,22 +320,31 @@
 
 {#snippet actionsCell({ profile }: { profile: Profile })}
 	<div class="flex items-center justify-end gap-1">
-		<Button 
-			onclick={() => startEditUser(profile)} 
-			variant="ghost" 
-			size="icon" 
-			class="size-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
-		>
-			<PencilIcon class="size-3.5 pointer-events-none" />
-		</Button>
-		<Button 
-			onclick={() => (deletingUserTarget = profile)} 
-			variant="ghost" 
-			size="icon" 
-			class="size-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
-		>
-			<Trash2Icon class="size-3.5 pointer-events-none" />
-		</Button>
+		{#if profile.role === 'admin'}
+			<Badge variant="outline" class="gap-1.5 font-bold text-[10px] py-1 px-2.5 rounded-lg border-border bg-muted/40 text-muted-foreground select-none">
+				<LockIcon class="size-3 text-muted-foreground pointer-events-none" />
+				<span>Protected Admin</span>
+			</Badge>
+		{:else}
+			<Button 
+				onclick={() => startEditUser(profile)} 
+				variant="ghost" 
+				size="icon" 
+				class="size-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
+				title="Edit user account"
+			>
+				<PencilIcon class="size-3.5 pointer-events-none" />
+			</Button>
+			<Button 
+				onclick={() => (deletingUserTarget = profile)} 
+				variant="ghost" 
+				size="icon" 
+				class="size-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 cursor-pointer"
+				title="Delete user account"
+			>
+				<Trash2Icon class="size-3.5 pointer-events-none" />
+			</Button>
+		{/if}
 	</div>
 {/snippet}
 
