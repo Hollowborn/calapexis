@@ -32,8 +32,9 @@
 
 	let { data } = $props();
 
+	let actionEdges = $state<MapEdge[] | null>(null);
 	let buildingsList = $derived<Building[]>(data.buildings || []);
-	let edgesList = $derived<MapEdge[]>(data.mapEdges || []);
+	let edgesList = $derived<MapEdge[]>(actionEdges || data.mapEdges || []);
 
 	// Navigation & Tab state
 	let activeTab = $state<'map' | 'edges'>('map');
@@ -333,10 +334,11 @@
 		buildingsList.forEach(b => {
 			const lat = b.lat || b.xCoord || 9.894414;
 			const lng = b.lng || b.yCoord || 123.88258;
+			const pinColor = b.color || '#3b82f6';
 
 			const iconHtml = `
-				<div class="flex items-center gap-1 bg-background/90 text-foreground border border-border/80 shadow-md px-2 py-1 rounded-xl text-[10px] font-extrabold whitespace-nowrap cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors">
-					<span class="size-2 rounded-full bg-primary inline-block"></span>
+				<div class="flex items-center gap-1.5 bg-background/95 text-foreground border shadow-md px-2 py-1 rounded-xl text-[10px] font-extrabold whitespace-nowrap cursor-pointer transition-all hover:scale-105" style="border-color: ${pinColor}80;">
+					<span class="size-2.5 rounded-full inline-block shrink-0 shadow-xs" style="background-color: ${pinColor}; font-size: 0;"></span>
 					<span>${b.code || b.name}</span>
 				</div>
 			`;
@@ -344,8 +346,8 @@
 			const customIcon = L.divIcon({
 				html: iconHtml,
 				className: 'custom-building-pin',
-				iconSize: [80, 24],
-				iconAnchor: [40, 12]
+				iconSize: [85, 24],
+				iconAnchor: [42, 12]
 			});
 
 			const marker = L.marker([lat, lng], { icon: customIcon }).addTo(leafMap);
@@ -372,16 +374,27 @@
 			if (edge.id === activeEditingId) return;
 			if (!Array.isArray(edge.path) || edge.path.length < 2) return;
 
-			const polyline = L.polyline(edge.path, {
-				color: '#3b82f6',
-				weight: 4,
-				opacity: 0.7,
-				dashArray: '6, 8'
-			}).addTo(leafMap);
-
 			const fromName = getBuildingName(edge.fromNode);
 			const toName = getBuildingName(edge.toNode);
-			polyline.bindTooltip(`<b>Path Edge:</b> ${fromName} &rarr; ${toName}`, { sticky: true });
+
+			const polyline = L.polyline(edge.path, {
+				color: '#3b82f6',
+				weight: 6,
+				opacity: 0.75,
+				dashArray: '6, 8',
+				className: 'cursor-pointer hover:stroke-emerald-500 transition-all'
+			}).addTo(leafMap);
+
+			polyline.bindTooltip(`<b>Click to Edit Pathway</b><br/>${fromName} &rarr; ${toName}`, { sticky: true });
+
+			polyline.on('click', (evt: any) => {
+				if (L.DomEvent) {
+					L.DomEvent.stopPropagation(evt);
+				}
+				startEditingEdge(edge);
+				toast.info(`Editing pathway: ${fromName} → ${toName}`);
+			});
+
 			existingEdgePolylines.push(polyline);
 		});
 	}
@@ -462,6 +475,9 @@
 		return async ({ result, update }: { result: any; update: any }) => {
 			if (result.type === "success") {
 				resolveSave();
+				if (result.data?.mapEdges) {
+					actionEdges = result.data.mapEdges;
+				}
 				clearWaypoints();
 				await update();
 			} else if (result.type === "failure") {
@@ -489,6 +505,9 @@
 		return async ({ result, update }: { result: any; update: any }) => {
 			if (result.type === "success") {
 				resolveDelete();
+				if (result.data?.mapEdges) {
+					actionEdges = result.data.mapEdges;
+				}
 				deletingTarget = null;
 				await update();
 			} else if (result.type === "failure") {
@@ -640,8 +659,13 @@
 			<Popover.Root bind:open={isFromComboOpen}>
 				<Popover.Trigger>
 					<Button variant="outline" type="button" role="combobox" class="w-full justify-between rounded-xl h-8 text-xs font-bold border-border bg-background/80 cursor-pointer">
-						<span class="truncate">
-							{selectedFromBuilding ? `${selectedFromBuilding.name} (${selectedFromBuilding.code})` : "-- Select Start Building --"}
+						<span class="truncate flex items-center gap-1.5">
+							{#if selectedFromBuilding}
+								<span class="size-2 rounded-full inline-block shrink-0" style="background-color: {selectedFromBuilding.color || '#3b82f6'};"></span>
+								<span>{selectedFromBuilding.name} ({selectedFromBuilding.code})</span>
+							{:else}
+								<span>-- Select Start Building --</span>
+							{/if}
 						</span>
 						<ChevronsUpDownIcon class="size-3.5 opacity-50 ml-1 shrink-0 pointer-events-none" />
 					</Button>
@@ -661,7 +685,10 @@
 										}}
 										class="text-xs font-semibold cursor-pointer rounded-xl px-2.5 py-1.5 flex items-center justify-between hover:bg-muted/60"
 									>
-										<span class="truncate">{b.name} ({b.code})</span>
+										<span class="truncate flex items-center gap-1.5">
+											<span class="size-2 rounded-full inline-block shrink-0" style="background-color: {b.color || '#3b82f6'};"></span>
+											<span>{b.name} ({b.code})</span>
+										</span>
 										{#if selectedFromNode === b.id || selectedFromNode === b.code}
 											<CheckIcon class="size-3.5 text-primary shrink-0 ml-1" />
 										{/if}
@@ -688,8 +715,13 @@
 			<Popover.Root bind:open={isToComboOpen}>
 				<Popover.Trigger>
 					<Button variant="outline" type="button" role="combobox" class="w-full justify-between rounded-xl h-8 text-xs font-bold border-border bg-background/80 cursor-pointer">
-						<span class="truncate">
-							{selectedToBuilding ? `${selectedToBuilding.name} (${selectedToBuilding.code})` : "-- Select Destination Building --"}
+						<span class="truncate flex items-center gap-1.5">
+							{#if selectedToBuilding}
+								<span class="size-2 rounded-full inline-block shrink-0" style="background-color: {selectedToBuilding.color || '#3b82f6'};"></span>
+								<span>{selectedToBuilding.name} ({selectedToBuilding.code})</span>
+							{:else}
+								<span>-- Select Destination Building --</span>
+							{/if}
 						</span>
 						<ChevronsUpDownIcon class="size-3.5 opacity-50 ml-1 shrink-0 pointer-events-none" />
 					</Button>
@@ -709,7 +741,10 @@
 										}}
 										class="text-xs font-semibold cursor-pointer rounded-xl px-2.5 py-1.5 flex items-center justify-between hover:bg-muted/60"
 									>
-										<span class="truncate">{b.name} ({b.code})</span>
+										<span class="truncate flex items-center gap-1.5">
+											<span class="size-2 rounded-full inline-block shrink-0" style="background-color: {b.color || '#3b82f6'};"></span>
+											<span>{b.name} ({b.code})</span>
+										</span>
 										{#if selectedToNode === b.id || selectedToNode === b.code}
 											<CheckIcon class="size-3.5 text-primary shrink-0 ml-1" />
 										{/if}

@@ -54,7 +54,8 @@ export const actions: Actions = {
 				toNode,
 				path: parsedPath
 			}, locals.supabase);
-			return { success: true };
+			const updatedEdges = await getLocalMapEdges(locals.supabase);
+			return { success: true, mapEdges: updatedEdges };
 		} catch (error: any) {
 			return fail(500, { message: error.message || "Failed to create map edge pathway." });
 		}
@@ -87,7 +88,8 @@ export const actions: Actions = {
 				toNode,
 				path: parsedPath
 			}, locals.supabase);
-			return { success: true };
+			const updatedEdges = await getLocalMapEdges(locals.supabase);
+			return { success: true, mapEdges: updatedEdges };
 		} catch (error: any) {
 			return fail(500, { message: error.message || "Failed to update map edge pathway." });
 		}
@@ -103,7 +105,8 @@ export const actions: Actions = {
 
 		try {
 			await deleteLocalMapEdge(id, locals.supabase);
-			return { success: true };
+			const updatedEdges = await getLocalMapEdges(locals.supabase);
+			return { success: true, mapEdges: updatedEdges };
 		} catch (error: any) {
 			return fail(500, { message: error.message || "Failed to delete map edge pathway." });
 		}
