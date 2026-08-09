@@ -334,29 +334,65 @@ export const actions: Actions = {
 						}
 					}
 
-					// 3. Create initial Session Log in visitor_logs with office building coordinates
-					const { data: initialLog, error: initialLogErr } = await dbClient
+					// 3. Reuse existing preliminary log or create a new Session Log in visitor_logs
+					const { data: existingPrelimLog } = await dbClient
 						.from("visitor_logs")
-						.insert([{
-							visitor_id: registeredVisitorId,
-							office_id: validOfficeUuid,
-							purpose: purpose || "Campus Visit",
-							check_in_time: new Date().toISOString(),
-							status: "preliminary",
-							verification_status: "approved",
-							pass_code: passCode,
-							last_latitude: officeLat,
-							last_longitude: officeLng,
-							last_located_at: new Date().toISOString()
-						}])
-						.select()
-						.single();
+						.select("id, pass_code")
+						.eq("visitor_id", registeredVisitorId)
+						.eq("status", "preliminary")
+						.order("check_in_time", { ascending: false })
+						.limit(1)
+						.maybeSingle();
 
-					if (initialLogErr) {
-						console.error("visitor_logs initial insert error:", initialLogErr.message);
-					} else if (initialLog) {
-						initialLogId = initialLog.id;
-						passCode = initialLog.pass_code;
+					let sessionLogData: any = null;
+					let sessionLogErr: any = null;
+
+					if (existingPrelimLog) {
+						// Update existing preliminary session
+						const { data: updatedLog, error: updateErr } = await dbClient
+							.from("visitor_logs")
+							.update({
+								office_id: validOfficeUuid,
+								purpose: purpose || "Campus Visit",
+								check_in_time: new Date().toISOString(),
+								last_latitude: officeLat,
+								last_longitude: officeLng,
+								last_located_at: new Date().toISOString()
+							})
+							.eq("id", existingPrelimLog.id)
+							.select()
+							.single();
+
+						sessionLogData = updatedLog || existingPrelimLog;
+						sessionLogErr = updateErr;
+					} else {
+						// Create new preliminary session
+						const { data: insertedLog, error: insertErr } = await dbClient
+							.from("visitor_logs")
+							.insert([{
+								visitor_id: registeredVisitorId,
+								office_id: validOfficeUuid,
+								purpose: purpose || "Campus Visit",
+								check_in_time: new Date().toISOString(),
+								status: "preliminary",
+								verification_status: "approved",
+								pass_code: passCode,
+								last_latitude: officeLat,
+								last_longitude: officeLng,
+								last_located_at: new Date().toISOString()
+							}])
+							.select()
+							.single();
+
+						sessionLogData = insertedLog;
+						sessionLogErr = insertErr;
+					}
+
+					if (sessionLogErr) {
+						console.error("visitor_logs preliminary session error:", sessionLogErr.message);
+					} else if (sessionLogData) {
+						initialLogId = sessionLogData.id;
+						passCode = sessionLogData.pass_code;
 					}
 				}
 			} catch (e) {
