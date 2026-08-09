@@ -57,6 +57,9 @@
 	import ListIcon from "@lucide/svelte/icons/list";
 	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
 	import PlusIcon from "@lucide/svelte/icons/plus";
+	import EyeOffIcon from "@lucide/svelte/icons/eye-off";
+	import FootprintsIcon from "@lucide/svelte/icons/footprints";
+	import ClockIcon from "@lucide/svelte/icons/clock";
 
 	let { data } = $props();
 
@@ -91,6 +94,17 @@
 
 	let primaryPolyline: any = null;
 	let alternativePolyline: any = null;
+	let isNavDrawerOpen = $state(false);
+
+	function removePathDisplay() {
+		if (primaryPolyline && leafMap) leafMap.removeLayer(primaryPolyline);
+		if (alternativePolyline && leafMap) leafMap.removeLayer(alternativePolyline);
+		primaryPolyline = null;
+		alternativePolyline = null;
+		isRouteCardActive = false;
+		isNavDrawerOpen = false;
+		toast.info("Path display removed from map.");
+	}
 
 	// Layer Control & Map state
 	let activeTileLayer = $state<'osm' | 'esri'>('osm');
@@ -1963,124 +1977,111 @@
 	<!-- MAIN LEAFLET MAP CANVAS -->
 	<div bind:this={mapContainer} class="absolute inset-0 z-0"></div>
 
-	<!-- FLOATING NAVIGATION METRIC CARD (Shortest Path, Distance, Walking Time & Route Switcher) -->
+	<!-- ULTRA-SLEEK FLOATING NAVIGATION PILL BAR -->
 	{#if isRouteCardActive && (selectedOfficeId || activeOfficialPass || prePassData) && !isGateOverlayOpen}
-		<div class="absolute top-20 left-4 right-4 md:left-auto md:right-4 z-40 md:w-96 pointer-events-auto">
-			<Card.Root 
-				ontouchstart={handleTouchStart} 
-				ontouchmove={handleTouchMove} 
-				ontouchend={handleTouchEnd}
-				class="p-4 rounded-3xl bg-card/95 backdrop-blur-2xl border border-border/80 shadow-2xl flex flex-col gap-3 relative transition-transform"
-			>
-				<!-- Swipe Down Pill Handle -->
-				<div class="w-10 h-1 bg-muted-foreground/30 hover:bg-muted-foreground/50 rounded-full mx-auto -mt-1 shrink-0 cursor-grab"></div>
-
-				<div class="flex items-center justify-between border-b border-border/60 pb-2">
-					<div class="flex items-center gap-2 max-w-[65%]">
-						<RouteIcon class="size-4 text-emerald-500 shrink-0 pointer-events-none" />
-						<div class="truncate">
-							<h3 class="text-xs font-black text-foreground truncate">
-								{activeDestinationName}
-							</h3>
-							<span class="text-[10px] text-muted-foreground font-semibold block">Live Pathfinding Active</span>
-						</div>
-					</div>
-
-					<div class="flex items-center gap-1.5 shrink-0">
-						{#if gpsStatus === 'active'}
-							<Badge variant="secondary" class="text-[9px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 gap-1">
-								<span class="size-1.5 rounded-full bg-emerald-500 animate-ping"></span>
-								<span>GPS On</span>
-							</Badge>
-						{:else}
-							<Badge variant="outline" class="text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 gap-1">
-								<MapPinOffIcon class="size-3 pointer-events-none" />
-								<span>Location Off</span>
-							</Badge>
-						{/if}
-
-						<Button onclick={closeNavigationRoute} variant="ghost" size="icon" class="size-7 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer" title="Dismiss & Clear Route">
-							<XIcon class="size-4 pointer-events-none" />
-						</Button>
-					</div>
+		<div class="absolute top-20 left-4 right-4 md:left-auto md:right-4 z-40 md:w-auto pointer-events-auto">
+			<Card.Root class="shadow-2xl border-border bg-card/95 backdrop-blur-2xl px-3 py-2 rounded-full flex items-center justify-between gap-2 transition-all">
+				<div class="flex items-center gap-2 min-w-0 max-w-[200px] sm:max-w-xs">
+					<span class="size-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+					<h3 class="text-xs font-black text-foreground truncate">
+						{activeDestinationName}
+					</h3>
 				</div>
 
-				<!-- Navigation Metrics Grid (2-Column: Distance & Est. Walk Time) -->
-				<div class="grid grid-cols-2 gap-2 p-2.5 rounded-2xl bg-muted/60 border border-border/60">
-					<div class="flex flex-col items-center justify-center text-center">
-						<span class="text-[9px] font-extrabold uppercase text-muted-foreground">Distance</span>
-						<span class="text-xs font-black text-foreground">{activeRouteDistance} m</span>
-					</div>
+				<div class="flex items-center gap-1.5 shrink-0">
+					<!-- Dynamic Footstep Distance Badge -->
+					<span class="inline-flex items-center gap-1 text-[11px] font-extrabold text-foreground bg-muted/70 px-2 py-0.5 rounded-full border border-border/60" title="Distance to destination">
+						<FootprintsIcon class="size-3 text-primary shrink-0 pointer-events-none" />
+						<span>{activeRouteDistance}m</span>
+					</span>
 
-					<div class="flex flex-col items-center justify-center text-center border-l border-border/60">
-						<span class="text-[9px] font-extrabold uppercase text-muted-foreground">Est. Walk Time</span>
-						<span class="text-xs font-black text-emerald-500">
-							{activeRouteMins > 0 ? `${activeRouteMins}m ` : ''}{activeRouteSecs}s
-						</span>
-					</div>
-				</div>
+					<!-- Dynamic Walk Time Badge -->
+					<span class="inline-flex items-center gap-1 text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20" title="Estimated walking time">
+						<ClockIcon class="size-3 text-emerald-500 shrink-0 pointer-events-none" />
+						<span>{activeRouteMins > 0 ? `${activeRouteMins}m ` : ''}{activeRouteSecs}s</span>
+					</span>
 
-				<!-- Route Switcher Buttons (Primary Shortest vs Alternative Path) -->
-				<div class="flex items-center gap-2 pt-0.5">
+					<!-- Remove Path Display Button Icon -->
 					<Button 
-						onclick={() => { activeRouteMode = 'primary'; renderCalculatedRoutesOnMap(); }}
-						variant={activeRouteMode === 'primary' ? 'default' : 'outline'}
-						size="xs" 
-						class="flex-1 h-7 rounded-xl text-[11px] font-bold cursor-pointer"
+						onclick={removePathDisplay} 
+						variant="ghost" 
+						size="icon" 
+						class="size-7 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer" 
+						title="Remove Path Display"
 					>
-						<span>Primary (Shortest)</span>
+						<EyeOffIcon class="size-3.5 pointer-events-none" />
 					</Button>
+
+					<!-- Open Details Drawer Button -->
 					<Button 
-						onclick={() => { activeRouteMode = 'alternative'; renderCalculatedRoutesOnMap(); }}
-						variant={activeRouteMode === 'alternative' ? 'default' : 'outline'}
-						size="xs" 
-						class="flex-1 h-7 rounded-xl text-[11px] font-bold cursor-pointer"
+						onclick={() => isNavDrawerOpen = true} 
+						variant="outline" 
+						size="sm" 
+						class="h-7 text-[11px] font-bold rounded-full px-2.5 gap-1 cursor-pointer"
 					>
-						<span>Alternative Route</span>
+						<ListIcon class="size-3 pointer-events-none" />
+						<span class="hidden sm:inline">Details</span>
 					</Button>
 				</div>
-
-				<!-- Step-by-Step Directions Accordion Drawer -->
-				{#if stepDirections.length > 0}
-					<div class="border-t border-border/60 pt-2 flex flex-col gap-1.5">
-						<Button 
-							onclick={() => isDirectionsOpen = !isDirectionsOpen} 
-							variant="ghost" 
-							size="xs" 
-							class="w-full justify-between h-7 px-2 text-[11px] font-bold text-muted-foreground hover:text-foreground cursor-pointer rounded-xl"
-						>
-							<span class="flex items-center gap-1.5">
-								<ListIcon class="size-3.5 text-primary pointer-events-none" />
-								<span>Step-by-Step Directions ({stepDirections.length} legs)</span>
-							</span>
-							<ChevronDownIcon class="size-3.5 transition-transform {isDirectionsOpen ? 'rotate-180' : ''}" />
-						</Button>
-
-						{#if isDirectionsOpen}
-							<div class="flex flex-col gap-1.5 max-h-40 overflow-y-auto pr-1">
-								{#each stepDirections as step, idx}
-									<div class="p-2 rounded-xl bg-muted/40 border border-border/50 flex items-center justify-between text-[11px] font-semibold">
-										<div class="flex items-center gap-2">
-											<span class="size-5 rounded-full bg-primary/10 text-primary font-black text-[9px] flex items-center justify-center shrink-0">
-												{idx + 1}
-											</span>
-											<div class="flex flex-col text-start">
-												<span class="font-bold text-foreground">{step.fromName} &rarr; {step.toName}</span>
-												<span class="text-[9px] text-muted-foreground">Follow campus pathway</span>
-											</div>
-										</div>
-										<Badge variant="outline" class="text-[9px] font-mono font-bold shrink-0">
-											{step.distanceMeters} m
-										</Badge>
-									</div>
-								{/each}
-							</div>
-						{/if}
-					</div>
-				{/if}
 			</Card.Root>
 		</div>
 	{/if}
+
+	<!-- BOTTOM NAVIGATION DETAILS DRAWER MODAL -->
+	<Dialog.Root bind:open={isNavDrawerOpen}>
+		<Dialog.Content class="sm:max-w-md border-border bg-card p-5 shadow-2xl rounded-3xl flex flex-col gap-4">
+			<Dialog.Header class="flex flex-col gap-1 text-start">
+				<div class="flex items-center justify-between">
+					<Dialog.Title class="text-base font-black text-foreground flex items-center gap-2">
+						<RouteIcon class="size-4 text-emerald-500 pointer-events-none" />
+						<span class="truncate">{activeDestinationName}</span>
+					</Dialog.Title>
+					{#if gpsStatus === 'active'}
+						<Badge variant="secondary" class="text-[9px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 gap-1 shrink-0">
+							<span class="size-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+							<span>GPS Active</span>
+						</Badge>
+					{:else}
+						<Badge variant="outline" class="text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 gap-1 shrink-0">
+							<MapPinOffIcon class="size-3 pointer-events-none" />
+							<span>Location Off</span>
+						</Badge>
+					{/if}
+				</div>
+				<Dialog.Description class="text-xs text-muted-foreground font-semibold">
+					Live campus pathfinding route metrics and guidance.
+				</Dialog.Description>
+			</Dialog.Header>
+
+			<!-- Distance & Est. Walk Time Metrics Grid -->
+			<div class="grid grid-cols-2 gap-3 p-4 rounded-2xl bg-muted/50 border border-border/60">
+				<div class="flex flex-col items-center justify-center text-center">
+					<span class="text-[10px] font-extrabold uppercase text-muted-foreground tracking-wider">Total Distance</span>
+					<span class="text-lg font-black text-foreground mt-0.5">{activeRouteDistance} m</span>
+				</div>
+				<div class="flex flex-col items-center justify-center text-center border-l border-border/60">
+					<span class="text-[10px] font-extrabold uppercase text-muted-foreground tracking-wider">Est. Walk Time</span>
+					<span class="text-lg font-black text-emerald-500 mt-0.5">
+						{activeRouteMins > 0 ? `${activeRouteMins}m ` : ''}{activeRouteSecs}s
+					</span>
+				</div>
+			</div>
+
+			{#if gpsStatus !== 'active'}
+				<div class="p-3 rounded-xl border border-amber-500/20 bg-amber-500/5 text-xs text-amber-700 dark:text-amber-300 font-semibold flex items-center gap-2">
+					<RadioIcon class="size-4 text-amber-500 shrink-0 pointer-events-none" />
+					<span>Location Off: Enable device GPS Location for real-time positioning on campus.</span>
+				</div>
+			{/if}
+
+			<Dialog.Footer class="flex gap-2 pt-2 border-t border-border/60">
+				<Button onclick={removePathDisplay} variant="outline" class="w-full text-xs font-bold rounded-xl h-10 gap-1.5 cursor-pointer">
+					<EyeOffIcon class="size-4 pointer-events-none" />
+					<span>Remove Path Display</span>
+				</Button>
+			</Dialog.Footer>
+		</Dialog.Content>
+	</Dialog.Root>
 
 	<!-- BOTTOM FLOATING MAP HUD BAR (Pass Details, QR Scan & Check-Out Controls) -->
 	<div class="absolute bottom-6 left-4 right-4 z-50 max-w-lg mx-auto pointer-events-auto">
