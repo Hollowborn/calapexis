@@ -56,6 +56,7 @@
 	import MapPinOffIcon from "@lucide/svelte/icons/map-pin-off";
 	import ListIcon from "@lucide/svelte/icons/list";
 	import ChevronDownIcon from "@lucide/svelte/icons/chevron-down";
+	import PlusIcon from "@lucide/svelte/icons/plus";
 
 	let { data } = $props();
 
@@ -121,6 +122,20 @@
 	let email = $state('');
 	let phone = $state('');
 	let purpose = $state('');
+	let isPurposeComboOpen = $state(false);
+	let purposeSearchInput = $state('');
+
+	const COMMON_VISIT_PURPOSES = [
+		"Official Business / Document Submission",
+		"Transcript of Records / Diploma Request",
+		"Student Inquiry / Admission & Enrollment",
+		"Faculty & Staff Appointment",
+		"Facilities & Campus Inspection / Maintenance",
+		"Cashier Payment / Financial Settlement",
+		"Class Observation / Academic Research",
+		"Supplier / Delivery Service",
+		"Event / Conference Attendance"
+	];
 	let selectedOfficeId = $state('');
 	let hostPerson = $state('');
 	let photoUrl = $state('');
@@ -735,7 +750,9 @@
 		const handleGpsUpdate = (pos: GeolocationPosition) => {
 			const lat = pos.coords.latitude;
 			const lng = pos.coords.longitude;
-			if (lat >= 9.8934 && lat <= 9.8956 && lng >= 123.8815 && lng <= 123.8836) {
+			const isInsideCampus = lat >= 9.8934 && lat <= 9.8956 && lng >= 123.8815 && lng <= 123.8836;
+
+			if (isInsideCampus) {
 				userGps = { lat, lng };
 				gpsStatus = 'active';
 
@@ -760,6 +777,25 @@
 				}
 			} else {
 				gpsStatus = 'disabled';
+
+				// Auto Check-Out if visitor is checked-in and position moves outside campus bounds
+				if (activeOfficialPass?.status === 'checked_in' && activeOfficialPass?.id) {
+					const body = new FormData();
+					body.append('logId', activeOfficialPass.id);
+					fetch('?/checkOut', { method: 'POST', body })
+						.then(() => {
+							activeOfficialPass = null;
+							if (primaryPolyline && leafMap) leafMap.removeLayer(primaryPolyline);
+							if (alternativePolyline && leafMap) leafMap.removeLayer(alternativePolyline);
+							primaryPolyline = null;
+							alternativePolyline = null;
+							toast.info("Auto Check-Out Completed", {
+								description: "You have been automatically checked out as your GPS position departed the campus boundaries.",
+								duration: 8000
+							});
+						})
+						.catch(e => console.warn("GPS Auto check-out failed:", e));
+				}
 			}
 		};
 
@@ -1694,7 +1730,58 @@
 
 							<Field.Field>
 								<Field.FieldLabel for="gate-purpose">Purpose of Visit *</Field.FieldLabel>
-								<Input id="gate-purpose" bind:value={purpose} placeholder="e.g. Transcript of Records Request" required class="rounded-xl h-9 text-xs" />
+								<input type="hidden" name="purpose" value={purpose} />
+								<Popover.Root bind:open={isPurposeComboOpen}>
+									<Popover.Trigger>
+										<Button variant="outline" type="button" role="combobox" class="w-full justify-between rounded-xl h-9 text-xs font-semibold border-border bg-background cursor-pointer">
+											<span class="truncate">
+												{purpose ? purpose : "-- Select or Type Visit Purpose --"}
+											</span>
+											<ChevronsUpDownIcon class="size-3.5 opacity-50 ml-1 shrink-0 pointer-events-none" />
+										</Button>
+									</Popover.Trigger>
+									<Popover.Content align="start" sideOffset={6} class="w-80 p-0 max-h-60 overflow-y-auto z-[2700] border-border bg-popover text-popover-foreground rounded-2xl shadow-2xl">
+										<Command.Root class="w-full">
+											<Command.Input 
+												placeholder="Type custom purpose or search list..." 
+												bind:value={purposeSearchInput}
+												class="h-9 text-xs px-3 border-border/60" 
+											/>
+											<Command.List class="p-1 max-h-48 overflow-y-auto">
+												{#if purposeSearchInput.trim() && !COMMON_VISIT_PURPOSES.some(p => p.toLowerCase() === purposeSearchInput.trim().toLowerCase())}
+													<Command.Item
+														value={purposeSearchInput}
+														onSelect={() => {
+															purpose = purposeSearchInput.trim();
+															isPurposeComboOpen = false;
+														}}
+														class="text-xs font-bold text-primary cursor-pointer rounded-xl px-2.5 py-1.5 flex items-center justify-between hover:bg-primary/10"
+													>
+														<span class="truncate">Use Custom: "{purposeSearchInput.trim()}"</span>
+														<PlusIcon class="size-3.5 text-primary shrink-0 ml-1" />
+													</Command.Item>
+												{/if}
+												<Command.Group heading="Common Purposes">
+													{#each COMMON_VISIT_PURPOSES as p}
+														<Command.Item
+															value={p}
+															onSelect={() => {
+																purpose = p;
+																isPurposeComboOpen = false;
+															}}
+															class="text-xs font-semibold cursor-pointer rounded-xl px-2.5 py-1.5 flex items-center justify-between hover:bg-muted/60"
+														>
+															<span class="truncate">{p}</span>
+															{#if purpose === p}
+																<CheckIcon class="size-3.5 text-primary shrink-0 ml-1" />
+															{/if}
+														</Command.Item>
+													{/each}
+												</Command.Group>
+											</Command.List>
+										</Command.Root>
+									</Popover.Content>
+								</Popover.Root>
 							</Field.Field>
 						</Field.FieldGroup>
 
