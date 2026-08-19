@@ -78,7 +78,7 @@
 			</h1>
 			
 			<p class="text-xs sm:text-sm text-muted-foreground font-semibold leading-relaxed max-w-md mx-auto">
-				A minimalist navigation gateway. Instantly locate building landmarks, check into rooms, and explore interactive pathfinding.
+				A minimalist navigation and digital pass system for campus buildings, offices, and rooms. 
 			</p>
 		</div>
 

@@ -142,7 +142,7 @@
 	<!-- Page Header block with Timeframe Selector Pills -->
 	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border/60">
 		<div>
-			<h1 class="text-xl md:text-2xl font-black text-foreground tracking-tight">Executive Analytics Overview</h1>
+			<h1 class="text-xl md:text-2xl font-black text-foreground tracking-tight">Analytics</h1>
 			<p class="text-xs text-muted-foreground leading-relaxed font-semibold">Campus visitor traffic, peak hours, and office destination analytics.</p>
 		</div>
 
