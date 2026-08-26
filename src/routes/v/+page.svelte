@@ -1081,11 +1081,11 @@
 			});
 
 			// If visitor is currently in pre-pass preliminary state, auto-trigger checkIn form submit to update status in database
-			if (prePassData && !activeOfficialPass && checkInFormElement) {
-				const currentCode = (prePassData as any).officeCode || prePassData.officeId;
-				if (hiddenOfficeCodeInput) hiddenOfficeCodeInput.value = currentCode;
-				checkInFormElement.requestSubmit();
-			}
+			// if (prePassData && !activeOfficialPass && checkInFormElement) {
+			// 	const currentCode = (prePassData as any).officeCode || prePassData.officeId;
+			// 	if (hiddenOfficeCodeInput) hiddenOfficeCodeInput.value = currentCode;
+			// 	checkInFormElement.requestSubmit();
+			// }
 		} else if (distanceMeters >= 20) {
 			hasArrivedToastShown = false;
 		}
