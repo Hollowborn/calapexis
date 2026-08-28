@@ -863,7 +863,7 @@
 				<div
 					class="size-11 rounded-2xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground flex items-center justify-center text-xl font-black font-mono shadow-md shadow-primary/20 ring-4 ring-primary/10"
 				>
-					C
+					<img src="favicon.png" />
 				</div>
 				<h2
 					class="text-3xl font-black tracking-tight text-foreground mt-2"
