@@ -51,6 +51,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 					roomId: o.room_id || "",
 					headPerson: o.head_person || "",
 					contactEmail: o.contact_email || "",
+					operatingHours: o.operating_hours || "",
 					description: o.description || "",
 					isActive: o.is_active ?? true
 				}));

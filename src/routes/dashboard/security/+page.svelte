@@ -56,6 +56,7 @@
 	// Map Layer & Tile states
 	let selectedBaseTile = $state<'osm' | 'satellite'>('osm');
 	let showCampusOverlay = $state(true);
+	let showOfficeNodes = $state(true);
 	let isLayerPopoverOpen = $state(false);
 
 	let osmLayerInstance: any = null;
@@ -93,6 +94,7 @@
 	let leafMap: any = $state(null);
 	let leafletInstance: any = $state(null);
 	let visitorMarkers: Record<string, any> = {};
+	let officeMarkers: Record<string, any> = {};
 
 	// Campus Bounds
 	const campusBoundsCoords = [
@@ -261,8 +263,18 @@
 		leafMap = map;
 
 		plotVisitorNodesOnMap();
+		plotOfficeNodesOnMap();
 
 		setTimeout(() => map.invalidateSize(), 300);
+
+		if (typeof window !== 'undefined') {
+			(window as any).handleSecurityMapCheckout = (visitorId: string) => {
+				const target = visitors.find((v: any) => v.id === visitorId);
+				if (target) {
+					promptCheckout(target);
+				}
+			};
+		}
 
 		// Supabase Realtime Subscription for Visitor Logs
 		if (isSupabaseConfigured && supabase) {
@@ -276,6 +288,15 @@
 
 			onDestroy(() => {
 				dbClient.removeChannel(channel);
+				if (typeof window !== 'undefined') {
+					delete (window as any).handleSecurityMapCheckout;
+				}
+			});
+		} else {
+			onDestroy(() => {
+				if (typeof window !== 'undefined') {
+					delete (window as any).handleSecurityMapCheckout;
+				}
 			});
 		}
 	});
@@ -315,6 +336,7 @@
 			setTimeout(() => {
 				leafMap.invalidateSize();
 				plotVisitorNodesOnMap();
+				plotOfficeNodesOnMap();
 			}, 100);
 		}
 	});
@@ -324,6 +346,134 @@
 			plotVisitorNodesOnMap();
 		}
 	});
+
+	$effect(() => {
+		if (leafMap && officesList && buildingsList && (showOfficeNodes !== undefined || visitors)) {
+			plotOfficeNodesOnMap();
+		}
+	});
+
+	function plotOfficeNodesOnMap() {
+		if (!leafMap || !leafletInstance) return;
+		const L = leafletInstance;
+
+		Object.values(officeMarkers).forEach(m => leafMap.removeLayer(m));
+		officeMarkers = {};
+
+		if (!showOfficeNodes) return;
+
+		// Track count of offices per parent building to calculate gentle radial offsets for multiple desks in one building
+		const buildingOfficeCounts: Record<string, number> = {};
+		const buildingOfficeIndices: Record<string, number> = {};
+
+		officesList.forEach((o: any) => {
+			if (o.buildingId && (o.isActive || o.isActive === undefined)) {
+				buildingOfficeCounts[o.buildingId] = (buildingOfficeCounts[o.buildingId] || 0) + 1;
+			}
+		});
+
+		officesList.forEach((office: any) => {
+			if (office.isActive === false) return;
+			const b = buildingsList.find((b: any) => b.id === office.buildingId);
+			if (!b) return;
+
+			const baseLat = b.lat || b.xCoord || 9.894414;
+			const baseLng = b.lng || b.yCoord || 123.88258;
+			const color = b.color || '#3b82f6';
+
+			const totalInBuilding = buildingOfficeCounts[office.buildingId] || 1;
+			let lat = baseLat;
+			let lng = baseLng;
+
+			if (totalInBuilding > 1) {
+				const idx = buildingOfficeIndices[office.buildingId] || 0;
+				buildingOfficeIndices[office.buildingId] = idx + 1;
+				const angle = (idx / totalInBuilding) * 2 * Math.PI;
+				const offset = 0.000045; // ~5 meters radial separation for clarity
+				lat = baseLat + Math.sin(angle) * offset;
+				lng = baseLng + Math.cos(angle) * offset;
+			}
+
+			// Active visitors currently at this specific office desk
+			const activeDeskVisitors = visitors.filter((v: any) => 
+				(v.officeId === office.id || (v.officeName && v.officeName.toLowerCase() === office.name.toLowerCase())) && 
+				v.status === 'checked_in'
+			);
+			const activeCount = activeDeskVisitors.length;
+
+			const iconHtml = `
+				<div class="group relative flex items-center justify-center cursor-pointer transition-transform hover:scale-110">
+					<div class="px-2 py-0.5 rounded-xl bg-card/95 backdrop-blur-md border border-border shadow-md flex items-center gap-1.5" style="border-left: 3px solid ${color};">
+						<span class="size-2 rounded-full inline-block shrink-0 shadow-xs" style="background-color: ${color};"></span>
+						<span class="text-[10px] font-black text-foreground whitespace-nowrap">${office.code || office.name}</span>
+						${activeCount > 0 ? `<span class="bg-emerald-500 text-white text-[8px] font-black px-1.5 py-0.2 rounded-full leading-none animate-pulse">${activeCount}</span>` : ''}
+					</div>
+				</div>
+			`;
+
+			const marker = L.marker([lat, lng], {
+				icon: L.divIcon({
+					className: "bg-transparent border-none",
+					html: iconHtml,
+					iconSize: [90, 26],
+					iconAnchor: [45, 13]
+				}),
+				zIndexOffset: 500
+			}).bindPopup(`
+				<div class="font-sans text-xs p-1 max-w-xs flex flex-col gap-2">
+					<div class="flex items-start justify-between gap-2 border-b border-border/60 pb-1.5">
+						<div>
+							<div class="font-black text-foreground text-sm">${office.name}</div>
+							<div class="text-[10px] text-muted-foreground font-semibold flex items-center gap-1 mt-0.5">
+								<span>Building: ${b.name}</span>
+								<span>(${b.code || 'CAMPUS'})</span>
+							</div>
+						</div>
+						<span class="px-1.5 py-0.5 rounded-md text-[9px] font-mono font-bold bg-primary/10 text-primary border border-primary/20">
+							${office.code || 'DESK'}
+						</span>
+					</div>
+
+					<div class="flex flex-col gap-1 text-[11px] text-muted-foreground">
+						${office.headPerson ? `<div><span class="font-bold text-foreground">Head:</span> ${office.headPerson}</div>` : ''}
+						${office.contactEmail ? `<div><span class="font-bold text-foreground">Email:</span> ${office.contactEmail}</div>` : ''}
+						${office.operatingHours ? `<div><span class="font-bold text-foreground">Hours:</span> ${office.operatingHours}</div>` : ''}
+						${office.description ? `<div class="text-[10px] bg-muted/40 p-1.5 rounded-lg text-muted-foreground mt-0.5">${office.description}</div>` : ''}
+					</div>
+
+					<div class="border-t border-border/60 pt-1.5 flex items-center justify-between">
+						<span class="text-[10px] font-bold text-muted-foreground uppercase">Active Visitors</span>
+						<span class="text-xs font-black ${activeCount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}">
+							${activeCount} checked in
+						</span>
+					</div>
+
+					${activeCount > 0 ? `
+						<div class="max-h-28 overflow-y-auto flex flex-col gap-1.5 pt-1 border-t border-border/40">
+							${activeDeskVisitors.map((v: any) => `
+								<div class="text-[10px] flex items-center justify-between bg-muted/40 p-1.5 rounded-xl border border-border/50">
+									<div class="flex flex-col pr-1">
+										<span class="font-bold text-foreground truncate max-w-[110px]">${v.fullName}</span>
+										<span class="font-mono text-[9px] text-primary">${v.passCode}</span>
+									</div>
+									<button 
+										type="button" 
+										onclick="window.handleSecurityMapCheckout('${v.id}')"
+										class="h-6 px-2 rounded-lg bg-destructive/15 hover:bg-destructive text-destructive hover:text-destructive-foreground font-extrabold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+										title="Check out ${v.fullName}"
+									>
+										<span>Check Out</span>
+									</button>
+								</div>
+							`).join('')}
+						</div>
+					` : ''}
+				</div>
+			`).addTo(leafMap);
+
+			officeMarkers[office.id] = marker;
+		});
+	}
 
 	function plotVisitorNodesOnMap() {
 		if (!leafMap || !leafletInstance) return;
@@ -357,18 +507,25 @@
 					iconAnchor: [18, 18]
 				})
 			}).bindPopup(`
-				<div class="font-sans text-xs p-1 max-w-xs flex flex-col gap-1">
+				<div class="font-sans text-xs p-1 max-w-xs flex flex-col gap-1.5 text-popover-foreground">
 					<div class="font-extrabold text-foreground flex items-center justify-between gap-2">
 						<span>${v.fullName}</span>
-						<span class="font-mono text-[10px] text-primary">${v.passCode}</span>
+						<span class="font-mono text-[10px] font-bold text-primary">${v.passCode}</span>
 					</div>
 					<div class="text-[10px] text-muted-foreground font-semibold">
 						Office: ${v.officeName || 'Campus'}
 					</div>
-					<div class="text-[10px] text-emerald-600 font-extrabold flex items-center justify-between border-t border-border/60 pt-1 mt-0.5">
+					<div class="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold flex items-center justify-between border-t border-border/60 pt-1 mt-0.5">
 						<span>Near: ${nearestNode}</span>
 						<span>${duration}</span>
 					</div>
+					<button 
+						type="button" 
+						onclick="window.handleSecurityMapCheckout('${v.id}')"
+						class="w-full mt-1.5 h-7.5 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground font-extrabold text-[10px] flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+					>
+						<span>Check Out Visitor</span>
+					</button>
 				</div>
 			`).addTo(leafMap);
 
@@ -647,6 +804,17 @@
 									<span class="text-[10px] text-muted-foreground font-semibold">3D structure layer</span>
 								</div>
 								<Switch bind:checked={showCampusOverlay} />
+							</div>
+
+							<Separator class="bg-border/60" />
+
+							<!-- Office Desks Layer Switch -->
+							<div class="flex items-center justify-between">
+								<div>
+									<span class="text-xs font-extrabold text-foreground block">Office Nodes</span>
+									<span class="text-[10px] text-muted-foreground font-semibold">Display office desks</span>
+								</div>
+								<Switch bind:checked={showOfficeNodes} />
 							</div>
 						</Popover.Content>
 					</Popover.Root>
