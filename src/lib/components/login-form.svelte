@@ -69,7 +69,7 @@
 </script>
 
 <div class={cn("flex flex-col gap-6", className)} {...restProps}>
-	<Card.Root class="overflow-hidden p-0 border-border shadow-2xl bg-card/65 backdrop-blur-xl">
+	<Card.Root class="overflow-hidden p-0 border-border shadow-2xl bg-card/75 backdrop-blur-xl">
 		<Card.Content class="grid p-0 md:grid-cols-2">
 			<!-- Form Left Section -->
 			<form method="POST" action="/login?/login" use:enhance={handleLoginEnhance} class="p-8 md:p-10 flex flex-col justify-center gap-6">
@@ -99,7 +99,7 @@
 								id="username-{id}"
 								name="username"
 								type="text"
-								placeholder="Username"
+								placeholder="Username or Email"
 								bind:value={username}
 								required
 								class="h-10 rounded-xl border-border bg-background/50 hover:bg-background focus:bg-background transition-colors focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary shadow-xs"
@@ -147,58 +147,14 @@
 						Calapexis Portal
 					</div>
 					<div class="text-xs text-white/80 leading-relaxed font-medium">
-						this is a text, needing some changing. Or changing it needs.
+						Intelligent campus visitor management and live navigational guide.
 					</div>
 				</div>
 			</div>
 		</Card.Content>
 	</Card.Root>
 
-	<!-- Dev Environment Collapsible Quick Selection Bar -->
-	{#if import.meta.env.DEV}
-		<div class="px-6 text-center">
-			<details class="group border border-border/80 bg-card/65 backdrop-blur-md rounded-2xl p-3.5 transition-all text-left shadow-lg">
-				<summary class="text-xs font-extrabold text-muted-foreground hover:text-foreground cursor-pointer select-none flex items-center justify-between list-none">
-					<span class="flex items-center gap-1.5">
-						<span class="w-2 h-2 rounded-full bg-primary animate-ping"></span>
-						<span>🛠️ Dev Mode Quick Fill Accounts</span>
-					</span>
-					<span class="text-[9px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Dev Only</span>
-				</summary>
-				<div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-border/50">
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						onclick={() => { username = 'admin'; password = 'admin123'; }}
-						class="text-[11px] font-bold h-8 rounded-xl border-border/80 hover:bg-primary/5 hover:text-primary transition-colors cursor-pointer"
-					>
-						Admin
-					</Button>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						onclick={() => { username = 'security'; password = 'security123'; }}
-						class="text-[11px] font-bold h-8 rounded-xl border-border/80 hover:bg-primary/5 hover:text-primary transition-colors cursor-pointer"
-					>
-						Security
-					</Button>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						onclick={() => { username = 'staff'; password = 'staff123'; }}
-						class="text-[11px] font-bold h-8 rounded-xl border-border/80 hover:bg-primary/5 hover:text-primary transition-colors cursor-pointer"
-					>
-						Staff
-					</Button>
-				</div>
-			</details>
-		</div>
-	{:else}
-		<FieldDescription class="px-6 text-center text-[10px] text-muted-foreground/60 font-medium">
-			Calapexis visitor management system follows university safety and privacy guidelines.
-		</FieldDescription>
-	{/if}
+	<FieldDescription class="px-6 text-center text-[10px] text-muted-foreground/60 font-medium">
+		Calapexis visitor management system follows university safety and privacy guidelines.
+	</FieldDescription>
 </div>
