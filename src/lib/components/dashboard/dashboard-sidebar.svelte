@@ -169,7 +169,7 @@
 <Sidebar.Root
 	bind:ref
 	collapsible="icon"
-	class="overflow-hidden [&>[data-sidebar=sidebar]]:flex-row"
+	class="overflow-hidden [&>[data-sidebar=sidebar]]:flex-row print:hidden"
 	{...restProps}
 >
 	<!-- Primary Icon Rail Sidebar (Renders inline submenus below corresponding menus on mobile) -->
