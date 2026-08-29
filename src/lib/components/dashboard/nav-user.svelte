@@ -11,10 +11,12 @@
 	import * as DropdownMenu from "$lib/components/ui/dropdown-menu/index.js";
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
 	import { useSidebar } from "$lib/components/ui/sidebar/index.js";
+	import ProfileModal from "./profile-modal.svelte";
 
-	let { user }: { user: { name: string; email: string; avatar: string } } = $props();
+	let { user }: { user: { name: string; email: string; avatar: string; role?: string; officeId?: string; roomId?: string } } = $props();
 
 	const sidebar = useSidebar();
+	let isProfileModalOpen = $state(false);
 </script>
 
 <Sidebar.Menu>
@@ -59,11 +61,11 @@
 				</DropdownMenu.Label>
 				<DropdownMenu.Separator />
 				<DropdownMenu.Group>
-					<DropdownMenu.Item>
+					<DropdownMenu.Item onclick={() => (isProfileModalOpen = true)} class="cursor-pointer">
 						<UserIcon class="size-4 mr-2" />
 						My Profile
 					</DropdownMenu.Item>
-					<DropdownMenu.Item>
+					<DropdownMenu.Item class="cursor-pointer">
 						<BellIcon class="size-4 mr-2" />
 						Notifications
 					</DropdownMenu.Item>
@@ -91,3 +93,6 @@
 		</DropdownMenu.Root>
 	</Sidebar.MenuItem>
 </Sidebar.Menu>
+
+<!-- Global Profile Manager Modal -->
+<ProfileModal bind:open={isProfileModalOpen} {user} />

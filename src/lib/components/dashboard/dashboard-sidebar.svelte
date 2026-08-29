@@ -17,12 +17,14 @@
 		email = "",
 		name = "",
 		avatar = "",
+		officeId = "",
 		...restProps
 	}: ComponentProps<typeof Sidebar.Root> & {
 		role: string;
 		email: string;
 		name?: string;
 		avatar?: string;
+		officeId?: string;
 	} = $props();
 
 	// Route mapping coordinates
@@ -159,6 +161,8 @@
 					: "Office Staff"),
 		email: email || "user@calapexis.local",
 		avatar: avatar || "",
+		role: role,
+		officeId: officeId
 	});
 </script>
 

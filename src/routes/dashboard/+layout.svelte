@@ -86,7 +86,7 @@
 
 <Sidebar.Provider style="--sidebar-width: 350px;">
 	<!-- Mount the dashboard sidebar -->
-	<DashboardSidebar role={data.role} email={data.email} name={data.name} avatar={data.avatar} />
+	<DashboardSidebar role={data.role} email={data.email} name={data.name} avatar={data.avatar} officeId={data.officeId || undefined} />
 	
 	<Sidebar.Inset class="bg-background flex flex-col min-h-screen">
 		<!-- Header Banner -->

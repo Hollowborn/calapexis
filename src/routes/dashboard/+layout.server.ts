@@ -51,6 +51,7 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 		email,
 		name,
 		avatar,
+		officeId: session.officeId || null,
 		assignedRoomId: session.roomId || null
 	};
 };
