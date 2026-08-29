@@ -638,9 +638,13 @@
 			}
 		}
 
+		if (typeof window !== "undefined") {
+			window.addEventListener("resize", handleWindowResize);
+			window.addEventListener("orientationchange", handleWindowResize);
+			window.addEventListener("focus", handleVisibilityOrFocus);
+		}
 		if (typeof document !== "undefined") {
 			document.addEventListener("visibilitychange", handleVisibilityOrFocus);
-			window.addEventListener("focus", handleVisibilityOrFocus);
 		}
 
 		// 3. Check URL parameter to skip gate setup wizard and land directly on map / target building
@@ -848,6 +852,30 @@
 					leafMap.removeLayer(campusOverlayInstance);
 			}
 		}
+	});
+
+	function handleWindowResize() {
+		if (leafMap) {
+			leafMap.invalidateSize();
+		}
+	}
+
+	onDestroy(() => {
+		if (typeof window !== "undefined") {
+			window.removeEventListener("resize", handleWindowResize);
+			window.removeEventListener("orientationchange", handleWindowResize);
+			window.removeEventListener("focus", handleVisibilityOrFocus);
+		}
+		if (typeof document !== "undefined") {
+			document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+		}
+		if (visitorRealtimeChannel && isSupabaseConfigured && supabase) {
+			try {
+				const dbClient = getDbClient();
+				dbClient.removeChannel(visitorRealtimeChannel);
+			} catch (e) {}
+		}
+		stopQrScanner();
 	});
 
 	function getBuildingLatLng(b: any): [number, number] {
@@ -1929,7 +1957,7 @@
 </script>
 
 <div
-	class="relative w-full h-screen overflow-hidden bg-background text-foreground font-sans select-none"
+	class="relative w-full h-[100dvh] max-h-[100dvh] overflow-hidden bg-background text-foreground font-sans select-none"
 >
 	<!-- 1. FULLSCREEN CAMPUS GATE SETUP OVERLAY (INITIAL SETUP WIZARD) -->
 	{#if isGateOverlayOpen}
@@ -1944,7 +1972,7 @@
 					<div
 						class="size-16 bg-primary/10 border border-primary/20 text-primary rounded-3xl flex items-center justify-center mx-auto mb-3 shadow-md"
 					>
-						<span class="font-black text-2xl">C</span>
+						<img src='favicon.png' alt="BISU Calape Logo" /> 
 					</div>
 					<h2
 						class="text-xl font-black text-foreground tracking-tight"
@@ -2595,7 +2623,8 @@
 	<!-- 2. INTERACTIVE MAP PORTAL CANVAS & FLOATING OVERLAYS -->
 	<!-- TOP FLOATING MAP SEARCH BAR (`InputGroup`) -->
 	<div
-		class="absolute top-4 left-4 right-4 z-50 max-w-xl mx-auto pointer-events-auto"
+		class="absolute top-3 sm:top-4 left-3 right-3 sm:left-4 sm:right-4 z-50 max-w-xl mx-auto pointer-events-auto"
+		style="top: max(0.75rem, env(safe-area-inset-top, 0.75rem));"
 	>
 		<InputGroup.Root
 			class="shadow-2xl rounded-2xl bg-card/95 backdrop-blur-xl border border-border transition-all flex items-center"
@@ -2852,7 +2881,8 @@
 	<!-- ULTRA-SLEEK FLOATING NAVIGATION PILL BAR -->
 	{#if isRouteCardActive && (selectedOfficeId || activeOfficialPass || prePassData) && !isGateOverlayOpen}
 		<div
-			class="absolute top-20 left-4 right-4 md:left-auto md:right-4 z-40 md:w-auto pointer-events-auto"
+			class="absolute top-16 sm:top-20 left-3 right-3 md:left-auto md:right-4 z-40 md:w-auto pointer-events-auto"
+			style="top: calc(max(0.75rem, env(safe-area-inset-top, 0.75rem)) + 3.75rem);"
 		>
 			<Card.Root
 				class="shadow-2xl border-border bg-card/95 backdrop-blur-2xl px-3 py-2 rounded-full flex items-center justify-between gap-2 transition-all"
@@ -3022,15 +3052,12 @@
 
 	<!-- BOTTOM FLOATING MAP HUD BAR (Pass Details, QR Scan & Check-Out Controls) -->
 	<div
-		class="absolute bottom-6 left-4 right-4 z-50 max-w-lg mx-auto pointer-events-auto"
+		class="absolute bottom-3 sm:bottom-6 left-3 right-3 sm:left-4 sm:right-4 z-50 max-w-lg mx-auto pointer-events-auto"
+		style="bottom: max(0.75rem, env(safe-area-inset-bottom, 0.75rem));"
 	>
 		<div
-			class="p-4 rounded-3xl bg-card/95 backdrop-blur-2xl border border-border shadow-2xl flex flex-col gap-3 font-semibold text-xs text-card-foreground"
+			class="p-3 sm:p-4 rounded-2xl sm:rounded-3xl bg-card/95 backdrop-blur-2xl border border-border shadow-2xl flex flex-col gap-2.5 sm:gap-3 font-semibold text-xs text-card-foreground"
 		>
-			<!-- Drawer Handle Bar Indicator Pill -->
-			<div
-				class="w-10 h-1 bg-muted-foreground/30 hover:bg-muted-foreground/50 rounded-full mx-auto mb-1 shrink-0 transition-colors"
-			></div>
 			{#if activeOfficialPass}
 				<!-- OFFICIAL PASS ACTIVE HUD -->
 				<div class="flex items-center justify-between">
