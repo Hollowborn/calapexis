@@ -131,8 +131,6 @@
 	let isReturningVisitor = $state(false);
 	let isSubmittingRegister = $state(false);
 	let isSubmittingCheckIn = $state(false);
-	let isOfficeComboOpen = $state(false);
-
 	// 3-Step Wizard Navigation State
 	let registrationStep = $state<1 | 2 | 3>(1);
 
@@ -143,7 +141,6 @@
 	let email = $state("");
 	let phone = $state("");
 	let purpose = $state("");
-	let isPurposeComboOpen = $state(false);
 	let purposeSearchInput = $state("");
 
 	const COMMON_VISIT_PURPOSES = [
@@ -157,6 +154,29 @@
 		"Supplier / Delivery Service",
 		"Event / Conference Attendance",
 	];
+
+	// Dialog Selectors State (Mobile UX)
+	let isOfficeDialogOpen = $state(false);
+	let officeSearchQuery = $state("");
+	let isPurposeDialogOpen = $state(false);
+
+	let filteredOfficesList = $derived.by(() => {
+		if (!officeSearchQuery.trim()) return officesList;
+		const q = officeSearchQuery.toLowerCase().trim();
+		return officesList.filter(
+			(o: any) =>
+				o.name?.toLowerCase().includes(q) ||
+				o.code?.toLowerCase().includes(q) ||
+				o.buildingName?.toLowerCase().includes(q)
+		);
+	});
+
+	let filteredCommonPurposes = $derived.by(() => {
+		if (!purposeSearchInput.trim()) return COMMON_VISIT_PURPOSES;
+		const q = purposeSearchInput.toLowerCase().trim();
+		return COMMON_VISIT_PURPOSES.filter((p) => p.toLowerCase().includes(q));
+	});
+
 	let selectedOfficeId = $state("");
 	let hostPerson = $state("");
 	let photoUrl = $state("");
@@ -2311,126 +2331,30 @@
 
 						<Field.FieldGroup class="flex flex-col gap-3">
 							<Field.Field>
-								<Field.FieldLabel
+								<Field.FieldLabel for="gate-office"
 									>Designated Office / Desk *</Field.FieldLabel
 								>
-								<Popover.Root bind:open={isOfficeComboOpen}>
-									<Popover.Trigger>
-										<Button
-											variant="outline"
-											type="button"
-											role="combobox"
-											class="w-full justify-between rounded-xl h-10 text-xs font-bold border-border bg-background cursor-pointer"
-										>
-											<span class="truncate">
-												{selectedOffice
-													? `${selectedOffice.name} (${selectedOffice.code})`
-													: "-- Select Destination Office --"}
-											</span>
-											<ChevronsUpDownIcon
-												class="size-4 opacity-50 ml-2 shrink-0 pointer-events-none"
-											/>
-										</Button>
-									</Popover.Trigger>
-									<Popover.Content
-										align="start"
-										sideOffset={6}
-										class="w-[var(--bits-popover-anchor-width)] max-w-xs p-0 max-h-60 overflow-y-auto z-[2500] border-border bg-popover text-popover-foreground rounded-2xl shadow-2xl"
-									>
-										<Command.Root class="w-full">
-											<Command.Input
-												placeholder="Search office or department..."
-												class="h-10 text-xs px-3 border-border/60"
-											/>
-											<Command.List
-												class="p-1 max-h-48 overflow-y-auto"
-											>
-												<Command.Empty
-													class="p-3 text-xs text-muted-foreground text-center"
-													>No office found.</Command.Empty
-												>
-												<Command.Group>
-													{#each officesList as office}
-														<Command.Item
-															value={office.name}
-															onSelect={() => {
-																selectedOfficeId =
-																	office.id;
-																const foundOff =
-																	officesList.find(
-																		(
-																			o: any,
-																		) =>
-																			o.id ===
-																			office.id,
-																	);
-																if (foundOff) {
-																	const targetB =
-																		buildingsList.find(
-																			(
-																				b: any,
-																			) =>
-																				b.id ===
-																				foundOff.buildingId,
-																		);
-																	if (
-																		prePassData
-																	) {
-																		prePassData =
-																			{
-																				...prePassData,
-																				officeId:
-																					foundOff.id,
-																				officeName:
-																					foundOff.name,
-																				buildingId:
-																					targetB?.id ||
-																					foundOff.buildingId,
-																				buildingName:
-																					targetB?.name ||
-																					foundOff.name,
-																			};
-																	}
-																	const startLat =
-																		userGps?.lat ||
-																		mainGateCoords.lat;
-																	const startLng =
-																		userGps?.lng ||
-																		mainGateCoords.lng;
-																	calculatePathfindingRoutes(
-																		startLat,
-																		startLng,
-																		foundOff.id,
-																	);
-																}
-																isOfficeComboOpen = false;
-															}}
-															class="text-xs font-semibold cursor-pointer rounded-xl px-3 py-2.5 flex items-center justify-between hover:bg-muted/60 transition-colors"
-														>
-															<div
-																class="flex flex-col text-start"
-															>
-																<span
-																	class="font-extrabold text-foreground"
-																	>{office.name}</span
-																>
-																<span
-																	class="text-[10px] text-muted-foreground font-mono"
-																	>{office.code}</span
-																>
-															</div>
-															{#if selectedOfficeId === office.id}
-																<CheckIcon
-																	class="size-4 text-primary shrink-0 ml-2"
-																/>
-															{/if}
-														</Command.Item>
-													{/each}
-												</Command.Group>
-											</Command.List>
-										</Command.Root>
-									</Popover.Content>
-								</Popover.Root>
+								<Button
+									variant="outline"
+									type="button"
+									onclick={() => {
+										officeSearchQuery = "";
+										isOfficeDialogOpen = true;
+									}}
+									class="w-full justify-between rounded-xl h-11 text-xs font-bold border-border bg-background cursor-pointer px-3.5 hover:bg-muted/40 transition-all shadow-2xs"
+								>
+									<div class="flex items-center gap-2 truncate">
+										<Building2Icon class="size-4 text-primary shrink-0 pointer-events-none" />
+										<span class="truncate">
+											{selectedOffice
+												? `${selectedOffice.name} (${selectedOffice.code})`
+												: "-- Select Destination Office --"}
+										</span>
+									</div>
+									<ChevronsUpDownIcon
+										class="size-4 opacity-50 ml-2 shrink-0 pointer-events-none"
+									/>
+								</Button>
 							</Field.Field>
 
 							<Field.Field>
@@ -2442,88 +2366,192 @@
 									name="purpose"
 									value={purpose}
 								/>
-								<Popover.Root bind:open={isPurposeComboOpen}>
-									<Popover.Trigger>
-										<Button
-											variant="outline"
-											type="button"
-											role="combobox"
-											class="w-full justify-between rounded-xl h-9 text-xs font-semibold border-border bg-background cursor-pointer"
-										>
-											<span class="truncate">
-												{purpose
-													? purpose
-													: "-- Select or Type Visit Purpose --"}
-											</span>
-											<ChevronsUpDownIcon
-												class="size-3.5 opacity-50 ml-1 shrink-0 pointer-events-none"
-											/>
-										</Button>
-									</Popover.Trigger>
-									<Popover.Content
-										align="start"
-										sideOffset={6}
-										class="w-80 p-0 max-h-60 overflow-y-auto z-[2700] border-border bg-popover text-popover-foreground rounded-2xl shadow-2xl"
-									>
-										<Command.Root class="w-full">
-											<Command.Input
-												placeholder="Type custom purpose or search list..."
-												bind:value={purposeSearchInput}
-												class="h-9 text-xs px-3 border-border/60"
-											/>
-											<Command.List
-												class="p-1 max-h-48 overflow-y-auto"
-											>
-												{#if purposeSearchInput.trim() && !COMMON_VISIT_PURPOSES.some((p) => p.toLowerCase() === purposeSearchInput
-																.trim()
-																.toLowerCase())}
-													<Command.Item
-														value={purposeSearchInput}
-														onSelect={() => {
-															purpose =
-																purposeSearchInput.trim();
-															isPurposeComboOpen = false;
-														}}
-														class="text-xs font-bold text-primary cursor-pointer rounded-xl px-2.5 py-1.5 flex items-center justify-between hover:bg-primary/10"
-													>
-														<span class="truncate"
-															>Use Custom: "{purposeSearchInput.trim()}"</span
-														>
-														<PlusIcon
-															class="size-3.5 text-primary shrink-0 ml-1"
-														/>
-													</Command.Item>
-												{/if}
-												<Command.Group
-													heading="Common Purposes"
-												>
-													{#each COMMON_VISIT_PURPOSES as p}
-														<Command.Item
-															value={p}
-															onSelect={() => {
-																purpose = p;
-																isPurposeComboOpen = false;
-															}}
-															class="text-xs font-semibold cursor-pointer rounded-xl px-2.5 py-1.5 flex items-center justify-between hover:bg-muted/60"
-														>
-															<span
-																class="truncate"
-																>{p}</span
-															>
-															{#if purpose === p}
-																<CheckIcon
-																	class="size-3.5 text-primary shrink-0 ml-1"
-																/>
-															{/if}
-														</Command.Item>
-													{/each}
-												</Command.Group>
-											</Command.List>
-										</Command.Root>
-									</Popover.Content>
-								</Popover.Root>
+								<Button
+									variant="outline"
+									type="button"
+									onclick={() => {
+										purposeSearchInput = "";
+										isPurposeDialogOpen = true;
+									}}
+									class="w-full justify-between rounded-xl h-11 text-xs font-semibold border-border bg-background cursor-pointer px-3.5 hover:bg-muted/40 transition-all shadow-2xs"
+								>
+									<div class="flex items-center gap-2 truncate">
+										<SchoolIcon class="size-4 text-primary shrink-0 pointer-events-none" />
+										<span class="truncate">
+											{purpose
+												? purpose
+												: "-- Select or Type Visit Purpose --"}
+										</span>
+									</div>
+									<ChevronsUpDownIcon
+										class="size-4 opacity-50 ml-2 shrink-0 pointer-events-none"
+									/>
+								</Button>
 							</Field.Field>
 						</Field.FieldGroup>
+
+						<!-- Office Selection Dialog Modal (Mobile Friendly) -->
+						<Dialog.Root bind:open={isOfficeDialogOpen}>
+							<Dialog.Portal>
+								<Dialog.Content class="z-[2800] max-w-md w-[92vw] border-border bg-card text-card-foreground shadow-2xl rounded-3xl p-0 overflow-hidden flex flex-col max-h-[85vh]">
+									<div class="p-5 pb-3 border-b border-border/60 bg-muted/20 flex flex-col gap-3">
+										<div class="flex items-center justify-between">
+											<div class="flex items-center gap-2">
+												<Building2Icon class="size-5 text-primary shrink-0 pointer-events-none" />
+												<Dialog.Title class="text-base font-black text-foreground">Select Destination Office</Dialog.Title>
+											</div>
+											<Button
+												variant="ghost"
+												size="icon"
+												onclick={() => (isOfficeDialogOpen = false)}
+												class="size-8 rounded-full hover:bg-muted cursor-pointer"
+											>
+												<XIcon class="size-4 pointer-events-none" />
+											</Button>
+										</div>
+										<div class="relative">
+											<SearchIcon class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+											<Input
+												type="text"
+												placeholder="Search office name, code, or building..."
+												bind:value={officeSearchQuery}
+												class="pl-9 h-10 text-xs font-semibold rounded-xl bg-background border-border"
+											/>
+										</div>
+									</div>
+
+									<div class="p-3 overflow-y-auto flex flex-col gap-2 max-h-[60vh]">
+										{#if filteredOfficesList.length === 0}
+											<div class="p-8 text-center text-xs text-muted-foreground font-semibold flex flex-col items-center gap-2">
+												<Building2Icon class="size-8 text-muted-foreground/40" />
+												<span>No offices found matching "{officeSearchQuery}".</span>
+											</div>
+										{:else}
+											{#each filteredOfficesList as office (office.id)}
+												<button
+													type="button"
+													onclick={() => {
+														selectedOfficeId = office.id;
+														const foundOff = officesList.find((o: any) => o.id === office.id);
+														if (foundOff) {
+															const targetB = buildingsList.find((b: any) => b.id === foundOff.buildingId);
+															if (prePassData) {
+																prePassData = {
+																	...prePassData,
+																	officeId: foundOff.id,
+																	officeName: foundOff.name,
+																	buildingId: targetB?.id || foundOff.buildingId,
+																	buildingName: targetB?.name || foundOff.name,
+																};
+															}
+															const startLat = userGps?.lat || mainGateCoords.lat;
+															const startLng = userGps?.lng || mainGateCoords.lng;
+															calculatePathfindingRoutes(startLat, startLng, foundOff.id);
+														}
+														isOfficeDialogOpen = false;
+													}}
+													class="p-3.5 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer {selectedOfficeId === office.id ? 'border-primary bg-primary/10 text-primary shadow-xs' : 'border-border/70 hover:border-border hover:bg-muted/40 bg-card text-foreground'}"
+												>
+													<div class="flex flex-col gap-0.5 min-w-0 pr-2">
+														<div class="flex items-center gap-2 flex-wrap">
+															<span class="font-black text-xs text-foreground truncate">{office.name}</span>
+															<Badge variant="outline" class="font-mono text-[9px] font-extrabold px-1.5 py-0 border-primary/30 text-primary">
+																{office.code}
+															</Badge>
+														</div>
+														{#if office.buildingName}
+															<span class="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
+																<SchoolIcon class="size-3 shrink-0" />
+																<span>{office.buildingName}{office.floor ? ` • Floor ${office.floor}` : ''}</span>
+															</span>
+														{/if}
+													</div>
+													{#if selectedOfficeId === office.id}
+														<div class="size-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+															<CheckIcon class="size-3.5" />
+														</div>
+													{/if}
+												</button>
+											{/each}
+										{/if}
+									</div>
+								</Dialog.Content>
+							</Dialog.Portal>
+						</Dialog.Root>
+
+						<!-- Purpose Selection Dialog Modal (Mobile Friendly) -->
+						<Dialog.Root bind:open={isPurposeDialogOpen}>
+							<Dialog.Portal>
+								<Dialog.Content class="z-[2800] max-w-md w-[92vw] border-border bg-card text-card-foreground shadow-2xl rounded-3xl p-0 overflow-hidden flex flex-col max-h-[85vh]">
+									<div class="p-5 pb-3 border-b border-border/60 bg-muted/20 flex flex-col gap-3">
+										<div class="flex items-center justify-between">
+											<div class="flex items-center gap-2">
+												<SchoolIcon class="size-5 text-primary shrink-0 pointer-events-none" />
+												<Dialog.Title class="text-base font-black text-foreground">Select Purpose of Visit</Dialog.Title>
+											</div>
+											<Button
+												variant="ghost"
+												size="icon"
+												onclick={() => (isPurposeDialogOpen = false)}
+												class="size-8 rounded-full hover:bg-muted cursor-pointer"
+											>
+												<XIcon class="size-4 pointer-events-none" />
+											</Button>
+										</div>
+										<div class="relative">
+											<SearchIcon class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+											<Input
+												type="text"
+												placeholder="Search reason or type custom purpose..."
+												bind:value={purposeSearchInput}
+												class="pl-9 h-10 text-xs font-semibold rounded-xl bg-background border-border"
+											/>
+										</div>
+									</div>
+
+									<div class="p-3 overflow-y-auto flex flex-col gap-2 max-h-[60vh]">
+										{#if purposeSearchInput.trim() && !COMMON_VISIT_PURPOSES.some((p) => p.toLowerCase() === purposeSearchInput.trim().toLowerCase())}
+											<button
+												type="button"
+												onclick={() => {
+													purpose = purposeSearchInput.trim();
+													isPurposeDialogOpen = false;
+												}}
+												class="p-3 rounded-2xl border-2 border-dashed border-primary/50 bg-primary/5 text-primary text-left flex items-center justify-between transition-all cursor-pointer hover:bg-primary/10"
+											>
+												<div class="flex items-center gap-2 truncate pr-2">
+													<PlusIcon class="size-4 shrink-0 text-primary" />
+													<span class="font-extrabold text-xs truncate">Use Custom: "{purposeSearchInput.trim()}"</span>
+												</div>
+												<Badge variant="default" class="text-[9px] font-bold shrink-0">Select</Badge>
+											</button>
+										{/if}
+
+										<span class="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground px-1 pt-1">
+											Common Visit Reasons
+										</span>
+
+										{#each filteredCommonPurposes as p}
+											<button
+												type="button"
+												onclick={() => {
+													purpose = p;
+													isPurposeDialogOpen = false;
+												}}
+												class="p-3 rounded-2xl border text-left flex items-center justify-between transition-all cursor-pointer {purpose === p ? 'border-primary bg-primary/10 text-primary shadow-xs' : 'border-border/70 hover:border-border hover:bg-muted/40 bg-card text-foreground'}"
+											>
+												<span class="font-bold text-xs pr-2">{p}</span>
+												{#if purpose === p}
+													<div class="size-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+														<CheckIcon class="size-3" />
+													</div>
+												{/if}
+											</button>
+										{/each}
+									</div>
+								</Dialog.Content>
+							</Dialog.Portal>
+						</Dialog.Root>
 
 						<div class="pt-2 flex gap-2">
 							{#if isReturningVisitor}
