@@ -142,8 +142,21 @@
 	<!-- Page Header block with Timeframe Selector Pills -->
 	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border/60">
 		<div>
-			<h1 class="text-xl md:text-2xl font-black text-foreground tracking-tight">Analytics</h1>
-			<p class="text-xs text-muted-foreground leading-relaxed font-semibold">Campus visitor traffic, peak hours, and office destination analytics.</p>
+			<div class="flex items-center gap-2">
+				<h1 class="text-xl md:text-2xl font-black text-foreground tracking-tight">
+					{data?.role === 'staff' ? 'Office Analytics' : 'Analytics Overview'}
+				</h1>
+				{#if data?.role === 'staff' && data?.officeName}
+					<Badge variant="secondary" class="font-bold text-xs rounded-lg px-2 py-0.5 border border-border">
+						{data.officeName}
+					</Badge>
+				{/if}
+			</div>
+			<p class="text-xs text-muted-foreground leading-relaxed font-semibold mt-0.5">
+				{data?.role === 'staff'
+					? `Visitor traffic, peak arrival hours, and compliance telemetry for ${data.officeName || 'your assigned office'}.`
+					: 'Campus visitor traffic, peak hours, and office destination analytics.'}
+			</p>
 		</div>
 
 		<!-- Timeframe Selector Pills -->
@@ -212,7 +225,9 @@
 		<!-- Currently Active Passes KPI -->
 		<Card.Root class="p-5 rounded-2xl border-primary/30 bg-primary/[0.04] shadow-xs flex flex-col justify-between">
 			<div class="flex items-center justify-between">
-				<span class="text-[10px] font-extrabold text-primary uppercase tracking-widest">Currently On Campus</span>
+				<span class="text-[10px] font-extrabold text-primary uppercase tracking-widest">
+					{data?.role === 'staff' ? 'Active in Office' : 'Currently On Campus'}
+				</span>
 				<div class="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20">
 					<CheckCircle2Icon class="size-4 pointer-events-none" />
 				</div>
@@ -243,49 +258,89 @@
 
 	<!-- Ranked Leaderboard & Analytics Panels Grid -->
 	<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-		<!-- Most Visited Offices Leaderboard -->
-		<Card.Root class="border-border/80 shadow-sm rounded-2xl bg-card">
-			<Card.Header class="pb-3">
-				<div class="flex items-center justify-between">
-					<div>
-						<Card.Title class="text-base font-bold text-foreground flex items-center gap-2">
-							<Building2Icon class="size-4 text-primary pointer-events-none" />
-							<span>Most Visited Offices</span>
-						</Card.Title>
-						<Card.Description class="text-xs text-muted-foreground font-semibold">Ranked office destination volume ({selectedTimeframe})</Card.Description>
-					</div>
-					<Badge variant="outline" class="text-[10px] font-extrabold rounded-full uppercase tracking-wider">Top Destinations</Badge>
-				</div>
-			</Card.Header>
-			<Card.Content class="flex flex-col gap-4">
-				{#if topOffices.length > 0}
-					{#each topOffices as office}
-						<div class="flex flex-col gap-1.5">
-							<div class="flex items-center justify-between text-xs font-bold">
-								<div class="flex items-center gap-2">
-									<Badge variant="outline" class="size-5 p-0 rounded-full flex items-center justify-center font-mono text-[9px] font-extrabold border-primary/30 text-primary">
-										#{office.rank}
-									</Badge>
-									<span class="text-foreground">{office.name}</span>
-									<span class="text-[10px] text-muted-foreground font-mono font-semibold">({office.code})</span>
-								</div>
-								<span class="text-xs font-black text-foreground">{office.count} <span class="text-muted-foreground font-normal">({office.percentage}%)</span></span>
-							</div>
-							<div class="w-full bg-muted h-2.5 rounded-full overflow-hidden">
-								<div 
-									class="bg-primary h-full rounded-full transition-all duration-500" 
-									style="width: {office.percentage}%"
-								></div>
-							</div>
+		{#if data?.role === 'admin'}
+			<!-- Most Visited Offices Leaderboard (Admin view) -->
+			<Card.Root class="border-border/80 shadow-sm rounded-2xl bg-card">
+				<Card.Header class="pb-3">
+					<div class="flex items-center justify-between">
+						<div>
+							<Card.Title class="text-base font-bold text-foreground flex items-center gap-2">
+								<Building2Icon class="size-4 text-primary pointer-events-none" />
+								<span>Most Visited Offices</span>
+							</Card.Title>
+							<Card.Description class="text-xs text-muted-foreground font-semibold">Ranked office destination volume ({selectedTimeframe})</Card.Description>
 						</div>
-					{/each}
-				{:else}
-					<div class="py-8 text-center text-xs text-muted-foreground font-semibold">
-						No visit records logged for this timeframe.
+						<Badge variant="outline" class="text-[10px] font-extrabold rounded-full uppercase tracking-wider">Top Destinations</Badge>
 					</div>
-				{/if}
-			</Card.Content>
-		</Card.Root>
+				</Card.Header>
+				<Card.Content class="flex flex-col gap-4">
+					{#if topOffices.length > 0}
+						{#each topOffices as office}
+							<div class="flex flex-col gap-1.5">
+								<div class="flex items-center justify-between text-xs font-bold">
+									<div class="flex items-center gap-2">
+										<Badge variant="outline" class="size-5 p-0 rounded-full flex items-center justify-center font-mono text-[9px] font-extrabold border-primary/30 text-primary">
+											#{office.rank}
+										</Badge>
+										<span class="text-foreground">{office.name}</span>
+										<span class="text-[10px] text-muted-foreground font-mono font-semibold">({office.code})</span>
+									</div>
+									<span class="text-xs font-black text-foreground">{office.count} <span class="text-muted-foreground font-normal">({office.percentage}%)</span></span>
+								</div>
+								<div class="w-full bg-muted h-2.5 rounded-full overflow-hidden">
+									<div 
+										class="bg-primary h-full rounded-full transition-all duration-500" 
+										style="width: {office.percentage}%"
+									></div>
+								</div>
+							</div>
+						{/each}
+					{:else}
+						<div class="py-8 text-center text-xs text-muted-foreground font-semibold">
+							No visit records logged for this timeframe.
+						</div>
+					{/if}
+				</Card.Content>
+			</Card.Root>
+		{:else}
+			<!-- Recent Office Visitors (Staff view) -->
+			<Card.Root class="border-border/80 shadow-sm rounded-2xl bg-card">
+				<Card.Header class="pb-3">
+					<div class="flex items-center justify-between">
+						<div>
+							<Card.Title class="text-base font-bold text-foreground flex items-center gap-2">
+								<Building2Icon class="size-4 text-primary pointer-events-none" />
+								<span>Recent Office Visitors</span>
+							</Card.Title>
+							<Card.Description class="text-xs text-muted-foreground font-semibold">Latest visitor check-ins at {data?.officeName || 'your desk'}</Card.Description>
+						</div>
+						<Badge variant="outline" class="text-[10px] font-extrabold rounded-full uppercase tracking-wider">Assigned Office</Badge>
+					</div>
+				</Card.Header>
+				<Card.Content class="flex flex-col gap-3">
+					{#if timeframeVisitors.length > 0}
+						{#each timeframeVisitors.slice(0, 5) as v}
+							<div class="flex items-center justify-between p-2.5 rounded-xl border border-border/70 bg-muted/20 text-xs">
+								<div class="flex flex-col gap-0.5">
+									<span class="font-bold text-foreground">{v.fullName}</span>
+									<span class="text-[10px] text-muted-foreground font-semibold">{v.purpose || 'Official visit'}</span>
+								</div>
+								<div class="flex items-center gap-2">
+									<span class="font-mono text-[10px] text-muted-foreground font-bold">{v.checkInTime ? new Date(v.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-'}</span>
+									<Badge variant={v.status === 'checked_in' ? 'default' : 'outline'} class="text-[10px] font-bold">
+										{v.status === 'checked_in' ? 'Active' : 'Completed'}
+									</Badge>
+								</div>
+							</div>
+						{/each}
+					{:else}
+						<div class="py-8 text-center text-xs text-muted-foreground font-semibold">
+							No office visitors recorded for this timeframe.
+						</div>
+					{/if}
+				</Card.Content>
+			</Card.Root>
+		{/if}
 
 		<!-- Visit Purpose Breakdown & Hourly Distribution -->
 		<Card.Root class="border-border/80 shadow-sm rounded-2xl bg-card">

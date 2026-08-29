@@ -446,6 +446,7 @@ function mapVisitorToDbVisitor(v: any): any {
 // Local Data Access Helper Functions
 export async function getLocalVisitors(
   todayOnly: boolean = false,
+  officeId?: string | null,
 ): Promise<Visitor[]> {
   if (isSupabaseConfigured && supabase) {
     let query = getDbClient().from("visitors").select("*");
@@ -456,6 +457,10 @@ export async function getLocalVisitors(
       query = query.or(
         `status.eq.checked_in,check_in_time.gte.${startOfToday.toISOString()}`,
       );
+    }
+
+    if (officeId) {
+      query = query.eq("office_id", officeId);
     }
 
     const { data, error } = await query.order("check_in_time", {
@@ -469,7 +474,12 @@ export async function getLocalVisitors(
     getCalapexisStore().visitors = mapped;
     return mapped;
   }
-  return [...getCalapexisStore().visitors];
+
+  let localList = [...getCalapexisStore().visitors];
+  if (officeId) {
+    localList = localList.filter((v) => v.officeId === officeId);
+  }
+  return localList;
 }
 
 export async function addLocalVisitor(

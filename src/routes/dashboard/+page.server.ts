@@ -4,18 +4,28 @@ import type { PageServerLoad, Actions } from "./$types";
 export const load: PageServerLoad = async ({ locals }) => {
 	const session = locals.session;
 
-	// Redirect non-admin roles to their respective portals
+	// Redirect security personnel to their gate console
 	if (session) {
 		if (session.role === "security") {
 			throw redirect(303, "/dashboard/security");
 		}
-		if (session.role === "staff") {
-			throw redirect(303, "/dashboard/staff");
-		}
-		if (session.role === "admin") {
-			// /dashboard IS the Admin Dashboard page — do not redirect!
+		if (session.role === "admin" || session.role === "staff") {
+			let officeName: string | null = null;
+			if (session.role === "staff" && session.officeId && locals.supabase) {
+				const { data: office } = await locals.supabase
+					.from("offices")
+					.select("name, code")
+					.eq("id", session.officeId)
+					.maybeSingle();
+				if (office?.name) {
+					officeName = office.name;
+				}
+			}
+
 			return {
-				role: session.role
+				role: session.role,
+				officeId: session.officeId || null,
+				officeName
 			};
 		}
 		throw redirect(303, "/login?error=unauthorized_dashboard");

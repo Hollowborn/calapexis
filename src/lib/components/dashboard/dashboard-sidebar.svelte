@@ -55,8 +55,8 @@
 				{
 					id: "analytics",
 					title: "Analytics",
-					roles: ["admin"],
-					description: "Campus visitor traffic & statistics",
+					roles: ["admin", "staff"],
+					description: "Visitor traffic & compliance statistics",
 				},
 				{
 					id: "logs-master",
