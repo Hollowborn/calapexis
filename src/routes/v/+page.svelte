@@ -28,6 +28,7 @@
 	import NavigationIcon from "@lucide/svelte/icons/navigation";
 	import CameraIcon from "@lucide/svelte/icons/camera";
 	import QrCodeIcon from "@lucide/svelte/icons/qr-code";
+	import { House } from "@lucide/svelte";
 	import UserCheckIcon from "@lucide/svelte/icons/user-check";
 	import CheckCircleIcon from "@lucide/svelte/icons/check-circle";
 	import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
@@ -3155,12 +3156,13 @@
 						<span>Open Registration Gate</span>
 					</Button>
 					<Button
-						onclick={() => (isScannerModalOpen = true)}
+						// onclick={() => (isScannerModalOpen = true)}
+						href="/"
 						variant="outline"
 						class="flex-1 font-bold text-xs rounded-xl h-10 gap-1.5 cursor-pointer"
 					>
-						<QrCodeIcon data-icon="inline-start" />
-						<span>Scan Office QR</span>
+						<House data-icon="inline-start" />
+						<span>Visit Home Page</span>
 					</Button>
 				</div>
 			{/if}
