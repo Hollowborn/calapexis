@@ -211,65 +211,63 @@
 </script>
 
 <Dialog.Root bind:open>
-	<Dialog.Content class="sm:max-w-lg border-border bg-card p-0 shadow-2xl rounded-3xl overflow-hidden">
-		<!-- Header Banner -->
-		<div class="p-6 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b border-border/70 flex flex-col gap-4">
-			<div class="flex items-center justify-between">
-				<div class="flex items-center gap-3">
-					<Avatar.Root class="size-14 rounded-2xl border-2 border-primary/20 shadow-md">
-						<Avatar.Image src={avatarUrl || user.avatar} alt={fullName || user.name} />
-						<Avatar.Fallback class="rounded-2xl bg-primary/10 text-primary font-black text-lg">
-							{(fullName || user.name || "U").substring(0, 2).toUpperCase()}
-						</Avatar.Fallback>
-					</Avatar.Root>
-					<div class="flex flex-col">
-						<div class="flex items-center gap-2">
-							<Dialog.Title class="text-lg font-black text-foreground">
-								{fullName || user.name || "User Profile"}
-							</Dialog.Title>
-							<Badge variant={roleBadgeVariant} class="text-[9px] font-extrabold uppercase tracking-wider">
-								{user.role || "Staff"}
-							</Badge>
-						</div>
-						<Dialog.Description class="text-xs text-muted-foreground font-semibold flex items-center gap-1.5 mt-0.5">
-							<MailIcon class="size-3 text-muted-foreground shrink-0" />
-							<span>{user.email}</span>
-						</Dialog.Description>
+	<Dialog.Content class="sm:max-w-[540px] max-h-[85vh] p-0 flex flex-col gap-0 rounded-2xl overflow-hidden shadow-2xl border-border/70">
+		<!-- Modal Header -->
+		<div class="p-5 border-b border-border/60 bg-muted/20 flex items-center justify-between">
+			<div class="flex items-center gap-3">
+				<Avatar.Root class="size-10 rounded-xl border border-primary/20 shadow-xs">
+					<Avatar.Image src={avatarUrl || user.avatar} alt={fullName || user.name} />
+					<Avatar.Fallback class="rounded-xl bg-primary/10 text-primary font-black text-sm">
+						{(fullName || user.name || "U").substring(0, 2).toUpperCase()}
+					</Avatar.Fallback>
+				</Avatar.Root>
+				<div class="flex flex-col">
+					<div class="flex items-center gap-2">
+						<Dialog.Title class="text-base font-bold text-foreground">
+							{fullName || user.name || "User Profile"}
+						</Dialog.Title>
+						<Badge variant={roleBadgeVariant} class="text-[9px] font-extrabold uppercase tracking-wider px-1.5 py-0 rounded-md">
+							{user.role || "Staff"}
+						</Badge>
 					</div>
+					<Dialog.Description class="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+						<MailIcon class="size-3 text-muted-foreground shrink-0" />
+						<span>{user.email}</span>
+					</Dialog.Description>
 				</div>
 			</div>
 		</div>
 
 		<!-- Navigation Tabs -->
-		<Tabs.Root bind:value={activeTab} class="w-full">
-			<div class="px-6 pt-4">
-				<Tabs.List class="grid grid-cols-3 w-full bg-muted p-1 rounded-2xl">
+		<Tabs.Root bind:value={activeTab} class="flex-1 flex flex-col min-h-0">
+			<div class="px-5 pt-3 pb-2 border-b border-border/50 bg-background flex items-center justify-between">
+				<Tabs.List class="grid grid-cols-3 h-8 w-72 bg-muted/60 p-0.5 rounded-lg">
 					<Tabs.Trigger
 						value="profile"
-						class="rounded-xl text-xs font-bold gap-1.5 cursor-pointer data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs"
+						class="text-xs font-semibold rounded-md gap-1.5 cursor-pointer data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs"
 					>
-						<UserIcon data-icon="inline-start" />
+						<UserIcon class="size-3.5" />
 						<span>Profile</span>
 					</Tabs.Trigger>
 					<Tabs.Trigger
 						value="security"
-						class="rounded-xl text-xs font-bold gap-1.5 cursor-pointer data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs"
+						class="text-xs font-semibold rounded-md gap-1.5 cursor-pointer data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs"
 					>
-						<KeyRoundIcon data-icon="inline-start" />
+						<KeyRoundIcon class="size-3.5" />
 						<span>Security</span>
 					</Tabs.Trigger>
 					<Tabs.Trigger
 						value="about"
-						class="rounded-xl text-xs font-bold gap-1.5 cursor-pointer data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs"
+						class="text-xs font-semibold rounded-md gap-1.5 cursor-pointer data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs"
 					>
-						<InfoIcon data-icon="inline-start" />
+						<InfoIcon class="size-3.5" />
 						<span>About</span>
 					</Tabs.Trigger>
 				</Tabs.List>
 			</div>
 
 			<!-- Tab 1: Profile & Workspace Info -->
-			<Tabs.Content value="profile" class="p-6 space-y-5 m-0">
+			<Tabs.Content value="profile" class="flex-1 overflow-y-auto min-h-[300px] max-h-[420px] p-5 space-y-4 m-0">
 				<form onsubmit={(e) => { e.preventDefault(); handleSaveProfile(); }} class="space-y-4">
 					<Field.FieldGroup class="flex flex-col gap-4">
 						<Field.Field>
@@ -412,9 +410,9 @@
 			</Tabs.Content>
 
 			<!-- Tab 2: Security & Password Change -->
-			<Tabs.Content value="security" class="p-6 space-y-5 m-0">
+			<Tabs.Content value="security" class="flex-1 overflow-y-auto min-h-[300px] max-h-[420px] p-5 space-y-4 m-0">
 				<form onsubmit={(e) => { e.preventDefault(); handlePasswordChange(); }} class="space-y-4">
-					<div class="p-3.5 rounded-2xl border border-primary/20 bg-primary/5 text-xs text-foreground font-semibold flex items-center gap-2.5">
+					<div class="p-3.5 rounded-xl border border-primary/20 bg-primary/5 text-xs text-foreground font-semibold flex items-center gap-2.5">
 						<ShieldCheckIcon class="size-4 text-primary shrink-0 pointer-events-none" />
 						<span>Password updates are immediately applied to your Supabase credentials.</span>
 					</div>
@@ -457,7 +455,7 @@
 							disabled={isUpdatingPassword}
 							class="w-full h-10 rounded-xl bg-primary hover:bg-primary/95 text-primary-foreground font-extrabold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm"
 						>
-							<LockIcon data-icon="inline-start" />
+							<LockIcon class="size-3.5" />
 							<span>{isUpdatingPassword ? "Updating Password..." : "Update Password"}</span>
 						</Button>
 					</Dialog.Footer>
@@ -465,7 +463,7 @@
 			</Tabs.Content>
 
 			<!-- Tab 3: About System Information -->
-			<Tabs.Content value="about" class="p-6 space-y-4 m-0">
+			<Tabs.Content value="about" class="flex-1 overflow-y-auto min-h-[300px] max-h-[420px] p-5 space-y-4 m-0">
 				<!-- App Branding Box -->
 				<div class="p-4 rounded-2xl border border-border/80 bg-muted/30 flex flex-col gap-3">
 					<div class="flex items-center gap-3">

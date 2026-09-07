@@ -15,6 +15,9 @@
 	import AnimatedThemeToggler from "$lib/components/magic/animated-theme-toggler/animated-theme-toggler.svelte";
 	import LoaderCircleIcon from "@lucide/svelte/icons/loader-circle";
 	import SearchIcon from "@lucide/svelte/icons/search";
+	import NotificationBell from "$lib/components/dashboard/notification-bell.svelte";
+	import NotificationModal from "$lib/components/dashboard/notification-modal.svelte";
+	import { notificationState } from "$lib/notifications.svelte";
 
 	let { data, children } = $props();
 
@@ -50,6 +53,7 @@
 	// Fetch data initially on mount and setup polling every 2 seconds
 	$effect(() => {
 		dashboardState.loadData();
+		notificationState.init(data.role, data.officeId);
 		const interval = setInterval(() => dashboardState.loadData(), 2000);
 		
 		// Check for login query params or error messages
@@ -145,6 +149,9 @@
 					</kbd>
 				</Button>
 
+				<!-- Notification Bell Trigger -->
+				<NotificationBell />
+
 				<AnimatedThemeToggler />
 			</div>
 		</header>
@@ -161,4 +168,7 @@
 
 	<!-- Global Command Palette Modal -->
 	<CommandPalette bind:open={isCommandOpen} role={data.role} officeId={data.officeId || undefined} />
+
+	<!-- Global Notification Center Modal -->
+	<NotificationModal />
 </Sidebar.Provider>

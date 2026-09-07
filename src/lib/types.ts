@@ -145,3 +145,19 @@ export interface MapEdge {
 	path: [number, number][];
 	createdAt?: string;
 }
+
+export type NotificationType = 'pass_registered' | 'desk_arrival' | 'checkout' | 'system';
+
+export interface AppNotification {
+	id: string;
+	recipientId?: string | null;
+	recipientRole?: 'admin' | 'security' | 'staff' | 'all' | null;
+	officeId?: string | null;
+	officeName?: string | null;
+	title: string;
+	message: string;
+	type: NotificationType;
+	linkUrl?: string | null;
+	isRead: boolean;
+	createdAt: string;
+}

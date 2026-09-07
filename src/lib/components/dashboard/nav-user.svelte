@@ -12,6 +12,7 @@
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
 	import { useSidebar } from "$lib/components/ui/sidebar/index.js";
 	import ProfileModal from "./profile-modal.svelte";
+	import { notificationState } from "$lib/notifications.svelte";
 
 	let { user }: { user: { name: string; email: string; avatar: string; role?: string; officeId?: string; roomId?: string } } = $props();
 
@@ -65,9 +66,14 @@
 						<UserIcon class="size-4 mr-2" />
 						My Profile
 					</DropdownMenu.Item>
-					<DropdownMenu.Item class="cursor-pointer">
-						<BellIcon class="size-4 mr-2" />
-						Notifications
+					<DropdownMenu.Item onclick={() => notificationState.openModal()} class="cursor-pointer justify-between">
+						<div class="flex items-center">
+							<BellIcon class="size-4 mr-2" />
+							Notifications
+						</div>
+						{#if notificationState.unreadCount > 0}
+							<span class="size-2 rounded-full bg-destructive animate-pulse"></span>
+						{/if}
 					</DropdownMenu.Item>
 				</DropdownMenu.Group>
 				<DropdownMenu.Separator />
