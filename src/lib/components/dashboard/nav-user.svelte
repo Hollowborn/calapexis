@@ -66,14 +66,18 @@
 						<UserIcon class="size-4 mr-2" />
 						My Profile
 					</DropdownMenu.Item>
-					<DropdownMenu.Item onclick={() => notificationState.openModal()} class="cursor-pointer justify-between">
-						<div class="flex items-center">
+					<DropdownMenu.Item onclick={() => notificationState.openModal()} class="cursor-pointer">
+					
 							<BellIcon class="size-4 mr-2" />
+					
 							Notifications
-						</div>
 						{#if notificationState.unreadCount > 0}
+						<div class="flex justify-end">
 							<span class="size-2 rounded-full bg-destructive animate-pulse"></span>
+							 </div>
+							<!-- <BellIcon class="inline-end size-4 mr-2 animate-pulse" color="red"/> -->
 						{/if}
+						
 					</DropdownMenu.Item>
 				</DropdownMenu.Group>
 				<DropdownMenu.Separator />

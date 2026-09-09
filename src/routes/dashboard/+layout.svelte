@@ -1,3 +1,7 @@
+<svelte:head>
+	<meta name="robots" content="noindex, nofollow" />
+</svelte:head>
+
 <script lang="ts">
 	import { setContext } from "svelte";
 	import { navigating, page } from "$app/stores";

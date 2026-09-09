@@ -1,3 +1,12 @@
+<svelte:head>
+	<title>Visitor Check-In & Interactive Campus Map | Calapexis</title>
+	<meta name="description" content="Campus visitor self-check-in kiosk, pass QR generation, and interactive university campus waypoint navigation." />
+	<link rel="canonical" href="https://calapexis.online/v" />
+	<meta property="og:title" content="Visitor Check-In & Interactive Campus Map | Calapexis" />
+	<meta property="og:description" content="Campus visitor self-check-in kiosk, pass QR generation, and interactive university campus waypoint navigation." />
+	<meta property="og:url" content="https://calapexis.online/v" />
+</svelte:head>
+
 <script lang="ts">
 	import { onMount, onDestroy } from "svelte";
 	import { enhance } from "$app/forms";
