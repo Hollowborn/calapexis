@@ -2383,7 +2383,7 @@
 								>
 									<div class="flex items-center gap-2 truncate">
 										<Building2Icon class="size-4 text-primary shrink-0 pointer-events-none" />
-										<span class="truncate">
+										<span class="truncate  {selectedOffice ? 'text-foreground font-bold' : 'text-muted-foreground font-normal'}">
 											{selectedOffice
 												? `${selectedOffice.name} (${selectedOffice.code})`
 												: officesList.length === 0
@@ -2417,7 +2417,7 @@
 								>
 									<div class="flex items-center gap-2 truncate">
 										<SchoolIcon class="size-4 text-primary shrink-0 pointer-events-none" />
-										<span class="truncate">
+										<span class="truncate  {purpose ? 'text-foreground font-bold' : 'text-muted-foreground font-normal'}">
 											{purpose
 												? purpose
 												: "-- Select or Type Visit Purpose --"}
