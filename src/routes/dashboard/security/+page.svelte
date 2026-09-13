@@ -15,7 +15,7 @@
 	import { Separator } from '$lib/components/ui/separator/index.js';
 	import { Switch } from '$lib/components/ui/switch/index.js';
 	import { toast } from 'svelte-sonner';
-	import { MOCK_BUILDINGS, MOCK_OFFICES, verifyVisitor, checkoutLocalVisitor, isSupabaseConfigured, supabase, getDbClient } from '$lib/supabase';
+	import { verifyVisitor, checkoutLocalVisitor, isSupabaseConfigured, supabase, getDbClient } from '$lib/supabase';
 	
 	// Lucide Icons
 	import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
@@ -46,8 +46,8 @@
 		dashboardContext.visitors?.length ? dashboardContext.visitors : (data?.visitors || [])
 	);
 
-	let officesList = $derived(data?.offices?.length ? data.offices : MOCK_OFFICES);
-	let buildingsList = $derived(data?.buildings?.length ? data.buildings : MOCK_BUILDINGS);
+	let officesList = $derived(data?.offices || []);
+	let buildingsList = $derived(data?.buildings || []);
 
 	// Display mode states
 	let activeTab = $state<'map' | 'visitors'>('map');

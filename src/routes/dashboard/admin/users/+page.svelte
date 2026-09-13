@@ -11,7 +11,6 @@
 	import { toast } from 'svelte-sonner';
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
-	import { MOCK_OFFICES } from '$lib/supabase';
 	
 	// DataTable imports
 	import * as DataTable from "$lib/components/ui/data-table/index.js";
@@ -39,8 +38,7 @@
 		actionProfiles || (data.profiles && data.profiles.length > 0 ? data.profiles : dashboardContext.profiles)
 	);
 
-	// Fallback to mock lists if DB is empty
-	let officesList = $derived(data.offices && data.offices.length > 0 ? data.offices : MOCK_OFFICES);
+	let officesList = $derived(data.offices || []);
 
 	// Accounts Provisioning Dialog modal states
 	let isCreatingUser = $state(false);

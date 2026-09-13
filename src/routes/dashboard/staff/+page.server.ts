@@ -4,7 +4,6 @@ import {
 	getDbClient,
 	isSupabaseConfigured,
 	supabase,
-	MOCK_OFFICES,
 	mapDbVisitorToVisitor
 } from "$lib/supabase";
 
@@ -16,7 +15,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw redirect(303, "/dashboard?error=unauthorized_role");
 	}
 
-	let offices = MOCK_OFFICES;
+	let offices: any[] = [];
 	let assignedOfficeId: string | null = (session as any)?.officeId || session.roomId || null;
 
 	if (isSupabaseConfigured && supabase) {

@@ -2386,7 +2386,9 @@
 										<span class="truncate">
 											{selectedOffice
 												? `${selectedOffice.name} (${selectedOffice.code})`
-												: "-- Select Destination Office --"}
+												: officesList.length === 0
+													? "No destination offices available"
+													: "-- Select Destination Office --"}
 										</span>
 									</div>
 									<ChevronsUpDownIcon
@@ -2462,7 +2464,11 @@
 										{#if filteredOfficesList.length === 0}
 											<div class="p-8 text-center text-xs text-muted-foreground font-semibold flex flex-col items-center gap-2">
 												<Building2Icon class="size-8 text-muted-foreground/40" />
-												<span>No offices found matching "{officeSearchQuery}".</span>
+												{#if officesList.length === 0}
+													<span>No destination offices currently registered in database.</span>
+												{:else}
+													<span>No offices found matching "{officeSearchQuery}".</span>
+												{/if}
 											</div>
 										{:else}
 											{#each filteredOfficesList as office (office.id)}

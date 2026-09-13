@@ -73,7 +73,7 @@ class NotificationStateManager {
 	async fetchNotifications() {
 		const client = getDbClient();
 		if (!client) {
-			this.generateInitialFallbackNotifications();
+			this.notifications = [];
 			return;
 		}
 
@@ -111,56 +111,12 @@ class NotificationStateManager {
 					createdAt: row.created_at
 				}));
 			} else {
-				// If table is newly created or empty, seed sample initial notifications for role
-				this.generateInitialFallbackNotifications();
+				this.notifications = [];
 			}
 		} catch (e) {
 			console.warn("Could not fetch notifications from Supabase, using local state:", e);
-			this.generateInitialFallbackNotifications();
+			this.notifications = [];
 		}
-	}
-
-	private generateInitialFallbackNotifications() {
-		if (this.notifications.length > 0) return;
-
-		const now = new Date();
-		const items: AppNotification[] = [];
-
-		if (this.userRole === "security" || this.userRole === "admin") {
-			items.push({
-				id: "sample-sec-1",
-				title: "🚨 Gate Pass Registered",
-				message: "A visitor has registered an entrance pass for the Administration Office.",
-				type: "pass_registered",
-				linkUrl: "/dashboard/security",
-				isRead: false,
-				createdAt: new Date(now.getTime() - 1000 * 60 * 5).toISOString()
-			});
-		}
-
-		if (this.userRole === "staff" || this.userRole === "admin") {
-			items.push({
-				id: "sample-staff-1",
-				title: "🛎️ Visitor Arrived at Desk",
-				message: "A visitor has scanned your office QR desk code and checked in.",
-				type: "desk_arrival",
-				linkUrl: "/dashboard/staff",
-				isRead: false,
-				createdAt: new Date(now.getTime() - 1000 * 60 * 18).toISOString()
-			});
-		}
-
-		items.push({
-			id: "sample-sys-1",
-			title: "⚡ Portal System Active",
-			message: "Real-time visitor telemetry and notification channels are synchronized.",
-			type: "system",
-			linkUrl: "/dashboard",
-			isRead: true,
-			createdAt: new Date(now.getTime() - 1000 * 60 * 60).toISOString()
-		});
-
-		this.notifications = items;
 	}
 
 	private subscribeRealtime() {
