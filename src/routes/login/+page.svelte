@@ -1,3 +1,10 @@
+<svelte:head>
+	<title>Staff & Admin Portal Login | Calapexis</title>
+	<meta name="description" content="Sign in to the Calapexis administrative, security, and staff operational portals." />
+	<meta name="robots" content="noindex, follow" />
+	<link rel="canonical" href="https://calapexis.online/login" />
+</svelte:head>
+
 <script lang="ts">
 	import { getContext, onDestroy } from "svelte";
 	import { enhance } from "$app/forms";

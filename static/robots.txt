@@ -1,3 +1,15 @@
-# allow crawling everything by default
+# Calapexis Campus Navigation & Visitor Portal robots.txt
 User-agent: *
-Disallow:
+Allow: /
+Allow: /v
+Allow: /login
+Disallow: /dashboard/
+Disallow: /dashboard/*
+Disallow: /auth/
+Disallow: /auth/*
+Disallow: /admin
+Disallow: /staff
+Disallow: /security
+
+# Sitemaps
+Sitemap: https://calapexis.online/sitemap.xml
