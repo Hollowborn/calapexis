@@ -1,5 +1,5 @@
 <script lang="ts">
-	import favicon from '$lib/assets/favicon.svg';
+	// import favicon from '$lib/assets/favicon.svg';
 	import Toaster from '$lib/components/ui/sonner/sonner.svelte';
 	import { ModeWatcher } from 'mode-watcher';
 	import { invalidate } from '$app/navigation';
