@@ -56,9 +56,14 @@
 		</Empty.Header>
 		<Empty.Content class="mt-4">
 			<div class="flex flex-col gap-4 items-center">
-				<Button href="/" variant="default" class="text-xs font-extrabold rounded-xl shadow-md cursor-pointer h-10 px-5">
-					Return to Homepage
-				</Button>
+					<div class="flex w-full items-center gap-2">
+						<Button onclick={() => window.history.back()} variant="outline" class="text-xs font-extrabold rounded-xl shadow-md cursor-pointer h-10 px-5">
+							Go Back
+						</Button>
+						<Button href="/" variant="default" class="text-xs font-extrabold rounded-xl shadow-md cursor-pointer h-10 px-5">
+							Return to Homepage
+						</Button>
+				</div>
 				<Empty.Description class="text-xs font-medium">
 					Need help? <Button variant="link" onclick={() => toast.message('Support contacts: admin@calapexis.local')} class="p-0 h-auto font-bold text-primary hover:underline cursor-pointer text-xs">Contact support</Button>
 				</Empty.Description>
