@@ -1,5 +1,5 @@
 <script lang="ts">
-	import favicon from '$lib/assets/favicon.svg';
+	import favicon from '$lib/assets/favicon.png';
 	import Toaster from '$lib/components/ui/sonner/sonner.svelte';
 	import { ModeWatcher } from 'mode-watcher';
 	import { invalidate } from '$app/navigation';
@@ -23,8 +23,8 @@
 
 
 <svelte:head>
-	<link rel="icon" type="image/svg+xml" href={favicon} />
-	<link rel="alternate icon" type="image/png" href="/favicon.png" />
+	<link rel="icon" type="image/png" href="favicon.png" />
+	<link rel="alternate icon" type="image/svg+xml" href={favicon} />
 	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 	<link rel="preconnect" href="https://fonts.googleapis.com">
