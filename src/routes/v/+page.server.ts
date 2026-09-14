@@ -660,5 +660,27 @@ export const actions: Actions = {
 		}
 
 		return { success: true };
+	},
+
+	checkOut: async ({ request }) => {
+		const formData = await request.formData();
+		const logId = ((formData.get("logId") as string) || "").trim();
+
+		if (logId && isSupabaseConfigured && supabase) {
+			try {
+				const dbClient = getDbClient();
+				await dbClient
+					.from("visitor_logs")
+					.update({
+						status: "checked_out",
+						check_out_time: new Date().toISOString()
+					})
+					.eq("id", logId);
+			} catch (e) {
+				console.warn("Supabase visitor checkOut error:", e);
+			}
+		}
+
+		return { success: true };
 	}
 };

@@ -257,6 +257,72 @@
 	let fileInputElement = $state<HTMLInputElement | null>(null);
 	let visitorRealtimeChannel: any = null;
 
+	const AUTO_CHECKOUT_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+	const GEOFENCE_DEPARTURE_THRESHOLD_METERS = 10; // 10 meters from destination building
+	let autoCheckoutTimer: any = null;
+
+	function setupAutoCheckoutTimer(pass: Visitor | null) {
+		if (autoCheckoutTimer) {
+			clearTimeout(autoCheckoutTimer);
+			autoCheckoutTimer = null;
+		}
+
+		if (!pass || pass.status !== "checked_in" || !pass.checkInTime) return;
+
+		const checkInTimeMs = new Date(pass.checkInTime).getTime();
+		if (isNaN(checkInTimeMs)) return;
+
+		const elapsedMs = Date.now() - checkInTimeMs;
+		const remainingMs = AUTO_CHECKOUT_DURATION_MS - elapsedMs;
+
+		if (remainingMs <= 0) {
+			performAutoCheckout("duration");
+		} else {
+			autoCheckoutTimer = setTimeout(() => {
+				performAutoCheckout("duration");
+			}, remainingMs);
+		}
+	}
+
+	async function performAutoCheckout(
+		reason: "duration" | "geofence" | "campus_boundary",
+		customDescription?: string
+	) {
+		if (autoCheckoutTimer) {
+			clearTimeout(autoCheckoutTimer);
+			autoCheckoutTimer = null;
+		}
+
+		const currentPass = activeOfficialPass;
+		const logId = currentPass?.id || prePassData?.logId;
+
+		if (logId) {
+			try {
+				const body = new FormData();
+				body.append("logId", logId);
+				fetch("?/checkOut", { method: "POST", body }).catch((e) =>
+					console.warn("Auto checkout request failed:", e)
+				);
+				checkoutLocalVisitor(logId);
+			} catch (e) {
+				console.warn("Auto checkout processing error:", e);
+			}
+		}
+
+		const defaultDescriptions = {
+			duration: "Your visitor pass session has reached the 30-minute duration limit and was automatically checked out.",
+			geofence: "You have been automatically checked out after departing the destination office building (>10m away).",
+			campus_boundary: "You have been automatically checked out as your GPS position departed the campus boundaries."
+		};
+
+		handleExternalCheckout("manual");
+
+		toast.info("Auto Check-Out Completed", {
+			description: customDescription || defaultDescriptions[reason] || "Visitor session completed.",
+			duration: 8000
+		});
+	}
+
 	function setupVisitorRealtimeSubscription(logId: string) {
 		if (!isSupabaseConfigured || !supabase || !logId) return;
 		const dbClient = getDbClient();
@@ -294,12 +360,14 @@
 			const dbClient = getDbClient();
 			const { data } = await dbClient
 				.from("visitor_logs")
-				.select("status")
+				.select("status, check_in_time")
 				.eq("id", currentLogId)
 				.maybeSingle();
 
 			if (data && data.status === "checked_out") {
 				handleExternalCheckout("staff");
+			} else if (activeOfficialPass?.status === "checked_in") {
+				setupAutoCheckoutTimer(activeOfficialPass);
 			}
 		} catch (e) {
 			console.warn("Pass status verification check failed:", e);
@@ -313,6 +381,11 @@
 	};
 
 	function handleExternalCheckout(reason: "staff" | "manual" = "staff") {
+		if (autoCheckoutTimer) {
+			clearTimeout(autoCheckoutTimer);
+			autoCheckoutTimer = null;
+		}
+
 		try {
 			localStorage.removeItem("calapexis_active_pass");
 		} catch (e) {}
@@ -641,6 +714,7 @@
 				isGateOverlayOpen = false;
 				if (activeOfficialPass?.id) {
 					verifyActivePassStatus();
+					setupAutoCheckoutTimer(activeOfficialPass);
 					setupVisitorRealtimeSubscription(activeOfficialPass.id);
 				}
 			} catch (e) {
@@ -813,6 +887,10 @@
 	});
 
 	onDestroy(() => {
+		if (autoCheckoutTimer) {
+			clearTimeout(autoCheckoutTimer);
+			autoCheckoutTimer = null;
+		}
 		stopSelfieCamera();
 		if (typeof document !== "undefined") {
 			document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
@@ -884,6 +962,10 @@
 				const dbClient = getDbClient();
 				dbClient.removeChannel(visitorRealtimeChannel);
 			} catch (e) {}
+		}
+		if (autoCheckoutTimer) {
+			clearTimeout(autoCheckoutTimer);
+			autoCheckoutTimer = null;
 		}
 		stopQrScanner();
 	});
@@ -1102,6 +1184,38 @@
 					calculatePathfindingRoutes(lat, lng, targetOffId);
 				}
 
+				// Auto Check-Out if visitor is checked-in and departs the assigned building (>10 meters)
+				if (
+					activeOfficialPass?.status === "checked_in" &&
+					activeOfficialPass?.id
+				) {
+					const targetOff = officesList.find(
+						(o: any) =>
+							o.id === activeOfficialPass?.officeId ||
+							o.code === activeOfficialPass?.officeId,
+					);
+					const targetBuilding = buildingsList.find(
+						(b: any) =>
+							b.id === (targetOff?.buildingId || activeOfficialPass?.buildingId),
+					);
+					if (targetBuilding) {
+						const bCoords = getBuildingLatLng(targetBuilding);
+						const distToBuilding = haversineDistance(
+							lat,
+							lng,
+							bCoords[0],
+							bCoords[1],
+						);
+						if (distToBuilding > GEOFENCE_DEPARTURE_THRESHOLD_METERS) {
+							performAutoCheckout(
+								"geofence",
+								`You have been automatically checked out after departing ${targetBuilding.name} (>10m away).`,
+							);
+							return;
+						}
+					}
+				}
+
 				const targetLogId =
 					activeOfficialPass?.id || prePassData?.logId;
 				if (targetLogId) {
@@ -1121,26 +1235,10 @@
 					activeOfficialPass?.status === "checked_in" &&
 					activeOfficialPass?.id
 				) {
-					const body = new FormData();
-					body.append("logId", activeOfficialPass.id);
-					fetch("?/checkOut", { method: "POST", body })
-						.then(() => {
-							activeOfficialPass = null;
-							if (primaryPolyline && leafMap)
-								leafMap.removeLayer(primaryPolyline);
-							if (alternativePolyline && leafMap)
-								leafMap.removeLayer(alternativePolyline);
-							primaryPolyline = null;
-							alternativePolyline = null;
-							toast.info("Auto Check-Out Completed", {
-								description:
-									"You have been automatically checked out as your GPS position departed the campus boundaries.",
-								duration: 8000,
-							});
-						})
-						.catch((e) =>
-							console.warn("GPS Auto check-out failed:", e),
-						);
+					performAutoCheckout(
+						"campus_boundary",
+						"You have been automatically checked out as your GPS position departed the campus boundaries.",
+					);
 				}
 			}
 		};
@@ -1907,6 +2005,7 @@
 					setupVisitorRealtimeSubscription(pass.id);
 				}
 
+				setupAutoCheckoutTimer(pass);
 				moveVisitorToOfficeLocation(pass);
 
 				toast.success("Check-In Complete!", {
