@@ -12,11 +12,18 @@
 	import { toast } from 'svelte-sonner';
 	import DownloadIcon from '@lucide/svelte/icons/download';
 	import PrinterIcon from '@lucide/svelte/icons/printer';
+	import FileTextIcon from '@lucide/svelte/icons/file-text';
+	import FileDownIcon from '@lucide/svelte/icons/file-down';
+	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import ChevronLeftIcon from '@lucide/svelte/icons/chevron-left';
 	import CalendarIcon from '@lucide/svelte/icons/calendar';
 	import ZoomInIcon from '@lucide/svelte/icons/zoom-in';
 	import ShieldCheckIcon from '@lucide/svelte/icons/shield-check';
 	import AlertTriangleIcon from '@lucide/svelte/icons/triangle-alert';
+	import * as Alert from "$lib/components/ui/alert/index.js";
+	import { Separator } from "$lib/components/ui/separator/index.js";
 	import VisitorPassBadge from "$lib/components/visitor-pass-badge.svelte";
+	import { exportAuditLogsToDocx, exportHtmlToPdf } from '$lib/report-export';
 
 	let { data } = $props();
 
@@ -265,11 +272,10 @@
 		toast.success(`Exported ${filteredVisitors.length} visitor records to CSV spreadsheet.`);
 	}
 
-	function handlePrintReport() {
-		isPrintModalOpen = true;
-	}
+	let isExportingDocx = $state(false);
+	let isExportingPdf = $state(false);
 
-	function generatePrintableReportHTML(): string {
+	function generateReportBodyHTML(): string {
 		const scopeLabel = printDateMode.toUpperCase();
 		const totalEntries = printableVisitors.length;
 		const generatedTime = new Date().toLocaleString();
@@ -312,6 +318,36 @@
 				}
 			}
 		}
+
+		return `
+			<div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 12px; margin-bottom: 16px;">
+				<h1 style="font-size: 16px; font-weight: 900; margin: 0 0 3px; letter-spacing: 0.5px; text-transform: uppercase;">BOHOL ISLAND STATE UNIVERSITY - CALAPE CAMPUS</h1>
+				<h2 style="font-size: 12px; font-weight: 800; margin: 0 0 4px; color: #27272a; text-transform: uppercase;">OFFICIAL VISITOR COMPLIANCE AUDIT REPORT</h2>
+				<p style="font-size: 10px; font-weight: 600; color: #52525b; margin: 0;">Report Scope: <strong>${scopeLabel}</strong> • Total Log Entries: <strong>${totalEntries}</strong> • Generated: ${generatedTime}</p>
+			</div>
+
+			<table style="width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px;">
+				<thead>
+					<tr style="background-color: #f4f4f5; border-bottom: 2px solid #71717a;">
+						${tableHeaders}
+					</tr>
+				</thead>
+				<tbody>
+					${tableBody}
+				</tbody>
+			</table>
+
+			<div style="margin-top: 24px; padding-top: 10px; border-top: 1px solid #d4d4d8; font-size: 9.5px; color: #71717a; display: flex; justify-content: space-between; font-weight: 600;">
+				<div>Certified Official Audit Record • BISU Calape Campus Security Desk</div>
+				<div>Generated from Calapexis Secure Logbook Master</div>
+			</div>
+		`;
+	}
+
+	function generatePrintableReportHTML(): string {
+		const scopeLabel = printDateMode.toUpperCase();
+		const totalEntries = printableVisitors.length;
+		const innerContent = generateReportBodyHTML();
 
 		return `<!DOCTYPE html>
 <html>
@@ -359,54 +395,12 @@
 			color: #000;
 			border: 1px solid #a1a1aa;
 		}
-		.letterhead {
-			text-align: center;
-			border-bottom: 2px solid #000;
-			padding-bottom: 12px;
-			margin-bottom: 16px;
-		}
-		.letterhead h1 {
-			font-size: 16px;
-			font-weight: 900;
-			margin: 0 0 3px;
-			letter-spacing: 0.5px;
-			text-transform: uppercase;
-		}
-		.letterhead h2 {
-			font-size: 12px;
-			font-weight: 800;
-			margin: 0 0 4px;
-			color: #27272a;
-			text-transform: uppercase;
-		}
-		.letterhead p {
-			font-size: 10px;
-			font-weight: 600;
-			color: #52525b;
-			margin: 0;
-		}
-		table {
-			width: 100%;
-			border-collapse: collapse;
-			margin-top: 8px;
-			font-size: 11px;
-		}
 		th {
 			background-color: #f4f4f5;
 			font-weight: 800;
 			text-transform: uppercase;
 			font-size: 9.5px;
 			color: #09090b;
-		}
-		.footer {
-			margin-top: 24px;
-			padding-top: 10px;
-			border-top: 1px solid #d4d4d8;
-			font-size: 9.5px;
-			color: #71717a;
-			display: flex;
-			justify-content: space-between;
-			font-weight: 600;
 		}
 		@media print {
 			.toolbar { display: none !important; }
@@ -425,27 +419,7 @@
 		</div>
 	</div>
 
-	<div class="letterhead">
-		<h1>BOHOL ISLAND STATE UNIVERSITY - CALAPE CAMPUS</h1>
-		<h2>OFFICIAL VISITOR COMPLIANCE AUDIT REPORT</h2>
-		<p>Report Scope: <strong>${scopeLabel}</strong> • Total Log Entries: <strong>${totalEntries}</strong> • Generated: ${generatedTime}</p>
-	</div>
-
-	<table>
-		<thead>
-			<tr style="background-color: #f4f4f5; border-bottom: 2px solid #71717a;">
-				${tableHeaders}
-			</tr>
-		</thead>
-		<tbody>
-			${tableBody}
-		</tbody>
-	</table>
-
-	<div class="footer">
-		<div>Certified Official Audit Record • BISU Calape Campus Security Desk</div>
-		<div>Generated from Calapexis Secure Logbook Master</div>
-	</div>
+	${innerContent}
 
 	<script>
 		window.onload = function() {
@@ -456,6 +430,60 @@
 	<\/script>
 </body>
 </html>`;
+	}
+
+	let printModalTab = $state<'configure' | 'review'>('configure');
+
+	function handlePrintReport() {
+		printModalTab = 'configure';
+		isPrintModalOpen = true;
+	}
+
+	async function handleExportDocx() {
+		if (printableVisitors.length === 0) {
+			toast.error("No visitor log records found for the selected date filter.");
+			return;
+		}
+		isExportingDocx = true;
+		try {
+			const scopeText = printDateMode.toUpperCase();
+			const dateRangeText = printDateMode === 'today'
+				? new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+				: (printStartDate ? `${printStartDate} ${printEndDate ? 'to ' + printEndDate : ''}` : 'All Dates');
+			
+			const res = await exportAuditLogsToDocx(printableVisitors, {
+				scopeLabel: scopeText,
+				dateRange: dateRangeText,
+				generatedBy: (data?.user as any)?.user_metadata?.full_name || (data?.user as any)?.email || "Security Desk Officer"
+			});
+			toast.success(`Generated and downloaded ${res.filename}`);
+			isPrintModalOpen = false;
+		} catch (err: any) {
+			toast.error(err?.message || "Failed to generate Word document.");
+		} finally {
+			isExportingDocx = false;
+		}
+	}
+
+	async function handleExportPdf() {
+		if (printableVisitors.length === 0) {
+			toast.error("No visitor log records found for the selected date filter.");
+			return;
+		}
+		isExportingPdf = true;
+		try {
+			const filename = `Visitor_Audit_Report_${new Date().toISOString().slice(0, 10)}.pdf`;
+			const reportHtml = generateReportBodyHTML();
+			await exportHtmlToPdf(reportHtml, filename);
+
+			toast.success(`Generated and downloaded ${filename}`);
+			isPrintModalOpen = false;
+		} catch (err: any) {
+			console.error("PDF generation error:", err);
+			toast.error(err?.message || "Failed to generate PDF file.");
+		} finally {
+			isExportingPdf = false;
+		}
 	}
 
 	function executePrintReport() {
@@ -781,158 +809,369 @@
 
 <!-- Print Audit Report Options Modal -->
 <Dialog.Root bind:open={isPrintModalOpen}>
-	<Dialog.Content class="sm:max-w-md border-border bg-card p-0 shadow-2xl rounded-3xl overflow-hidden">
-		<!-- Header Banner -->
-		<div class="p-6 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b border-border/70 flex flex-col gap-1">
-			<div class="flex items-center gap-2">
-				<PrinterIcon class="size-5 text-primary shrink-0 pointer-events-none" />
-				<Dialog.Title class="text-base font-black text-foreground">
-					Print Audit Report Options
-				</Dialog.Title>
+	<Dialog.Content class="sm:max-w-xl md:max-w-2xl w-[95vw] border-border bg-card p-0 shadow-2xl rounded-3xl overflow-hidden max-h-[90vh] flex flex-col">
+		<!-- Header Banner with Tab Switcher -->
+		<div class="p-5 sm:p-6 bg-muted/40 border-b border-border flex flex-col gap-3 shrink-0">
+			<div class="flex items-center justify-between gap-3">
+				<div class="flex items-center gap-2">
+					<PrinterIcon class="size-5 text-primary shrink-0 pointer-events-none" />
+					<div>
+						<Dialog.Title class="text-base font-black text-foreground">
+							Audit Report Generator
+						</Dialog.Title>
+						<Dialog.Description class="text-xs text-muted-foreground font-semibold">
+							Configure date filter, customize columns, and choose export format.
+						</Dialog.Description>
+					</div>
+				</div>
+
+				<Badge variant="outline" class="font-extrabold text-[10px] uppercase tracking-wider bg-background shrink-0">
+					{printableVisitors.length} {printableVisitors.length === 1 ? 'Record' : 'Records'}
+				</Badge>
 			</div>
-			<Dialog.Description class="text-xs text-muted-foreground font-semibold">
-				Configure date scope, status filters, and printable columns before printing.
-			</Dialog.Description>
+
+			<!-- Tab Navigation Switcher -->
+			<div class="grid grid-cols-2 gap-1 p-1 bg-muted rounded-xl border border-border">
+				<button
+					type="button"
+					onclick={() => (printModalTab = 'configure')}
+					class="py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 {printModalTab === 'configure' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}"
+				>
+					<span>1. Filter & Columns</span>
+				</button>
+				<button
+					type="button"
+					onclick={() => { if (printableVisitors.length > 0) printModalTab = 'review'; }}
+					disabled={printableVisitors.length === 0}
+					class="py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed {printModalTab === 'review' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}"
+				>
+					<span>2. Print & Review</span>
+				</button>
+			</div>
 		</div>
 
-		<div class="p-6 space-y-5 text-xs">
-			<!-- Date Filter Section -->
-			<div class="space-y-2.5">
-				<span class="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
-					1. Date Range Filter
-				</span>
+		<!-- Scrollable Tab Content Area -->
+		<div class="p-5 sm:p-6 overflow-y-auto flex flex-col gap-5 text-xs flex-1">
+			{#if printModalTab === 'configure'}
+				<!-- Tab 1: Configuration -->
+				<!-- Date Filter Section -->
+				<div class="flex flex-col gap-2.5">
+					<span class="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
+						1. Date Range Filter
+					</span>
 
-				<div class="flex flex-col gap-3 p-3.5 rounded-2xl border border-border/80 bg-muted/30">
-					<div class="grid grid-cols-3 gap-1.5">
-						<button
-							type="button"
-							onclick={() => (printDateMode = 'today')}
-							class="py-1.5 px-2 rounded-xl border text-center font-bold transition-all cursor-pointer text-[11px] {printDateMode === 'today' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:bg-muted'}"
-						>
-							Today
-						</button>
-						<button
-							type="button"
-							onclick={() => (printDateMode = 'week')}
-							class="py-1.5 px-2 rounded-xl border text-center font-bold transition-all cursor-pointer text-[11px] {printDateMode === 'week' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:bg-muted'}"
-						>
-							This Week
-						</button>
-						<button
-							type="button"
-							onclick={() => (printDateMode = 'month')}
-							class="py-1.5 px-2 rounded-xl border text-center font-bold transition-all cursor-pointer text-[11px] {printDateMode === 'month' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:bg-muted'}"
-						>
-							This Month
-						</button>
-						<button
-							type="button"
-							onclick={() => (printDateMode = 'specific')}
-							class="py-1.5 px-2 rounded-xl border text-center font-bold transition-all cursor-pointer text-[11px] {printDateMode === 'specific' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:bg-muted'}"
-						>
-							Specific Date
-						</button>
-						<button
-							type="button"
-							onclick={() => (printDateMode = 'range')}
-							class="py-1.5 px-2 rounded-xl border text-center font-bold transition-all cursor-pointer text-[11px] {printDateMode === 'range' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:bg-muted'}"
-						>
-							Date Range
-						</button>
-						<button
-							type="button"
-							onclick={() => (printDateMode = 'all')}
-							class="py-1.5 px-2 rounded-xl border text-center font-bold transition-all cursor-pointer text-[11px] {printDateMode === 'all' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card text-muted-foreground hover:bg-muted'}"
-						>
-							All Records
-						</button>
-					</div>
-
-					{#if printDateMode === 'specific'}
-						<div class="flex flex-col gap-1 pt-2 border-t border-border/60">
-							<span class="text-[10px] text-muted-foreground font-semibold">Select Target Date</span>
-							<Input
-								type="date"
-								bind:value={printStartDate}
-								class="h-9 text-xs font-bold rounded-xl bg-background"
-							/>
+					<div class="flex flex-col gap-3 p-3.5 rounded-2xl border border-border bg-muted/30">
+						<div class="grid grid-cols-3 gap-1.5">
+							<Button
+								type="button"
+								size="sm"
+								variant={printDateMode === 'today' ? 'default' : 'outline'}
+								onclick={() => (printDateMode = 'today')}
+								class="h-8 text-xs font-bold rounded-xl"
+							>
+								Today
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								variant={printDateMode === 'week' ? 'default' : 'outline'}
+								onclick={() => (printDateMode = 'week')}
+								class="h-8 text-xs font-bold rounded-xl"
+							>
+								This Week
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								variant={printDateMode === 'month' ? 'default' : 'outline'}
+								onclick={() => (printDateMode = 'month')}
+								class="h-8 text-xs font-bold rounded-xl"
+							>
+								This Month
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								variant={printDateMode === 'specific' ? 'default' : 'outline'}
+								onclick={() => (printDateMode = 'specific')}
+								class="h-8 text-xs font-bold rounded-xl"
+							>
+								Specific Date
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								variant={printDateMode === 'range' ? 'default' : 'outline'}
+								onclick={() => (printDateMode = 'range')}
+								class="h-8 text-xs font-bold rounded-xl"
+							>
+								Date Range
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								variant={printDateMode === 'all' ? 'default' : 'outline'}
+								onclick={() => (printDateMode = 'all')}
+								class="h-8 text-xs font-bold rounded-xl"
+							>
+								All Records
+							</Button>
 						</div>
-					{:else if printDateMode === 'range'}
-						<div class="grid grid-cols-2 gap-2 pt-2 border-t border-border/60">
-							<div class="flex flex-col gap-1">
-								<span class="text-[10px] text-muted-foreground font-semibold">Start Date</span>
+
+						{#if printDateMode === 'specific'}
+							<Separator />
+							<div class="flex flex-col gap-1.5 pt-1">
+								<span class="text-[10px] text-muted-foreground font-semibold">Select Target Date</span>
 								<Input
 									type="date"
 									bind:value={printStartDate}
 									class="h-9 text-xs font-bold rounded-xl bg-background"
 								/>
 							</div>
-							<div class="flex flex-col gap-1">
-								<span class="text-[10px] text-muted-foreground font-semibold">End Date</span>
-								<Input
-									type="date"
-									bind:value={printEndDate}
-									class="h-9 text-xs font-bold rounded-xl bg-background"
-								/>
+						{:else if printDateMode === 'range'}
+							<Separator />
+							<div class="grid grid-cols-2 gap-2 pt-1">
+								<div class="flex flex-col gap-1.5">
+									<span class="text-[10px] text-muted-foreground font-semibold">Start Date</span>
+									<Input
+										type="date"
+										bind:value={printStartDate}
+										class="h-9 text-xs font-bold rounded-xl bg-background"
+									/>
+								</div>
+								<div class="flex flex-col gap-1.5">
+									<span class="text-[10px] text-muted-foreground font-semibold">End Date</span>
+									<Input
+										type="date"
+										bind:value={printEndDate}
+										class="h-9 text-xs font-bold rounded-xl bg-background"
+									/>
+								</div>
+							</div>
+						{/if}
+					</div>
+				</div>
+
+				<!-- Empty Records Warning Alert -->
+				{#if printableVisitors.length === 0}
+					<Alert.Root variant="destructive" class="py-2.5 px-3.5 rounded-2xl">
+						<AlertTriangleIcon class="size-4" />
+						<Alert.Description class="text-xs font-semibold">
+							No log entries match date scope ("{printDateMode}"). Select "All Records" or a different date range.
+						</Alert.Description>
+					</Alert.Root>
+				{/if}
+
+				<!-- Column Selector Checkboxes -->
+				<div class="flex flex-col gap-2.5">
+					<span class="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
+						2. Printable Columns
+					</span>
+
+					<div class="grid grid-cols-2 gap-2.5 p-3.5 rounded-2xl border border-border bg-muted/30">
+						<label class="flex items-center gap-2 cursor-pointer font-semibold text-foreground">
+							<input type="checkbox" bind:checked={printColumns.fullName} class="rounded border-border size-4 text-primary focus:ring-primary cursor-pointer" />
+							<span>Visitor Name</span>
+						</label>
+
+						<label class="flex items-center gap-2 cursor-pointer font-semibold text-foreground">
+							<input type="checkbox" bind:checked={printColumns.officeName} class="rounded border-border size-4 text-primary focus:ring-primary cursor-pointer" />
+							<span>Office / Desk</span>
+						</label>
+
+						<label class="flex items-center gap-2 cursor-pointer font-semibold text-foreground col-span-2">
+							<input type="checkbox" bind:checked={printColumns.purpose} class="rounded border-border size-4 text-primary focus:ring-primary cursor-pointer" />
+							<span>Purpose of Visit</span>
+						</label>
+
+						<label class="flex items-center gap-2 cursor-pointer font-semibold text-foreground">
+							<input type="checkbox" bind:checked={printColumns.checkInTime} class="rounded border-border size-4 text-primary focus:ring-primary cursor-pointer" />
+							<span>Checked In</span>
+						</label>
+
+						<label class="flex items-center gap-2 cursor-pointer font-semibold text-foreground">
+							<input type="checkbox" bind:checked={printColumns.checkOutTime} class="rounded border-border size-4 text-primary focus:ring-primary cursor-pointer" />
+							<span>Checked Out</span>
+						</label>
+					</div>
+				</div>
+			{:else}
+				<!-- Tab 2: Print & Review (Action Selection Tab) -->
+				<!-- Scope Summary Overview -->
+				<div class="p-4 rounded-2xl border border-border bg-muted/30 flex flex-col gap-3">
+					<div class="flex items-center justify-between flex-wrap gap-2">
+						<div>
+							<span class="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground block">Active Scope</span>
+							<span class="text-sm font-black text-foreground capitalize">{printDateMode} ({printableVisitors.length} total entries)</span>
+						</div>
+						<div class="flex items-center gap-1.5 flex-wrap">
+							{#if printColumns.fullName}<Badge variant="secondary" class="text-[9px]">Name</Badge>{/if}
+							{#if printColumns.officeName}<Badge variant="secondary" class="text-[9px]">Office</Badge>{/if}
+							{#if printColumns.purpose}<Badge variant="secondary" class="text-[9px]">Purpose</Badge>{/if}
+							{#if printColumns.checkInTime}<Badge variant="secondary" class="text-[9px]">Check-In</Badge>{/if}
+							{#if printColumns.checkOutTime}<Badge variant="secondary" class="text-[9px]">Check-Out</Badge>{/if}
+						</div>
+					</div>
+				</div>
+
+				<!-- Live Preview Table Snippet -->
+				<div class="flex flex-col gap-1.5">
+					<div class="flex items-center justify-between">
+						<span class="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
+							Logbook Data Preview (First 5 of {printableVisitors.length})
+						</span>
+					</div>
+
+					<div class="rounded-2xl border border-border bg-card overflow-hidden">
+						<div class="max-h-40 overflow-y-auto">
+							<table class="w-full text-left text-[10.5px]">
+								<thead class="bg-muted sticky top-0 border-b border-border text-[9.5px] font-extrabold uppercase text-muted-foreground">
+									<tr>
+										{#if printColumns.fullName}<th class="p-2.5">Visitor</th>{/if}
+										{#if printColumns.officeName}<th class="p-2.5">Office</th>{/if}
+										{#if printColumns.purpose}<th class="p-2.5">Purpose</th>{/if}
+										{#if printColumns.checkInTime}<th class="p-2.5">In</th>{/if}
+										{#if printColumns.checkOutTime}<th class="p-2.5">Out</th>{/if}
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-border">
+									{#each printableVisitors.slice(0, 5) as v}
+										<tr class="hover:bg-muted/30">
+											{#if printColumns.fullName}<td class="p-2.5 font-bold text-foreground">{v.fullName || '-'}</td>{/if}
+											{#if printColumns.officeName}<td class="p-2.5 text-muted-foreground">{v.officeName || 'General'}</td>{/if}
+											{#if printColumns.purpose}<td class="p-2.5 text-muted-foreground max-w-[150px] truncate">{v.purpose || '-'}</td>{/if}
+											{#if printColumns.checkInTime}<td class="p-2.5 font-mono text-[9.5px] text-foreground">{v.checkInTime ? formatTimeOnly(v.checkInTime) : '-'}</td>{/if}
+											{#if printColumns.checkOutTime}<td class="p-2.5 font-mono text-[9.5px] text-foreground">{formatCheckOutTime(v.checkInTime, v.checkOutTime, v.status)}</td>{/if}
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</div>
+
+				<!-- Export Format Action Cards (Exclusive on Print & Review Tab) -->
+				<div class="flex flex-col gap-2.5 pt-1">
+					<span class="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
+						Select Output Format & Generate
+					</span>
+
+					<div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+						<!-- Word Document Option -->
+						<button
+							type="button"
+							onclick={handleExportDocx}
+							disabled={isExportingDocx}
+							class="p-4 rounded-2xl border border-border bg-card hover:bg-accent hover:border-primary/40 text-left transition-all cursor-pointer flex flex-col justify-between gap-3 group shadow-xs hover:shadow-md disabled:opacity-50"
+						>
+							<div class="flex items-center justify-between">
+								<div class="size-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+									<FileTextIcon class="size-4" />
+								</div>
+								{#if isExportingDocx}
+									<span class="text-[10px] font-bold text-primary animate-pulse">Exporting...</span>
+								{/if}
+							</div>
+							<div class="flex flex-col gap-0.5">
+								<div class="font-black text-xs text-foreground group-hover:text-primary transition-colors">
+									Word (.docx)
+								</div>
+								<div class="text-[10px] text-muted-foreground font-medium leading-tight">
+									Fills .docx template with official headers & footers
+								</div>
+							</div>
+						</button>
+
+						<!-- PDF Document Option (Temporarily Disabled) -->
+						<div
+							class="p-4 rounded-2xl border border-border/60 bg-muted/40 text-left flex flex-col justify-between gap-3 opacity-60 cursor-not-allowed select-none"
+							aria-disabled="true"
+						>
+							<div class="flex items-center justify-between">
+								<div class="size-8 rounded-xl bg-muted text-muted-foreground flex items-center justify-center">
+									<FileDownIcon class="size-4" />
+								</div>
+								<Badge variant="outline" class="text-[9px] font-semibold text-muted-foreground">
+									Disabled
+								</Badge>
+							</div>
+							<div class="flex flex-col gap-0.5">
+								<div class="font-black text-xs text-muted-foreground">
+									Download PDF (.pdf)
+								</div>
+								<div class="text-[10px] text-muted-foreground/80 font-medium leading-tight">
+									PDF direct download temporarily unavailable
+								</div>
 							</div>
 						</div>
-					{/if}
-				</div>
-			</div>
 
-			<!-- Empty Records Warning Alert -->
-			{#if printableVisitors.length === 0}
-				<div class="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-semibold flex items-center gap-2.5">
-					<AlertTriangleIcon class="size-4 shrink-0 text-amber-500" />
-					<span>No log entries match date scope ("{printDateMode}"). Select "All Records" or a different date range.</span>
+						<!-- Print Preview Option -->
+						<button
+							type="button"
+							onclick={executePrintReport}
+							disabled={isExportingDocx}
+							class="p-4 rounded-2xl border border-border bg-card hover:bg-accent hover:border-primary/40 text-left transition-all cursor-pointer flex flex-col justify-between gap-3 group shadow-xs hover:shadow-md disabled:opacity-50"
+						>
+							<div class="flex items-center justify-between">
+								<div class="size-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+									<PrinterIcon class="size-4" />
+								</div>
+							</div>
+							<div class="flex flex-col gap-0.5">
+								<div class="font-black text-xs text-foreground group-hover:text-primary transition-colors">
+									Print Preview
+								</div>
+								<div class="text-[10px] text-muted-foreground font-medium leading-tight">
+									Send directly to printer or browser print
+								</div>
+							</div>
+						</button>
+					</div>
 				</div>
 			{/if}
-
-			<!-- Column Selector Checkboxes (Only 5 options shown: Visitor Name, Office Desk, Purpose, Checked In, Checked Out) -->
-			<div class="space-y-2.5">
-				<span class="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
-					2. Printable Columns
-				</span>
-
-				<div class="grid grid-cols-2 gap-2.5 p-3.5 rounded-2xl border border-border/80 bg-muted/30">
-					<label class="flex items-center gap-2 cursor-pointer font-semibold text-foreground">
-						<input type="checkbox" bind:checked={printColumns.fullName} class="rounded border-border size-4 text-primary focus:ring-primary cursor-pointer" />
-						<span>Visitor Name</span>
-					</label>
-
-					<label class="flex items-center gap-2 cursor-pointer font-semibold text-foreground">
-						<input type="checkbox" bind:checked={printColumns.officeName} class="rounded border-border size-4 text-primary focus:ring-primary cursor-pointer" />
-						<span>Office / Desk</span>
-					</label>
-
-					<label class="flex items-center gap-2 cursor-pointer font-semibold text-foreground col-span-2">
-						<input type="checkbox" bind:checked={printColumns.purpose} class="rounded border-border size-4 text-primary focus:ring-primary cursor-pointer" />
-						<span>Purpose of Visit</span>
-					</label>
-
-					<label class="flex items-center gap-2 cursor-pointer font-semibold text-foreground">
-						<input type="checkbox" bind:checked={printColumns.checkInTime} class="rounded border-border size-4 text-primary focus:ring-primary cursor-pointer" />
-						<span>Checked In</span>
-					</label>
-
-					<label class="flex items-center gap-2 cursor-pointer font-semibold text-foreground">
-						<input type="checkbox" bind:checked={printColumns.checkOutTime} class="rounded border-border size-4 text-primary focus:ring-primary cursor-pointer" />
-						<span>Checked Out</span>
-					</label>
-				</div>
-			</div>
 		</div>
 
 		<!-- Dialog Footer -->
-		<Dialog.Footer class="p-6 pt-0">
-			<Button
-				onclick={executePrintReport}
-				disabled={printableVisitors.length === 0}
-				class="w-full h-10 rounded-xl bg-primary hover:bg-primary/95 text-primary-foreground font-extrabold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-			>
-				<PrinterIcon data-icon="inline-start" />
-				<span>Generate & Print ({printableVisitors.length} Entries)</span>
-			</Button>
+		<Dialog.Footer class="p-5 sm:p-6 pt-0 border-t border-border mt-auto shrink-0 flex items-center justify-between gap-2">
+			{#if printModalTab === 'configure'}
+				<Button
+					type="button"
+					variant="ghost"
+					onclick={() => (isPrintModalOpen = false)}
+					class="h-9 px-4 text-xs font-semibold rounded-xl cursor-pointer"
+				>
+					Cancel
+				</Button>
+
+				<Button
+					type="button"
+					onclick={() => (printModalTab = 'review')}
+					disabled={printableVisitors.length === 0}
+					class="h-9 px-5 rounded-xl bg-primary hover:bg-primary/95 text-primary-foreground font-extrabold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+				>
+					<span>Next: Review & Export</span>
+					<ChevronRightIcon data-icon="inline-end" class="size-4 shrink-0" />
+				</Button>
+			{:else}
+				<Button
+					type="button"
+					variant="outline"
+					onclick={() => (printModalTab = 'configure')}
+					class="h-9 px-4 text-xs font-bold rounded-xl gap-1.5 cursor-pointer border-border"
+				>
+					<ChevronLeftIcon data-icon="inline-start" class="size-4 shrink-0" />
+					<span>Modify Filters</span>
+				</Button>
+
+				<Button
+					type="button"
+					variant="ghost"
+					onclick={() => (isPrintModalOpen = false)}
+					class="h-9 px-4 text-xs font-semibold rounded-xl cursor-pointer"
+				>
+					Close
+				</Button>
+			{/if}
 		</Dialog.Footer>
 	</Dialog.Content>
 </Dialog.Root>
