@@ -1,82 +1,93 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
 	import * as Card from "$lib/components/ui/card/index.js";
-	import * as Tabs from "$lib/components/ui/tabs/index.js";
-	import * as Select from "$lib/components/ui/select/index.js";
-	import * as Table from "$lib/components/ui/table/index.js";
-	import * as Popover from "$lib/components/ui/popover/index.js";
 	import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { toast } from 'svelte-sonner';
 	import { checkoutLocalVisitor } from '$lib/supabase';
-	import StaffCheckInForm from '$lib/components/staff/StaffCheckInForm.svelte';
-	import StaffCheckoutSearch from '$lib/components/staff/StaffCheckoutSearch.svelte';
+	import StaffCheckInModal from '$lib/components/staff/StaffCheckInModal.svelte';
 
-	// Icons
+	// Lucide Icons
 	import UserCheckIcon from "@lucide/svelte/icons/user-check";
+	import UserPlusIcon from "@lucide/svelte/icons/user-plus";
 	import LogOutIcon from "@lucide/svelte/icons/log-out";
-	import CalendarIcon from "@lucide/svelte/icons/calendar";
 	import SearchIcon from "@lucide/svelte/icons/search";
-	import FilterIcon from "@lucide/svelte/icons/filter";
 	import SchoolIcon from "@lucide/svelte/icons/school";
-	import LayersIcon from "@lucide/svelte/icons/layers";
-	import UserIcon from "@lucide/svelte/icons/user";
 	import Building2Icon from "@lucide/svelte/icons/building-2";
+	import UserIcon from "@lucide/svelte/icons/user";
+	import HistoryIcon from "@lucide/svelte/icons/history";
+	import ClockIcon from "@lucide/svelte/icons/clock";
+	import FileTextIcon from "@lucide/svelte/icons/file-text";
+	import ArrowUpRightIcon from "@lucide/svelte/icons/arrow-up-right";
+	import SparklesIcon from "@lucide/svelte/icons/sparkles";
 
 	let { data } = $props();
 
 	const dashboardContext = getContext<any>("dashboard-state");
-	let visitors = $derived(dashboardContext.visitors);
+	let visitors = $derived(dashboardContext?.visitors || []);
 
-	let activeStaffTab = $state('checkin');
+	let officesList = $derived(data?.offices || []);
+	let activeOffice = $derived(
+		officesList.find((o: any) => o.id === data.assignedOfficeId) || officesList[0]
+	);
 
-	// Directory Filters State
-	let selectedDate = $state(new Date().toISOString().split('T')[0]); // Default to today
-	let directorySearchQuery = $state('');
+	// Assisted Check-In Modal state
+	let isAssistModalOpen = $state(false);
+	let selectedPrefillVisitor = $state<any | null>(null);
+
+	// Search queries for both panels
+	let searchPreviousVisitorQuery = $state('');
+	let searchActiveVisitorQuery = $state('');
 
 	// Checkout Confirmation AlertDialog state
 	let isCheckoutDialogOpen = $state(false);
 	let checkoutTargetVisitor = $state<any | null>(null);
 	let isCheckingOut = $state(false);
 
-	let officesList = $derived(data?.offices || []);
-	let activeOffice = $derived(
-		officesList.find(o => o.id === data.assignedOfficeId) || officesList[0]
-	);
-
-	// Derived visitor lists for staff desk
+	// Derived active visitors for staff desk
 	let officeVisitors = $derived(
 		data.role === 'admin' 
 			? visitors 
 			: visitors.filter((v: any) => v.officeId === data.assignedOfficeId || !v.officeId)
 	);
 
-	let activePassesCount = $derived(officeVisitors.filter((v: any) => v.status === 'checked_in').length);
+	let activeCheckedInVisitors = $derived(
+		officeVisitors.filter((v: any) => v.status === 'checked_in')
+	);
 
-	// Filtered logs for directory tab
-	let filteredOfficeVisitors = $derived(
-		officeVisitors.filter((v: any) => {
-			if (directorySearchQuery.trim()) {
-				const q = directorySearchQuery.toLowerCase().trim();
-				const matchesSearch = (
-					v.fullName.toLowerCase().includes(q) ||
-					v.passCode.toLowerCase().includes(q) ||
-					(v.purpose && v.purpose.toLowerCase().includes(q)) ||
-					(v.email && v.email.toLowerCase().includes(q))
-				);
-				if (!matchesSearch) return false;
-			}
+	let activePassesCount = $derived(activeCheckedInVisitors.length);
 
-			if (selectedDate) {
-				const checkInIso = v.checkInTime;
-				if (!checkInIso) return false;
-				const vDate = new Date(checkInIso).toISOString().split('T')[0];
-				if (vDate !== selectedDate) return false;
-			}
+	// Filtered active visitors for right panel
+	let filteredActiveVisitors = $derived(
+		activeCheckedInVisitors.filter((v: any) => {
+			if (!searchActiveVisitorQuery.trim()) return true;
+			const q = searchActiveVisitorQuery.toLowerCase().trim();
+			return (
+				v.fullName?.toLowerCase().includes(q) ||
+				v.passCode?.toLowerCase().includes(q) ||
+				v.purpose?.toLowerCase().includes(q) ||
+				v.email?.toLowerCase().includes(q) ||
+				v.phone?.toLowerCase().includes(q)
+			);
+		})
+	);
 
-			return true;
+	// Previous visitors from database load
+	let recentVisitorsList = $derived(data?.recentOfficeVisitors || []);
+
+	// Filtered previous visitors for left panel
+	let filteredPreviousVisitors = $derived(
+		recentVisitorsList.filter((v: any) => {
+			if (!searchPreviousVisitorQuery.trim()) return true;
+			const q = searchPreviousVisitorQuery.toLowerCase().trim();
+			return (
+				v.fullName?.toLowerCase().includes(q) ||
+				v.email?.toLowerCase().includes(q) ||
+				v.phone?.toLowerCase().includes(q) ||
+				v.lastPurpose?.toLowerCase().includes(q)
+			);
 		})
 	);
 
@@ -86,8 +97,18 @@
 	}
 
 	function formatDate(isoString: string): string {
-		if (!isoString) return '-';
-		return new Date(isoString).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+		if (!isoString) return '';
+		return new Date(isoString).toLocaleDateString([], { month: 'short', day: 'numeric' });
+	}
+
+	function handleOpenNewWalkIn() {
+		selectedPrefillVisitor = null;
+		isAssistModalOpen = true;
+	}
+
+	function handleQuickReEntry(visitor: any) {
+		selectedPrefillVisitor = visitor;
+		isAssistModalOpen = true;
 	}
 
 	function promptCheckout(visitor: any) {
@@ -112,219 +133,264 @@
 	}
 </script>
 
-{#snippet statusBadge(visitor: any)}
-	{#if visitor.status === 'checked_out'}
-		<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted border border-border text-muted-foreground">
-			Checked Out
-		</span>
-	{:else if visitor.verificationStatus === 'rejected'}
-		<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30">
-			Declined
-		</span>
-	{:else}
-		<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-			Active Pass
-		</span>
-	{/if}
-{/snippet}
-
-<div class="flex flex-col gap-6 p-6 md:p-8">
-	<!-- Page Header block -->
-	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-border/60">
-		<div class="flex items-center gap-3">
-			<div class="p-3 rounded-2xl bg-primary/10 border border-primary/20 text-primary">
-				<SchoolIcon class="size-6 pointer-events-none" />
+<div class="flex flex-col gap-4 p-4 md:p-6 h-[calc(100vh-4.5rem)] overflow-hidden">
+	<!-- 1. COMPACT TOP HEADER & DESK BANNER BAR -->
+	<div class="p-3.5 md:p-4 rounded-2xl bg-card border border-border/80 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-xs shrink-0">
+		<div class="flex items-center gap-3 min-w-0">
+			<div class="p-2.5 rounded-xl bg-primary/10 border border-primary/20 text-primary shrink-0">
+				<SchoolIcon class="size-5 pointer-events-none" />
 			</div>
-			<div>
-				<h1 class="text-xl md:text-2xl font-black text-foreground tracking-tight">Staff Desk Console</h1>
-				<p class="text-xs text-muted-foreground leading-relaxed font-semibold">Department office visitor reception, assisted walk-in entry, and logbook management.</p>
-			</div>
-		</div>
-	</div>
-
-	<!-- Room Office Department Banner Card -->
-	<div class="p-5 rounded-2xl bg-card border border-border/80 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xs">
-		<div class="flex flex-col gap-1.5">
-			<div class="flex items-center gap-2 flex-wrap">
-				{#if activeOffice?.code}
-					<Badge variant="secondary" class="font-mono text-xs font-black uppercase rounded-lg px-2.5 py-0.5">{activeOffice.code}</Badge>
-				{/if}
-				<h2 class="text-lg font-black text-foreground">{activeOffice?.name || 'Reception Counter'}</h2>
-			</div>
-			<div class="flex items-center gap-3 text-xs text-muted-foreground font-semibold flex-wrap">
-				<span class="flex items-center gap-1">
-					<Building2Icon class="size-3.5 text-primary pointer-events-none" />
-					<strong class="text-foreground">{activeOffice?.name || 'Department Desk'}</strong>
-				</span>
-				<span>•</span>
-				<span class="flex items-center gap-1">
-					<UserIcon class="size-3.5 text-primary pointer-events-none" />
-					Head: {activeOffice?.headPerson || 'Office Staff'}
-				</span>
+			<div class="min-w-0">
+				<div class="flex items-center gap-2 flex-wrap">
+					{#if activeOffice?.code}
+						<Badge variant="secondary" class="font-mono text-[10px] font-black uppercase rounded-lg px-2 py-0.5">{activeOffice.code}</Badge>
+					{/if}
+					<h1 class="text-base md:text-lg font-black text-foreground truncate tracking-tight">{activeOffice?.name || 'Staff Desk Console'}</h1>
+				</div>
+				<div class="flex items-center gap-2 text-[11px] text-muted-foreground font-semibold truncate mt-0.5">
+					<span class="flex items-center gap-1">
+						<Building2Icon class="size-3 text-primary pointer-events-none shrink-0" />
+						<span class="truncate">{activeOffice?.name || 'Department Desk'}</span>
+					</span>
+					<span>•</span>
+					<span class="flex items-center gap-1">
+						<UserIcon class="size-3 text-primary pointer-events-none shrink-0" />
+						<span class="truncate">Head: {activeOffice?.headPerson || 'Staff Officer'}</span>
+					</span>
+				</div>
 			</div>
 		</div>
 
-		<div class="flex items-center gap-3 shrink-0">
-			<Badge class="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs py-1.5 px-3.5 rounded-xl border-emerald-500/30 gap-1.5">
+		<!-- Action Buttons & Badges -->
+		<div class="flex items-center gap-2.5 shrink-0 flex-wrap justify-end">
+			<Badge class="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs py-1.5 px-3 rounded-xl border-emerald-500/30 gap-1.5">
 				<span class="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
 				<span>{activePassesCount} Active Passes</span>
 			</Badge>
+
+			<Button
+				onclick={handleOpenNewWalkIn}
+				class="bg-primary hover:bg-primary/90 text-primary-foreground font-extrabold text-xs rounded-xl h-9 px-3.5 gap-1.5 cursor-pointer shadow-xs"
+			>
+				<UserPlusIcon class="size-4 pointer-events-none" />
+				<span>+ New Walk-In Visitor</span>
+			</Button>
+
+			<Button
+				href="/dashboard/logs"
+				variant="outline"
+				class="text-xs font-bold rounded-xl h-9 px-3 gap-1.5 border-border hover:bg-muted cursor-pointer"
+			>
+				<FileTextIcon class="size-3.5 text-muted-foreground pointer-events-none" />
+				<span>Office Logs</span>
+				<ArrowUpRightIcon class="size-3 text-muted-foreground pointer-events-none" />
+			</Button>
 		</div>
 	</div>
 
-	<!-- Primary Staff Tabs: Check-In / Quick Check-Out / Logbook Directory -->
-	<Tabs.Root value={activeStaffTab} onValueChange={(val) => (activeStaffTab = val)} class="w-full">
-		<Tabs.List class="grid w-full grid-cols-3 max-w-lg mx-auto mb-6 bg-muted/60 p-1 rounded-xl">
-			<Tabs.Trigger value="checkin" class="text-xs font-extrabold rounded-lg gap-1.5 cursor-pointer">
-				<UserCheckIcon class="size-3.5 pointer-events-none" />
-				<span>Assisted Entry</span>
-			</Tabs.Trigger>
-			<Tabs.Trigger value="checkout" class="text-xs font-extrabold rounded-lg gap-1.5 cursor-pointer">
-				<LogOutIcon class="size-3.5 pointer-events-none" />
-				<span>Quick Check-Out</span>
-			</Tabs.Trigger>
-			<Tabs.Trigger value="directory" class="text-xs font-extrabold rounded-lg gap-1.5 cursor-pointer">
-				<CalendarIcon class="size-3.5 pointer-events-none" />
-				<span>Office Logs ({officeVisitors.length})</span>
-			</Tabs.Trigger>
-		</Tabs.List>
-
-		<!-- TAB 1: Assisted Walk-In Check-In Form -->
-		<Tabs.Content value="checkin">
-			<StaffCheckInForm
-				offices={data.offices}
-				role={data.role}
-				assignedOfficeId={data.assignedOfficeId}
-				onSuccess={() => dashboardContext?.loadData()}
-			/>
-		</Tabs.Content>
-
-		<!-- TAB 2: Quick Passcode / ID Scanner Checkout -->
-		<Tabs.Content value="checkout">
-			<StaffCheckoutSearch
-				assignedOfficeId={data.assignedOfficeId}
-				role={data.role}
-				onUpdate={() => dashboardContext?.loadData()}
-			/>
-		</Tabs.Content>
-
-		<!-- TAB 3: Filterable Department Visitors Directory -->
-		<Tabs.Content value="directory" class="flex flex-col gap-4">
-			<!-- Filter Toolbar -->
-			<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-card border border-border/80 shadow-xs">
-				<div class="flex items-center gap-3">
-					<!-- Date Picker Filter -->
+	<!-- 2. MAIN 2-COLUMN SINGLE-SCREEN CONSOLE -->
+	<div class="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0 overflow-hidden">
+		<!-- LEFT PANEL: Assisted Walk-In Entry & Previous Visitors Directory (5 Cols) -->
+		<Card.Root class="lg:col-span-5 flex flex-col rounded-2xl border-border/80 bg-card shadow-xs overflow-hidden min-h-0">
+			<!-- Panel Header -->
+			<Card.Header class="p-3.5 border-b border-border/60 bg-muted/20 pb-3 shrink-0">
+				<div class="flex items-center justify-between gap-2">
 					<div class="flex items-center gap-2">
-						<span class="text-xs font-bold text-muted-foreground">Filter Date:</span>
-						<Input
-							type="date"
-							bind:value={selectedDate}
-							class="h-9 w-40 text-xs font-bold rounded-xl"
-						/>
-						{#if selectedDate}
-							<Button
-								variant="ghost"
-								size="sm"
-								onclick={() => (selectedDate = '')}
-								class="h-9 text-[11px] font-extrabold text-muted-foreground hover:text-foreground cursor-pointer"
-							>
-								Clear Date
-							</Button>
-						{/if}
+						<div class="p-1.5 rounded-lg bg-primary/10 text-primary">
+							<HistoryIcon class="size-4 pointer-events-none" />
+						</div>
+						<div>
+							<Card.Title class="text-xs font-black uppercase tracking-wider text-foreground">Previous Visitors Directory</Card.Title>
+							<Card.Description class="text-[10px] text-muted-foreground font-semibold">1-click auto-fill for returning visitors</Card.Description>
+						</div>
 					</div>
+					<Badge variant="outline" class="font-mono text-[9px] px-1.5">{filteredPreviousVisitors.length}</Badge>
 				</div>
 
-				<!-- Search Input -->
-				<div class="relative w-full sm:w-64">
-					<SearchIcon class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+				<!-- Search Previous Visitors -->
+				<div class="relative mt-2.5">
+					<SearchIcon class="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
 					<Input
 						type="text"
-						placeholder="Search name, passcode..."
-						bind:value={directorySearchQuery}
-						class="pl-9 h-9 text-xs rounded-xl"
+						placeholder="Search past visitor name, email, phone..."
+						bind:value={searchPreviousVisitorQuery}
+						class="pl-8 h-8 text-xs font-semibold rounded-xl bg-background border-border"
 					/>
 				</div>
-			</div>
+			</Card.Header>
 
-			<!-- Logbook Data Table -->
-			<Card.Root class="border-border shadow-xs rounded-2xl bg-card overflow-hidden">
-				<Card.Content class="p-0 overflow-x-auto">
-					<Table.Root>
-						<Table.Header class="bg-muted/30 text-[10px] uppercase font-black tracking-wider">
-							<Table.Row class="border-b border-border/60">
-								<Table.Head class="pl-5 py-3">Visitor Profile</Table.Head>
-								<Table.Head>Pass Code</Table.Head>
-								<Table.Head>Destination Office</Table.Head>
-								<Table.Head>Check-In Time</Table.Head>
-								<Table.Head>Status</Table.Head>
-								<Table.Head class="pr-5 text-end">Action</Table.Head>
-							</Table.Row>
-						</Table.Header>
-						<Table.Body class="text-xs font-semibold divide-y divide-border/40">
-							{#each filteredOfficeVisitors as v}
-								<Table.Row class="hover:bg-muted/30 transition-colors">
-									<Table.Cell class="pl-5 py-3">
-										<div class="flex items-center gap-3">
-											<img src={v.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(v.fullName || 'Visitor')}&background=0284c7&color=ffffff&bold=true&size=128`} alt={v.fullName} class="size-9 rounded-full object-cover border border-border shrink-0" />
-											<div>
-												<div class="font-extrabold text-foreground">{v.fullName}</div>
-												<div class="text-[10px] text-muted-foreground">{v.email || v.phone || 'Walk-In'}</div>
-											</div>
+			<!-- Scrollable Previous Visitors List -->
+			<Card.Content class="p-0 flex-1 overflow-y-auto divide-y divide-border/40">
+				{#if filteredPreviousVisitors.length > 0}
+					{#each filteredPreviousVisitors as visitor (visitor.id)}
+						<div class="p-3 flex items-center justify-between gap-2.5 hover:bg-muted/30 transition-colors">
+							<div class="flex items-center gap-2.5 min-w-0 flex-1">
+								<img
+									src={visitor.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(visitor.fullName || 'Visitor')}&background=0284c7&color=ffffff&bold=true&size=128`}
+									alt={visitor.fullName}
+									class="size-9 rounded-full object-cover border border-border/80 shrink-0"
+								/>
+								<div class="min-w-0 flex-1">
+									<div class="font-extrabold text-xs text-foreground truncate">{visitor.fullName}</div>
+									<div class="text-[10px] text-muted-foreground font-semibold truncate">
+										{visitor.email || visitor.phone || 'Walk-In Record'}
+									</div>
+									{#if visitor.lastPurpose || visitor.lastVisitTime}
+										<div class="flex items-center gap-1.5 text-[9px] text-muted-foreground/80 mt-0.5">
+											{#if visitor.lastVisitTime}
+												<span class="font-mono">{formatDate(visitor.lastVisitTime)}</span>
+											{/if}
+											{#if visitor.lastPurpose}
+												<span>•</span>
+												<span class="truncate italic max-w-[140px]">{visitor.lastPurpose}</span>
+											{/if}
 										</div>
-									</Table.Cell>
-									<Table.Cell class="font-mono text-xs font-black text-primary">{v.passCode}</Table.Cell>
-									<Table.Cell>{v.officeName || 'Department Desk'}</Table.Cell>
-									<Table.Cell>
-										<div class="flex flex-col">
-											<span class="font-mono font-extrabold text-foreground">{formatTime(v.checkInTime)}</span>
-											<span class="text-[10px] text-muted-foreground">{formatDate(v.checkInTime)}</span>
-										</div>
-									</Table.Cell>
-									<Table.Cell>
-										{@render statusBadge(v)}
-									</Table.Cell>
-									<Table.Cell class="pr-5 text-end">
-										{#if v.status === 'checked_in'}
-											<Button
-												onclick={() => promptCheckout(v)}
-												variant="destructive"
-												size="sm"
-												class="h-8 text-xs font-bold rounded-xl cursor-pointer gap-1"
-											>
-												<LogOutIcon class="size-3.5 pointer-events-none" />
-												<span>Check Out</span>
-											</Button>
-										{:else}
-											<span class="text-[10px] text-muted-foreground font-mono">Archived</span>
+									{/if}
+								</div>
+							</div>
+
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onclick={() => handleQuickReEntry(visitor)}
+								class="h-7 px-2.5 text-[11px] font-extrabold rounded-lg gap-1 border-primary/30 text-primary hover:bg-primary/10 cursor-pointer shrink-0"
+								title="Quick Check-In this visitor"
+							>
+								<SparklesIcon class="size-3 pointer-events-none" />
+								<span>Re-Entry</span>
+							</Button>
+						</div>
+					{/each}
+				{:else}
+					<div class="p-8 text-center flex flex-col items-center justify-center gap-2 h-full text-muted-foreground">
+						<HistoryIcon class="size-8 text-muted-foreground/40" />
+						<span class="text-xs font-semibold">No past visitor records found.</span>
+						<Button
+							onclick={handleOpenNewWalkIn}
+							variant="outline"
+							size="sm"
+							class="text-xs font-bold rounded-xl mt-1 cursor-pointer"
+						>
+							Register New Visitor
+						</Button>
+					</div>
+				{/if}
+			</Card.Content>
+		</Card.Root>
+
+		<!-- RIGHT PANEL: Active Office Passes & Quick Check-Out (7 Cols) -->
+		<Card.Root class="lg:col-span-7 flex flex-col rounded-2xl border-border/80 bg-card shadow-xs overflow-hidden min-h-0">
+			<!-- Panel Header -->
+			<Card.Header class="p-3.5 border-b border-border/60 bg-muted/20 pb-3 shrink-0">
+				<div class="flex items-center justify-between gap-2">
+					<div class="flex items-center gap-2">
+						<div class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+							<UserCheckIcon class="size-4 pointer-events-none" />
+						</div>
+						<div>
+							<Card.Title class="text-xs font-black uppercase tracking-wider text-foreground">Active Passes & Quick Check-Out</Card.Title>
+							<Card.Description class="text-[10px] text-muted-foreground font-semibold">Currently checked-in visitors for this office</Card.Description>
+						</div>
+					</div>
+					<Badge class="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-mono text-[9px] px-2 py-0.5 rounded-lg border border-emerald-500/30">
+						{filteredActiveVisitors.length} Present
+					</Badge>
+				</div>
+
+				<!-- Search Active Passes -->
+				<div class="relative mt-2.5">
+					<SearchIcon class="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+					<Input
+						type="text"
+						placeholder="Search by Pass Code (VP-XXXX), Visitor Name, Purpose..."
+						bind:value={searchActiveVisitorQuery}
+						class="pl-8 h-8 text-xs font-semibold rounded-xl bg-background border-border"
+					/>
+				</div>
+			</Card.Header>
+
+			<!-- Scrollable Active Passes List -->
+			<Card.Content class="p-0 flex-1 overflow-y-auto divide-y divide-border/40">
+				{#if filteredActiveVisitors.length > 0}
+					{#each filteredActiveVisitors as visitor (visitor.id)}
+						<div class="p-3.5 flex items-center justify-between gap-3 hover:bg-muted/30 transition-colors">
+							<div class="flex items-center gap-3 min-w-0 flex-1">
+								<img
+									src={visitor.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(visitor.fullName || 'Visitor')}&background=0284c7&color=ffffff&bold=true&size=128`}
+									alt={visitor.fullName}
+									class="size-10 rounded-full object-cover border border-border shrink-0"
+								/>
+								<div class="min-w-0 flex-1">
+									<div class="flex items-center gap-2 flex-wrap">
+										<Badge variant="outline" class="font-mono text-[10px] font-black border-primary/40 text-primary px-1.5 py-0">
+											{visitor.passCode}
+										</Badge>
+										<span class="font-extrabold text-xs text-foreground truncate">{visitor.fullName}</span>
+									</div>
+									<div class="text-[11px] text-muted-foreground font-semibold truncate mt-0.5">
+										{visitor.purpose || 'Department Visit'}
+									</div>
+									<div class="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
+										<span class="flex items-center gap-1 font-mono">
+											<ClockIcon class="size-3 pointer-events-none text-muted-foreground/70" />
+											<span>In: {formatTime(visitor.checkInTime)}</span>
+										</span>
+										{#if visitor.phone}
+											<span>•</span>
+											<span class="font-mono">{visitor.phone}</span>
 										{/if}
-									</Table.Cell>
-								</Table.Row>
-							{:else}
-								<Table.Row>
-									<Table.Cell colspan={6} class="text-center py-8 text-muted-foreground text-xs font-medium">
-										No visitor logs match the selected filters.
-									</Table.Cell>
-								</Table.Row>
-							{/each}
-						</Table.Body>
-					</Table.Root>
-				</Card.Content>
-			</Card.Root>
-		</Tabs.Content>
-	</Tabs.Root>
+									</div>
+								</div>
+							</div>
+
+							<Button
+								type="button"
+								variant="destructive"
+								size="sm"
+								onclick={() => promptCheckout(visitor)}
+								class="h-8 px-3 text-xs font-extrabold rounded-xl gap-1.5 cursor-pointer shrink-0 shadow-2xs"
+							>
+								<LogOutIcon class="size-3.5 pointer-events-none" />
+								<span>Check Out</span>
+							</Button>
+						</div>
+					{/each}
+				{:else}
+					<div class="p-8 text-center flex flex-col items-center justify-center gap-2 h-full text-muted-foreground">
+						<UserCheckIcon class="size-8 text-muted-foreground/40" />
+						<span class="text-xs font-semibold">No active checked-in visitors match your search.</span>
+						<span class="text-[11px] text-muted-foreground/80">All visitors to this desk have checked out.</span>
+					</div>
+				{/if}
+			</Card.Content>
+		</Card.Root>
+	</div>
 </div>
+
+<!-- ASSISTED VISITOR CHECK-IN DIALOG MODAL -->
+<StaffCheckInModal
+	bind:open={isAssistModalOpen}
+	offices={data.offices}
+	role={data.role}
+	assignedOfficeId={data.assignedOfficeId}
+	prefillVisitor={selectedPrefillVisitor}
+	onSuccess={() => {
+		if (dashboardContext?.loadData) dashboardContext.loadData();
+	}}
+/>
 
 <!-- CHECK OUT CONFIRMATION ALERT DIALOG -->
 <AlertDialog.Root bind:open={isCheckoutDialogOpen}>
 	<AlertDialog.Portal>
-		<AlertDialog.Content class="z-[2600] max-w-sm border-border bg-card text-card-foreground shadow-2xl rounded-3xl">
+		<AlertDialog.Content class="z-[2800] max-w-sm border-border bg-card text-card-foreground shadow-2xl rounded-3xl">
 			<AlertDialog.Header>
 				<AlertDialog.Title class="text-base font-black text-foreground flex items-center gap-2">
 					<LogOutIcon class="size-5 text-destructive pointer-events-none" />
 					<span>Confirm Visitor Check Out</span>
 				</AlertDialog.Title>
 				<AlertDialog.Description class="text-xs text-muted-foreground leading-relaxed">
-					Are you sure you want to check out <strong class="text-foreground">{checkoutTargetVisitor?.fullName}</strong> ({checkoutTargetVisitor?.passCode})? This will mark their pass as completed.
+					Are you sure you want to check out <strong class="text-foreground">{checkoutTargetVisitor?.fullName}</strong> ({checkoutTargetVisitor?.passCode})? This will complete their visit at this desk.
 				</AlertDialog.Description>
 			</AlertDialog.Header>
 			<AlertDialog.Footer class="pt-2 border-t border-border/60">

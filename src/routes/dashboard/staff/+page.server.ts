@@ -16,6 +16,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	}
 
 	let offices: any[] = [];
+	let recentOfficeVisitors: any[] = [];
 	let assignedOfficeId: string | null = (session as any)?.officeId || session.roomId || null;
 
 	if (isSupabaseConfigured && supabase) {
@@ -44,6 +45,80 @@ export const load: PageServerLoad = async ({ locals }) => {
 			if (session.role === "staff" && !assignedOfficeId && offices.length > 0) {
 				assignedOfficeId = offices[0].id;
 			}
+
+			// Query visitor_logs joining registered_visitors to get office visitor history
+			let logsQuery = dbClient
+				.from("visitor_logs")
+				.select(`
+					id,
+					purpose,
+					check_in_time,
+					status,
+					visitor:registered_visitors (
+						id,
+						full_name,
+						first_name,
+						middle_name,
+						last_name,
+						email,
+						phone,
+						photo_url
+					)
+				`)
+				.order("check_in_time", { ascending: false })
+				.limit(100);
+
+			if (session.role === "staff" && assignedOfficeId) {
+				logsQuery = logsQuery.eq("office_id", assignedOfficeId);
+			}
+
+			const { data: logsData, error: logsError } = await logsQuery;
+
+			if (!logsError && logsData && logsData.length > 0) {
+				const seenVisitorIds = new Set<string>();
+				for (const log of logsData) {
+					const v = (log as any).visitor;
+					if (v && v.id && !seenVisitorIds.has(v.id)) {
+						seenVisitorIds.add(v.id);
+						recentOfficeVisitors.push({
+							id: v.id,
+							fullName: v.full_name,
+							firstName: v.first_name || "",
+							middleName: v.middle_name || "",
+							lastName: v.last_name || "",
+							email: v.email || "",
+							phone: v.phone || "",
+							photoUrl: v.photo_url || "",
+							lastPurpose: log.purpose || "",
+							lastVisitTime: log.check_in_time
+						});
+					}
+				}
+			}
+
+			// Fallback: If no office-specific logs exist yet, load top registered visitors
+			if (recentOfficeVisitors.length === 0) {
+				const { data: regData } = await dbClient
+					.from("registered_visitors")
+					.select("id, full_name, first_name, middle_name, last_name, email, phone, photo_url, updated_at")
+					.order("updated_at", { ascending: false })
+					.limit(20);
+
+				if (regData) {
+					recentOfficeVisitors = regData.map((v: any) => ({
+						id: v.id,
+						fullName: v.full_name,
+						firstName: v.first_name || "",
+						middleName: v.middle_name || "",
+						lastName: v.last_name || "",
+						email: v.email || "",
+						phone: v.phone || "",
+						photoUrl: v.photo_url || "",
+						lastPurpose: "",
+						lastVisitTime: v.updated_at
+					}));
+				}
+			}
 		} catch (e) {
 			console.warn("Staff page server load error:", e);
 		}
@@ -52,7 +127,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		role: session.role,
 		offices,
-		assignedOfficeId
+		assignedOfficeId,
+		recentOfficeVisitors
 	};
 };
 
