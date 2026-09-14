@@ -342,7 +342,7 @@
 	});
 
 	$effect(() => {
-		if (leafMap && liveMonitorList) {
+		if (leafMap && filteredLiveMonitorList) {
 			plotVisitorNodesOnMap();
 		}
 	});
@@ -482,54 +482,100 @@
 		Object.values(visitorMarkers).forEach(m => leafMap.removeLayer(m));
 		visitorMarkers = {};
 
-		liveMonitorList.forEach((v: any) => {
-			const lat = v.lastLatitude || v.lat || mainGateCoords.lat;
-			const lng = v.lastLongitude || v.lng || mainGateCoords.lng;
-			const nearestNode = findNearestBuildingName(lat, lng);
-			const duration = calculateVisitDuration(v.checkInTime, null);
+		// 1. Group visitors into location clusters based on ~4m proximity
+		const locationClusters: { baseLat: number; baseLng: number; visitors: any[] }[] = [];
 
-			const avatarSrc = v.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(v.fullName || 'Visitor')}&background=0284c7&color=ffffff&bold=true&size=128`;
+		filteredLiveMonitorList.forEach((v: any) => {
+			const rawLat = Number(v.lastLatitude || v.lat || mainGateCoords.lat);
+			const rawLng = Number(v.lastLongitude || v.lng || mainGateCoords.lng);
 
-			const iconHtml = `
-				<div class="group relative flex items-center justify-center cursor-pointer">
-					<span class="animate-ping absolute inline-flex size-9 rounded-full bg-emerald-500/40"></span>
-					<div class="relative size-9 rounded-full bg-card border-2 border-emerald-500 shadow-xl overflow-hidden flex items-center justify-center">
-						<img src="${avatarSrc}" class="size-full object-cover" />
-					</div>
-				</div>
-			`;
+			let cluster = locationClusters.find((c) => {
+				const dLat = Math.abs(c.baseLat - rawLat);
+				const dLng = Math.abs(c.baseLng - rawLng);
+				return dLat < 0.00004 && dLng < 0.00004;
+			});
 
-			const marker = L.marker([lat, lng], {
-				icon: L.divIcon({
-					className: "bg-transparent border-none",
-					html: iconHtml,
-					iconSize: [36, 36],
-					iconAnchor: [18, 18]
-				})
-			}).bindPopup(`
-				<div class="font-sans text-xs p-1 max-w-xs flex flex-col gap-1.5 text-popover-foreground">
-					<div class="font-extrabold text-foreground flex items-center justify-between gap-2">
-						<span>${v.fullName}</span>
-						<span class="font-mono text-[10px] font-bold text-primary">${v.passCode}</span>
-					</div>
-					<div class="text-[10px] text-muted-foreground font-semibold">
-						Office: ${v.officeName || 'Campus'}
-					</div>
-					<div class="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold flex items-center justify-between border-t border-border/60 pt-1 mt-0.5">
-						<span>Near: ${nearestNode}</span>
-						<span>${duration}</span>
-					</div>
-					<button 
-						type="button" 
-						onclick="window.handleSecurityMapCheckout('${v.id}')"
-						class="w-full mt-1.5 h-7.5 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground font-extrabold text-[10px] flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-					>
-						<span>Check Out Visitor</span>
-					</button>
-				</div>
-			`).addTo(leafMap);
+			if (!cluster) {
+				cluster = { baseLat: rawLat, baseLng: rawLng, visitors: [] };
+				locationClusters.push(cluster);
+			}
+			cluster.visitors.push(v);
+		});
 
-			visitorMarkers[v.id] = marker;
+		// 2. Plot visitors with radial spider offset for co-located clusters
+		locationClusters.forEach((cluster) => {
+			const total = cluster.visitors.length;
+
+			cluster.visitors.forEach((v: any, idx: number) => {
+				let lat = cluster.baseLat;
+				let lng = cluster.baseLng;
+
+				if (total > 1) {
+					if (total <= 8) {
+						// Single circular ring spread (~6m radius)
+						const angle = (idx / total) * 2 * Math.PI;
+						const radius = 0.000055;
+						lat = cluster.baseLat + Math.sin(angle) * radius;
+						lng = cluster.baseLng + Math.cos(angle) * radius;
+					} else {
+						// Two-ring concentric spread for large groups (>8)
+						const isInnerRing = idx < 6;
+						const ringIdx = isInnerRing ? idx : idx - 6;
+						const ringTotal = isInnerRing ? 6 : total - 6;
+						const radius = isInnerRing ? 0.000045 : 0.000090;
+						const angleOffset = isInnerRing ? 0 : Math.PI / 6;
+						const angle = (ringIdx / ringTotal) * 2 * Math.PI + angleOffset;
+						lat = cluster.baseLat + Math.sin(angle) * radius;
+						lng = cluster.baseLng + Math.cos(angle) * radius;
+					}
+				}
+
+				const nearestNode = findNearestBuildingName(cluster.baseLat, cluster.baseLng);
+				const duration = calculateVisitDuration(v.checkInTime, null);
+				const avatarSrc = v.photoUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(v.fullName || 'Visitor')}&background=0284c7&color=ffffff&bold=true&size=128`;
+
+				const iconHtml = `
+					<div class="group relative flex items-center justify-center cursor-pointer transition-transform hover:scale-125">
+						<span class="animate-ping absolute inline-flex size-9 rounded-full bg-emerald-500/40"></span>
+						<div class="relative size-9 rounded-full bg-card border-2 border-emerald-500 shadow-xl overflow-hidden flex items-center justify-center">
+							<img src="${avatarSrc}" class="size-full object-cover" alt="${v.fullName || 'Visitor'}" />
+						</div>
+					</div>
+				`;
+
+				const marker = L.marker([lat, lng], {
+					icon: L.divIcon({
+						className: "bg-transparent border-none",
+						html: iconHtml,
+						iconSize: [36, 36],
+						iconAnchor: [18, 18]
+					}),
+					zIndexOffset: 600 + idx
+				}).bindPopup(`
+					<div class="font-sans text-xs p-1 max-w-xs flex flex-col gap-1.5 text-popover-foreground">
+						<div class="font-extrabold text-foreground flex items-center justify-between gap-2">
+							<span>${v.fullName}</span>
+							<span class="font-mono text-[10px] font-bold text-primary">${v.passCode}</span>
+						</div>
+						<div class="text-[10px] text-muted-foreground font-semibold">
+							Office: ${v.officeName || 'Campus'}
+						</div>
+						<div class="text-[10px] text-emerald-600 dark:text-emerald-400 font-extrabold flex items-center justify-between border-t border-border/60 pt-1 mt-0.5">
+							<span>Near: ${nearestNode}</span>
+							<span>${duration}</span>
+						</div>
+						<button 
+							type="button" 
+							onclick="window.handleSecurityMapCheckout('${v.id}')"
+							class="w-full mt-1.5 h-7.5 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground font-extrabold text-[10px] flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+						>
+							<span>Check Out Visitor</span>
+						</button>
+					</div>
+				`).addTo(leafMap);
+
+				visitorMarkers[v.id] = marker;
+			});
 		});
 	}
 
