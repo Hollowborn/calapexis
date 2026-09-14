@@ -295,7 +295,7 @@
 				tableBody += `
 					<tr style="background-color: #e4e4e7; -webkit-print-color-adjust: exact; print-color-adjust: exact; border-top: 2px solid #71717a; border-bottom: 1px solid #a1a1aa;">
 						<td colspan="${activeColumnCount}" style="padding: 8px 10px; font-weight: 900; font-size: 11.5px; color: #09090b; letter-spacing: 0.2px;">
-							📅 ${group.dateLabel} &nbsp;•&nbsp; <span style="font-weight: 700; font-size: 10.5px; color: #52525b;">${group.visitors.length} ${group.visitors.length === 1 ? 'Record' : 'Records'}</span>
+							 ${group.dateLabel} &nbsp;•&nbsp; <span style="font-weight: 700; font-size: 10.5px; color: #52525b;">${group.visitors.length} ${group.visitors.length === 1 ? 'Record' : 'Records'}</span>
 						</td>
 					</tr>
 				`;
@@ -454,7 +454,8 @@
 			const res = await exportAuditLogsToDocx(printableVisitors, {
 				scopeLabel: scopeText,
 				dateRange: dateRangeText,
-				generatedBy: (data?.user as any)?.user_metadata?.full_name || (data?.user as any)?.email || "Security Desk Officer"
+				generatedBy: (data?.user as any)?.user_metadata?.full_name || (data?.user as any)?.email || "Security Desk Officer",
+				columns: printColumns
 			});
 			toast.success(`Generated and downloaded ${res.filename}`);
 			isPrintModalOpen = false;
