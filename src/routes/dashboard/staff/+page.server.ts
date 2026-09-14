@@ -247,6 +247,23 @@ export const actions: Actions = {
 						}
 					}
 
+					let officeLat = 9.894144489361919;
+					let officeLng = 123.88273758838274;
+
+					if (validOfficeUuid) {
+						const { data: officeWithBuilding } = await dbClient
+							.from("offices")
+							.select("id, building_id, buildings(x_coord, y_coord, lat, lng)")
+							.eq("id", validOfficeUuid)
+							.maybeSingle();
+
+						if (officeWithBuilding?.buildings) {
+							const b = officeWithBuilding.buildings;
+							officeLat = b.x_coord || b.lat || 9.894144489361919;
+							officeLng = b.y_coord || b.lng || 123.88273758838274;
+						}
+					}
+
 					const { data: logData, error: logErr } = await dbClient
 						.from("visitor_logs")
 						.insert([{
@@ -257,8 +274,8 @@ export const actions: Actions = {
 							status: "checked_in",
 							verification_status: "approved",
 							pass_code: passCode,
-							last_latitude: 9.894144489361919,
-							last_longitude: 123.88273758838274,
+							last_latitude: officeLat,
+							last_longitude: officeLng,
 							last_located_at: new Date().toISOString()
 						}])
 						.select()
