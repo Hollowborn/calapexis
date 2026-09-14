@@ -1,6 +1,5 @@
 <script lang="ts">
 	import * as Card from "$lib/components/ui/card/index.js";
-	import * as Sheet from "$lib/components/ui/sheet/index.js";
 	import * as Dialog from "$lib/components/ui/dialog/index.js";
 	import * as Select from "$lib/components/ui/select/index.js";
 	import { Badge } from "$lib/components/ui/badge/index.js";
@@ -24,6 +23,7 @@
 	import SearchIcon from "@lucide/svelte/icons/search";
 	import QrCodeIcon from "@lucide/svelte/icons/qr-code";
 	import PrinterIcon from "@lucide/svelte/icons/printer";
+	import XIcon from "@lucide/svelte/icons/x";
 
 	let { data } = $props();
 
@@ -293,234 +293,258 @@
 	</div>
 </div>
 
-<!-- Create Office Desk Side Sheet -->
-<Sheet.Root bind:open={isCreatingOffice}>
-	<Sheet.Content class="sm:max-w-md md:max-w-lg flex flex-col h-full bg-card border-l border-border/80 overflow-hidden p-0">
-		<Sheet.Header class="p-6 border-b border-border/60">
-			<Sheet.Title class="text-left font-black text-lg">Register Check-In Office Desk</Sheet.Title>
-			<Sheet.Description class="text-left text-xs font-semibold text-muted-foreground">
-				Designate a building reception counter or room office that accepts visitor arrivals.
-			</Sheet.Description>
-		</Sheet.Header>
-
-		<form 
-			method="POST" 
-			action="?/createOffice" 
-			use:enhance={handleCreateOfficeEnhance} 
-			class="flex-grow overflow-y-auto p-6 flex flex-col gap-5 text-xs font-semibold"
-		>
-			<div class="grid grid-cols-3 gap-2">
-				<div class="flex flex-col gap-1.5">
-					<label for="create-code" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Code *</label>
-					<Input id="create-code" name="code" placeholder="e.g. OFF-CCS" maxlength={10} required class="h-9 rounded-lg text-xs font-semibold" />
+<!-- Create Office Desk Dialog Modal -->
+<Dialog.Root bind:open={isCreatingOffice}>
+	<Dialog.Portal>
+		<Dialog.Content class="z-[2600] max-w-xl w-[95vw] border-border bg-card text-card-foreground shadow-2xl rounded-3xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
+			<div class="p-6 border-b border-border/60 bg-muted/20 flex items-center justify-between">
+				<div>
+					<Dialog.Title class="text-left font-black text-lg text-foreground">Register Check-In Office Desk</Dialog.Title>
+					<Dialog.Description class="text-left text-xs font-semibold text-muted-foreground mt-0.5">
+						Designate a building reception counter or room office that accepts visitor arrivals.
+					</Dialog.Description>
 				</div>
-				<div class="flex flex-col gap-1.5 col-span-2">
-					<label for="create-name" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Office Name *</label>
-					<Input id="create-name" name="name" placeholder="e.g. Dean's Office Reception" required class="h-9 rounded-lg text-xs font-semibold" />
-				</div>
+				<!-- <Button
+					variant="ghost"
+					size="icon"
+					onclick={() => (isCreatingOffice = false)}
+					class="size-8 rounded-full hover:bg-muted cursor-pointer shrink-0"
+				>
+					<XIcon class="size-4 pointer-events-none" />
+				</Button> -->
 			</div>
 
-			<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-				<div class="flex flex-col gap-1.5">
-					<label for="create-buildingId-hidden" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Target Building *</label>
-					<input type="hidden" id="create-buildingId-hidden" name="buildingId" value={createBuildingId} />
-					<Select.Root 
-						type="single" 
-						value={createBuildingId} 
-						onValueChange={(val) => { createBuildingId = val; createRoomId = ""; }}
-					>
-						<Select.Trigger class="h-9 rounded-lg cursor-pointer">
-							<span class="text-xs font-semibold text-foreground">
-								{buildings.find(b => b.id === createBuildingId)?.name || "Select Building..."}
-							</span>
-						</Select.Trigger>
-						<Select.Content class="rounded-xl border border-border bg-card">
-							<Select.Group>
-								{#each buildings as b}
-									<Select.Item value={b.id} label={b.name}>{b.name} ({b.code})</Select.Item>
-								{/each}
-							</Select.Group>
-						</Select.Content>
-					</Select.Root>
+			<form 
+				method="POST" 
+				action="?/createOffice" 
+				use:enhance={handleCreateOfficeEnhance} 
+				class="flex-grow overflow-y-auto p-6 flex flex-col gap-5 text-xs font-semibold"
+			>
+				<div class="grid grid-cols-3 gap-2">
+					<div class="flex flex-col gap-1.5">
+						<label for="create-code" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Code *</label>
+						<Input id="create-code" name="code" placeholder="e.g. OFF-CCS" maxlength={10} required class="h-9 rounded-lg text-xs font-semibold" />
+					</div>
+					<div class="flex flex-col gap-1.5 col-span-2">
+						<label for="create-name" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Office Name *</label>
+						<Input id="create-name" name="name" placeholder="e.g. Dean's Office Reception" required class="h-9 rounded-lg text-xs font-semibold" />
+					</div>
 				</div>
 
-				<div class="flex flex-col gap-1.5">
-					<label for="create-roomId-hidden" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Linked Room (Optional)</label>
-					<input type="hidden" id="create-roomId-hidden" name="roomId" value={createRoomId} />
-					<Select.Root 
-						type="single" 
-						value={createRoomId} 
-						onValueChange={(val) => createRoomId = val}
-						disabled={!createBuildingId || createAvailableRooms.length === 0}
-					>
-						<Select.Trigger class="h-9 rounded-lg cursor-pointer">
-							<span class="text-xs font-semibold text-foreground">
-								{rooms.find(r => r.id === createRoomId)?.roomName || (createAvailableRooms.length > 0 ? "Building Main Lobby Desk" : "No Rooms Available")}
-							</span>
-						</Select.Trigger>
-						<Select.Content class="rounded-xl border border-border bg-card">
-							<Select.Group>
-								<Select.Item value="" label="Building Main Lobby Desk">Building Main Lobby Desk</Select.Item>
-								{#each createAvailableRooms as r}
-									<Select.Item value={r.id} label={`${r.roomNumber} - ${r.roomName}`}>
-										{r.roomNumber} - {r.roomName}
-									</Select.Item>
-								{/each}
-							</Select.Group>
-						</Select.Content>
-					</Select.Root>
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+					<div class="flex flex-col gap-1.5">
+						<label for="create-buildingId-hidden" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Target Building *</label>
+						<input type="hidden" id="create-buildingId-hidden" name="buildingId" value={createBuildingId} />
+						<Select.Root 
+							type="single" 
+							value={createBuildingId} 
+							onValueChange={(val) => { createBuildingId = val; createRoomId = ""; }}
+						>
+							<Select.Trigger class="h-9 rounded-lg cursor-pointer">
+								<span class="text-xs font-semibold text-foreground">
+									{buildings.find(b => b.id === createBuildingId)?.name || "Select Building..."}
+								</span>
+							</Select.Trigger>
+							<Select.Content class="rounded-xl border border-border bg-card z-[2700]">
+								<Select.Group>
+									{#each buildings as b}
+										<Select.Item value={b.id} label={b.name}>{b.name} ({b.code})</Select.Item>
+									{/each}
+								</Select.Group>
+							</Select.Content>
+						</Select.Root>
+					</div>
+
+					<div class="flex flex-col gap-1.5">
+						<label for="create-roomId-hidden" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Linked Room (Optional)</label>
+						<input type="hidden" id="create-roomId-hidden" name="roomId" value={createRoomId} />
+						<Select.Root 
+							type="single" 
+							value={createRoomId} 
+							onValueChange={(val) => createRoomId = val}
+							disabled={!createBuildingId || createAvailableRooms.length === 0}
+						>
+							<Select.Trigger class="h-9 rounded-lg cursor-pointer">
+								<span class="text-xs font-semibold text-foreground">
+									{rooms.find(r => r.id === createRoomId)?.roomName || (createAvailableRooms.length > 0 ? "Building Main Lobby Desk" : "No Rooms Available")}
+								</span>
+							</Select.Trigger>
+							<Select.Content class="rounded-xl border border-border bg-card z-[2700]">
+								<Select.Group>
+									<Select.Item value="" label="Building Main Lobby Desk">Building Main Lobby Desk</Select.Item>
+									{#each createAvailableRooms as r}
+										<Select.Item value={r.id} label={`${r.roomNumber} - ${r.roomName}`}>
+											{r.roomNumber} - {r.roomName}
+										</Select.Item>
+									{/each}
+								</Select.Group>
+							</Select.Content>
+						</Select.Root>
+					</div>
 				</div>
-			</div>
 
-			<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-				<div class="flex flex-col gap-1.5">
-					<label for="create-headPerson" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Officer / Head Person</label>
-					<Input id="create-headPerson" name="headPerson" placeholder="e.g. Dr. Santos" class="h-9 rounded-lg text-xs font-semibold" />
-				</div>
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+					<div class="flex flex-col gap-1.5">
+						<label for="create-headPerson" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Officer / Head Person</label>
+						<Input id="create-headPerson" name="headPerson" placeholder="e.g. Dr. Santos" class="h-9 rounded-lg text-xs font-semibold" />
+					</div>
 
-				<div class="flex flex-col gap-1.5">
-					<label for="create-contactEmail" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Contact Email</label>
-					<Input id="create-contactEmail" name="contactEmail" type="email" placeholder="ccs@university.edu" class="h-9 rounded-lg text-xs font-semibold" />
-				</div>
-			</div>
-
-			<div class="flex flex-col gap-1.5">
-				<label for="create-operatingHours" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Operating Hours</label>
-				<Input id="create-operatingHours" name="operatingHours" placeholder="e.g. 8:00 AM - 5:00 PM (Mon-Fri)" class="h-9 rounded-lg text-xs font-semibold" />
-			</div>
-
-			<div class="flex flex-col gap-1.5">
-				<label for="create-description" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Office Description</label>
-				<Input id="create-description" name="description" placeholder="Brief statement regarding services handled at this desk..." class="h-9 rounded-lg text-xs font-semibold" />
-			</div>
-
-			<div class="pt-4 border-t border-border/60 flex items-center justify-end gap-3 mt-[auto]">
-				<Sheet.Close class="px-4 py-2 border border-border rounded-xl text-xs font-bold hover:bg-muted/40 cursor-pointer">
-					Cancel
-				</Sheet.Close>
-				<Button type="submit" class="px-5 py-2 rounded-xl text-xs font-black shadow-sm cursor-pointer h-9">
-					Provision Desk
-				</Button>
-			</div>
-		</form>
-	</Sheet.Content>
-</Sheet.Root>
-
-<!-- Edit Office Desk Side Sheet -->
-<Sheet.Root open={!!activeEditingOffice} onOpenChange={(open) => { if (!open) activeEditingOffice = null; }}>
-	<Sheet.Content class="sm:max-w-md md:max-w-lg flex flex-col h-full bg-card border-l border-border/80 overflow-hidden p-0">
-		<Sheet.Header class="p-6 border-b border-border/60">
-			<Sheet.Title class="text-left font-black text-lg">Edit Check-In Office Desk</Sheet.Title>
-			<Sheet.Description class="text-left text-xs font-semibold text-muted-foreground">
-				Modify details for {activeEditingOffice?.name}.
-			</Sheet.Description>
-		</Sheet.Header>
-
-		<form 
-			method="POST" 
-			action="?/updateOffice" 
-			use:enhance={handleUpdateOfficeEnhance} 
-			class="flex-grow overflow-y-auto p-6 flex flex-col gap-5 text-xs font-semibold"
-		>
-			<input type="hidden" name="id" value={activeEditingOffice?.id} />
-			<input type="hidden" name="isActive" value="true" />
-
-			<div class="grid grid-cols-3 gap-2">
-				<div class="flex flex-col gap-1.5">
-					<label for="edit-code" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Code *</label>
-					<Input id="edit-code" name="code" placeholder="e.g. OFF-CCS" maxlength={10} required bind:value={editCode} class="h-9 rounded-lg text-xs font-semibold" />
-				</div>
-				<div class="flex flex-col gap-1.5 col-span-2">
-					<label for="edit-name" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Office Name *</label>
-					<Input id="edit-name" name="name" placeholder="e.g. Dean's Office Reception" required bind:value={editName} class="h-9 rounded-lg text-xs font-semibold" />
-				</div>
-			</div>
-
-			<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-				<div class="flex flex-col gap-1.5">
-					<label for="edit-buildingId-hidden" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Target Building *</label>
-					<input type="hidden" id="edit-buildingId-hidden" name="buildingId" value={editBuildingId} />
-					<Select.Root 
-						type="single" 
-						value={editBuildingId} 
-						onValueChange={(val) => { editBuildingId = val; editRoomId = ""; }}
-					>
-						<Select.Trigger class="h-9 rounded-lg cursor-pointer">
-							<span class="text-xs font-semibold text-foreground">
-								{buildings.find(b => b.id === editBuildingId)?.name || "Select Building..."}
-							</span>
-						</Select.Trigger>
-						<Select.Content class="rounded-xl border border-border bg-card">
-							<Select.Group>
-								{#each buildings as b}
-									<Select.Item value={b.id} label={b.name}>{b.name} ({b.code})</Select.Item>
-								{/each}
-							</Select.Group>
-						</Select.Content>
-					</Select.Root>
+					<div class="flex flex-col gap-1.5">
+						<label for="create-contactEmail" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Contact Email</label>
+						<Input id="create-contactEmail" name="contactEmail" type="email" placeholder="ccs@university.edu" class="h-9 rounded-lg text-xs font-semibold" />
+					</div>
 				</div>
 
 				<div class="flex flex-col gap-1.5">
-					<label for="edit-roomId-hidden" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Linked Room (Optional)</label>
-					<input type="hidden" id="edit-roomId-hidden" name="roomId" value={editRoomId} />
-					<Select.Root 
-						type="single" 
-						value={editRoomId} 
-						onValueChange={(val) => editRoomId = val}
-						disabled={!editBuildingId || editAvailableRooms.length === 0}
-					>
-						<Select.Trigger class="h-9 rounded-lg cursor-pointer">
-							<span class="text-xs font-semibold text-foreground">
-								{rooms.find(r => r.id === editRoomId)?.roomName || (editAvailableRooms.length > 0 ? "Building Main Lobby Desk" : "No Rooms Available")}
-							</span>
-						</Select.Trigger>
-						<Select.Content class="rounded-xl border border-border bg-card">
-							<Select.Group>
-								<Select.Item value="" label="Building Main Lobby Desk">Building Main Lobby Desk</Select.Item>
-								{#each editAvailableRooms as r}
-									<Select.Item value={r.id} label={`${r.roomNumber} - ${r.roomName}`}>
-										{r.roomNumber} - {r.roomName}
-									</Select.Item>
-								{/each}
-							</Select.Group>
-						</Select.Content>
-					</Select.Root>
-				</div>
-			</div>
-
-			<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-				<div class="flex flex-col gap-1.5">
-					<label for="edit-headPerson" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Officer / Head Person</label>
-					<Input id="edit-headPerson" name="headPerson" placeholder="e.g. Dr. Santos" bind:value={editHeadPerson} class="h-9 rounded-lg text-xs font-semibold" />
+					<label for="create-operatingHours" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Operating Hours</label>
+					<Input id="create-operatingHours" name="operatingHours" placeholder="e.g. 8:00 AM - 5:00 PM (Mon-Fri)" class="h-9 rounded-lg text-xs font-semibold" />
 				</div>
 
 				<div class="flex flex-col gap-1.5">
-					<label for="edit-contactEmail" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Contact Email</label>
-					<Input id="edit-contactEmail" name="contactEmail" type="email" placeholder="ccs@university.edu" bind:value={editContactEmail} class="h-9 rounded-lg text-xs font-semibold" />
+					<label for="create-description" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Office Description</label>
+					<Input id="create-description" name="description" placeholder="Brief statement regarding services handled at this desk..." class="h-9 rounded-lg text-xs font-semibold" />
 				</div>
+
+				<div class="pt-4 border-t border-border/60 flex items-center justify-end gap-3 mt-auto">
+					<Button type="button" variant="outline" onclick={() => (isCreatingOffice = false)} class="px-4 py-2 border border-border rounded-xl text-xs font-bold hover:bg-muted/40 cursor-pointer h-9">
+						Cancel
+					</Button>
+					<Button type="submit" class="px-5 py-2 rounded-xl text-xs font-black shadow-sm cursor-pointer h-9">
+						Provision Desk
+					</Button>
+				</div>
+			</form>
+		</Dialog.Content>
+	</Dialog.Portal>
+</Dialog.Root>
+
+<!-- Edit Office Desk Dialog Modal -->
+<Dialog.Root open={!!activeEditingOffice} onOpenChange={(open) => { if (!open) activeEditingOffice = null; }}>
+	<Dialog.Portal>
+		<Dialog.Content class="z-[2600] max-w-xl w-[95vw] border-border bg-card text-card-foreground shadow-2xl rounded-3xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
+			<div class="p-6 border-b border-border/60 bg-muted/20 flex items-center justify-between">
+				<div>
+					<Dialog.Title class="text-left font-black text-lg text-foreground">Edit Check-In Office Desk</Dialog.Title>
+					<Dialog.Description class="text-left text-xs font-semibold text-muted-foreground mt-0.5">
+						Modify details for {activeEditingOffice?.name}.
+					</Dialog.Description>
+				</div>
+				<!-- <Button
+					variant="ghost"
+					size="icon"
+					onclick={() => (activeEditingOffice = null)}
+					class="size-8 rounded-full hover:bg-muted cursor-pointer shrink-0"
+				>
+					<XIcon class="size-4 pointer-events-none" />
+				</Button> -->
 			</div>
 
-			<div class="flex flex-col gap-1.5">
-				<label for="edit-operatingHours" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Operating Hours</label>
-				<Input id="edit-operatingHours" name="operatingHours" placeholder="e.g. 8:00 AM - 5:00 PM (Mon-Fri)" bind:value={editOperatingHours} class="h-9 rounded-lg text-xs font-semibold" />
-			</div>
+			<form 
+				method="POST" 
+				action="?/updateOffice" 
+				use:enhance={handleUpdateOfficeEnhance} 
+				class="flex-grow overflow-y-auto p-6 flex flex-col gap-5 text-xs font-semibold"
+			>
+				<input type="hidden" name="id" value={activeEditingOffice?.id} />
+				<input type="hidden" name="isActive" value="true" />
 
-			<div class="flex flex-col gap-1.5">
-				<label for="edit-description" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Office Description</label>
-				<Input id="edit-description" name="description" placeholder="Brief statement regarding services..." bind:value={editDescription} class="h-9 rounded-lg text-xs font-semibold" />
-			</div>
+				<div class="grid grid-cols-3 gap-2">
+					<div class="flex flex-col gap-1.5">
+						<label for="edit-code" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Code *</label>
+						<Input id="edit-code" name="code" placeholder="e.g. OFF-CCS" maxlength={10} required bind:value={editCode} class="h-9 rounded-lg text-xs font-semibold" />
+					</div>
+					<div class="flex flex-col gap-1.5 col-span-2">
+						<label for="edit-name" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Office Name *</label>
+						<Input id="edit-name" name="name" placeholder="e.g. Dean's Office Reception" required bind:value={editName} class="h-9 rounded-lg text-xs font-semibold" />
+					</div>
+				</div>
 
-			<div class="pt-4 border-t border-border/60 flex items-center justify-end gap-3 mt-[auto]">
-				<Button type="button" variant="outline" onclick={() => activeEditingOffice = null} class="px-4 py-2 border border-border rounded-xl text-xs font-bold hover:bg-muted/40 cursor-pointer">
-					Cancel
-				</Button>
-				<Button type="submit" class="px-5 py-2 rounded-xl text-xs font-black shadow-sm cursor-pointer h-9">
-					Save Changes
-				</Button>
-			</div>
-		</form>
-	</Sheet.Content>
-</Sheet.Root>
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+					<div class="flex flex-col gap-1.5">
+						<label for="edit-buildingId-hidden" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Target Building *</label>
+						<input type="hidden" id="edit-buildingId-hidden" name="buildingId" value={editBuildingId} />
+						<Select.Root 
+							type="single" 
+							value={editBuildingId} 
+							onValueChange={(val) => { editBuildingId = val; editRoomId = ""; }}
+						>
+							<Select.Trigger class="h-9 rounded-lg cursor-pointer">
+								<span class="text-xs font-semibold text-foreground">
+									{buildings.find(b => b.id === editBuildingId)?.name || "Select Building..."}
+								</span>
+							</Select.Trigger>
+							<Select.Content class="rounded-xl border border-border bg-card z-[2700]">
+								<Select.Group>
+									{#each buildings as b}
+										<Select.Item value={b.id} label={b.name}>{b.name} ({b.code})</Select.Item>
+									{/each}
+								</Select.Group>
+							</Select.Content>
+						</Select.Root>
+					</div>
+
+					<div class="flex flex-col gap-1.5">
+						<label for="edit-roomId-hidden" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Linked Room (Optional)</label>
+						<input type="hidden" id="edit-roomId-hidden" name="roomId" value={editRoomId} />
+						<Select.Root 
+							type="single" 
+							value={editRoomId} 
+							onValueChange={(val) => editRoomId = val}
+							disabled={!editBuildingId || editAvailableRooms.length === 0}
+						>
+							<Select.Trigger class="h-9 rounded-lg cursor-pointer">
+								<span class="text-xs font-semibold text-foreground">
+									{rooms.find(r => r.id === editRoomId)?.roomName || (editAvailableRooms.length > 0 ? "Building Main Lobby Desk" : "No Rooms Available")}
+								</span>
+							</Select.Trigger>
+							<Select.Content class="rounded-xl border border-border bg-card z-[2700]">
+								<Select.Group>
+									<Select.Item value="" label="Building Main Lobby Desk">Building Main Lobby Desk</Select.Item>
+									{#each editAvailableRooms as r}
+										<Select.Item value={r.id} label={`${r.roomNumber} - ${r.roomName}`}>
+											{r.roomNumber} - {r.roomName}
+										</Select.Item>
+									{/each}
+								</Select.Group>
+							</Select.Content>
+						</Select.Root>
+					</div>
+				</div>
+
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+					<div class="flex flex-col gap-1.5">
+						<label for="edit-headPerson" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Officer / Head Person</label>
+						<Input id="edit-headPerson" name="headPerson" placeholder="e.g. Dr. Santos" bind:value={editHeadPerson} class="h-9 rounded-lg text-xs font-semibold" />
+					</div>
+
+					<div class="flex flex-col gap-1.5">
+						<label for="edit-contactEmail" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Contact Email</label>
+						<Input id="edit-contactEmail" name="contactEmail" type="email" placeholder="ccs@university.edu" bind:value={editContactEmail} class="h-9 rounded-lg text-xs font-semibold" />
+					</div>
+				</div>
+
+				<div class="flex flex-col gap-1.5">
+					<label for="edit-operatingHours" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Operating Hours</label>
+					<Input id="edit-operatingHours" name="operatingHours" placeholder="e.g. 8:00 AM - 5:00 PM (Mon-Fri)" bind:value={editOperatingHours} class="h-9 rounded-lg text-xs font-semibold" />
+				</div>
+
+				<div class="flex flex-col gap-1.5">
+					<label for="edit-description" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Office Description</label>
+					<Input id="edit-description" name="description" placeholder="Brief statement regarding services..." bind:value={editDescription} class="h-9 rounded-lg text-xs font-semibold" />
+				</div>
+
+				<div class="pt-4 border-t border-border/60 flex items-center justify-end gap-3 mt-auto">
+					<Button type="button" variant="outline" onclick={() => activeEditingOffice = null} class="px-4 py-2 border border-border rounded-xl text-xs font-bold hover:bg-muted/40 cursor-pointer h-9">
+						Cancel
+					</Button>
+					<Button type="submit" class="px-5 py-2 rounded-xl text-xs font-black shadow-sm cursor-pointer h-9">
+						Save Changes
+					</Button>
+				</div>
+			</form>
+		</Dialog.Content>
+	</Dialog.Portal>
+</Dialog.Root>
 
 <!-- Delete Office Confirmation Dialog -->
 <Dialog.Root open={!!deletingOfficeTarget} onOpenChange={(open) => { if (!open) deletingOfficeTarget = null; }}>

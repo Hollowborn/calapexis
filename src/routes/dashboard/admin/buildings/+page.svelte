@@ -1,7 +1,6 @@
 <script lang="ts">
 	import * as Card from "$lib/components/ui/card/index.js";
 	import * as Dialog from "$lib/components/ui/dialog/index.js";
-	import * as Sheet from "$lib/components/ui/sheet/index.js";
 	import * as Select from "$lib/components/ui/select/index.js";
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -540,165 +539,182 @@
 	</div>
 </div>
 
-<!-- Add Building Side Sheet -->
-<Sheet.Root bind:open={isCreatingBuilding} onOpenChange={(open) => { if (!open) clearBuildingImage(); }}>
-	<Sheet.Content class="sm:max-w-md md:max-w-lg flex flex-col h-full bg-card border-l border-border/80 overflow-hidden p-0">
-		<Sheet.Header class="p-6 border-b border-border/60">
-			<Sheet.Title class="font-black text-lg text-left">Add Building / Landmark</Sheet.Title>
-			<Sheet.Description class="text-xs text-muted-foreground font-semibold leading-relaxed text-left">
-				Create a new building node or department office on the campus map.
-			</Sheet.Description>
-		</Sheet.Header>
-		
-		<form 
-			method="POST" 
-			action="?/createBuilding" 
-			enctype="multipart/form-data"
-			use:enhance={handleCreateBuildingEnhance} 
-			class="flex-grow overflow-y-auto p-6 flex flex-col gap-6 text-xs font-semibold"
-		>
-			<!-- Section 1: Core Info -->
-			<div class="space-y-3">
-				<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">1. Core Information (Required)</div>
-				<div class="grid grid-cols-3 gap-2">
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Code *</label>
-						<Input name="code" placeholder="e.g. TECH" maxlength={5} required class="h-9 rounded-lg text-xs font-semibold" />
-					</div>
-					<div class="flex flex-col gap-1.5 col-span-2">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Building Name *</label>
-						<Input name="name" placeholder="e.g. Technology Complex" required class="h-9 rounded-lg text-xs font-semibold" />
-					</div>
+<!-- Add Building Dialog Modal -->
+<Dialog.Root bind:open={isCreatingBuilding} onOpenChange={(open) => { if (!open) clearBuildingImage(); }}>
+	<Dialog.Portal>
+		<Dialog.Content class="z-[2600] max-w-2xl w-[95vw] border-border bg-card text-card-foreground shadow-2xl rounded-3xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
+			<div class="p-6 border-b border-border/60 bg-muted/20 flex items-center justify-between">
+				<div>
+					<Dialog.Title class="font-black text-lg text-left text-foreground">Add Building / Landmark</Dialog.Title>
+					<Dialog.Description class="text-xs text-muted-foreground font-semibold leading-relaxed text-left mt-0.5">
+						Create a new building node or department office on the campus map.
+					</Dialog.Description>
 				</div>
-				
-				<div class="grid grid-cols-2 gap-2">
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Total Floors *</label>
-						<Input name="floors" type="number" min="1" placeholder="e.g. 4" required class="h-9 rounded-lg text-xs" />
-					</div>
-				</div>
-				
-				<div class="flex flex-col gap-1.5">
-					<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Brief Description *</label>
-					<Input name="description" placeholder="Dean offices, lecture complexes, and research labs." required class="h-9 rounded-lg text-xs" />
-				</div>
-			</div>
-
-			<!-- Section 2: Reddit Style Photo Uploader -->
-			<div class="space-y-3">
-				<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">2. Visual Asset (Optional)</div>
-				<div class="flex flex-col gap-1.5">
-					<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Landmark Image</label>
-					{#if buildingImagePreview}
-						<div class="relative w-full h-40 rounded-xl overflow-hidden border border-border bg-muted/40 flex items-center justify-center group">
-							<img src={buildingImagePreview} alt="Preview" class="size-full object-cover" />
-							<button 
-								type="button" 
-								onclick={clearBuildingImage}
-								class="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 hover:bg-black/85 text-white transition-all cursor-pointer shadow-md"
-							>
-								<XIcon class="size-4 pointer-events-none" />
-							</button>
-						</div>
-					{:else}
-						<label 
-							for="building-image-upload" 
-							class="w-full h-28 border border-dashed border-border/80 rounded-xl flex flex-col items-center justify-center gap-1 bg-muted/10 hover:bg-muted/20 transition-all cursor-pointer select-none"
-						>
-							<UploadCloudIcon class="size-6 text-muted-foreground pointer-events-none" />
-							<span class="text-xs font-bold text-foreground">Upload Landmark Photo</span>
-							<span class="text-[10px] text-muted-foreground/80 font-medium">JPEG, PNG up to 5MB</span>
-						</label>
-						<input 
-							type="file" 
-							id="building-image-upload" 
-							name="buildingImage"
-							accept="image/*" 
-							onchange={handleBuildingImageChange} 
-							class="sr-only" 
-						/>
-					{/if}
-				</div>
-			</div>
-			
-			<!-- Section 3: Map Coordinates -->
-			<div class="space-y-3">
-				<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">3. Map Coordinates & Pin (Optional)</div>
-				<div class="grid grid-cols-3 gap-2">
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Pin Color</label>
-						<input type="hidden" name="color" value={createColor} />
-						<Select.Root
-							type="single"
-							value={createColor}
-							onValueChange={(val) => createColor = val}
-						>
-							<Select.Trigger class="h-9 w-full rounded-lg cursor-pointer truncate">
-								<span class="text-xs font-semibold flex items-center gap-2">
-									<span class="size-3 rounded-full border border-border shrink-0" style="background-color: {createColor};"></span>
-									<span>{RAINBOW_COLORS.find(c => c.value === createColor)?.label || "Select"}</span>
-								</span>
-							</Select.Trigger>
-							<Select.Content class="rounded-xl border border-border bg-card">
-								<Select.Group>
-									{#each RAINBOW_COLORS as colorOpt}
-										<Select.Item value={colorOpt.value} label={colorOpt.label}>
-											<div class="flex items-center gap-2">
-												<span class="size-3 rounded-full border border-border shrink-0" style="background-color: {colorOpt.value};"></span>
-												<span>{colorOpt.label}</span>
-											</div>
-										</Select.Item>
-									{/each}
-								</Select.Group>
-							</Select.Content>
-						</Select.Root>
-					</div>
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Latitude</label>
-						<Input name="xCoord" type="number" step="any" placeholder="e.g. 9.894" class="h-9 rounded-lg text-xs" />
-					</div>
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Longitude</label>
-						<Input name="yCoord" type="number" step="any" placeholder="e.g. 123.882" class="h-9 rounded-lg text-xs" />
-					</div>
-				</div>
-			</div>
-			
-			<!-- Section 4: Admin Contacts -->
-			<div class="space-y-3">
-				<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">4. Department Contacts (Optional)</div>
-				<div class="grid grid-cols-2 gap-2">
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Head Person</label>
-						<Input name="headPerson" placeholder="Engr. Robert Lee" class="h-9 rounded-lg text-xs" />
-					</div>
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Contact Email</label>
-						<Input name="contactEmail" type="email" placeholder="ccs@university.edu" class="h-9 rounded-lg text-xs" />
-					</div>
-				</div>
-			</div>
-			
-			<input type="hidden" name="imageUrl" value="" />
-
-			<div class="pt-4 border-t border-border/60 flex items-center justify-end gap-3 mt-4 shrink-0">
-				<Sheet.Close class="px-4 py-2 border border-border rounded-xl text-xs font-bold hover:bg-muted/40 cursor-pointer">
-					Cancel
-				</Sheet.Close>
-				<Button 
-					type="submit" 
-					disabled={isUploadingBuildingImage}
-					class="px-5 py-2 rounded-xl text-xs font-extrabold shadow-sm cursor-pointer h-9"
+				<Button
+					variant="ghost"
+					size="icon"
+					onclick={() => { isCreatingBuilding = false; clearBuildingImage(); }}
+					class="size-8 rounded-full hover:bg-muted cursor-pointer shrink-0"
 				>
-					Create Landmark
+					<XIcon class="size-4 pointer-events-none" />
 				</Button>
 			</div>
-		</form>
-	</Sheet.Content>
-</Sheet.Root>
+			
+			<form 
+				method="POST" 
+				action="?/createBuilding" 
+				enctype="multipart/form-data" 
+				use:enhance={handleCreateBuildingEnhance} 
+				class="flex-grow overflow-y-auto p-6 flex flex-col gap-6 text-xs font-semibold"
+			>
+				<!-- Section 1: Core Info -->
+				<div class="space-y-3">
+					<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">1. Core Information (Required)</div>
+					<div class="grid grid-cols-3 gap-2">
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Code *</label>
+							<Input name="code" placeholder="e.g. TECH" maxlength={5} required class="h-9 rounded-lg text-xs font-semibold" />
+						</div>
+						<div class="flex flex-col gap-1.5 col-span-2">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Building Name *</label>
+							<Input name="name" placeholder="e.g. Technology Complex" required class="h-9 rounded-lg text-xs font-semibold" />
+						</div>
+					</div>
+					
+					<div class="grid grid-cols-2 gap-2">
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Total Floors *</label>
+							<Input name="floors" type="number" min="1" placeholder="e.g. 4" required class="h-9 rounded-lg text-xs" />
+						</div>
+					</div>
+					
+					<div class="flex flex-col gap-1.5">
+						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Brief Description *</label>
+						<Input name="description" placeholder="Dean offices, lecture complexes, and research labs." required class="h-9 rounded-lg text-xs" />
+					</div>
+				</div>
 
-<!-- Edit Building Side Sheet -->
-<Sheet.Root
+				<!-- Section 2: Photo Uploader -->
+				<div class="space-y-3">
+					<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">2. Visual Asset (Optional)</div>
+					<div class="flex flex-col gap-1.5">
+						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Landmark Image</label>
+						{#if buildingImagePreview}
+							<div class="relative w-full h-40 rounded-xl overflow-hidden border border-border bg-muted/40 flex items-center justify-center group">
+								<img src={buildingImagePreview} alt="Preview" class="size-full object-cover" />
+								<button 
+									type="button" 
+									onclick={clearBuildingImage} 
+									class="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 hover:bg-black/85 text-white transition-all cursor-pointer shadow-md"
+								>
+									<XIcon class="size-4 pointer-events-none" />
+								</button>
+							</div>
+						{:else}
+							<label 
+								for="building-image-upload" 
+								class="w-full h-28 border border-dashed border-border/80 rounded-xl flex flex-col items-center justify-center gap-1 bg-muted/10 hover:bg-muted/20 transition-all cursor-pointer select-none"
+							>
+								<UploadCloudIcon class="size-6 text-muted-foreground pointer-events-none" />
+								<span class="text-xs font-bold text-foreground">Upload Landmark Photo</span>
+								<span class="text-[10px] text-muted-foreground/80 font-medium">JPEG, PNG up to 5MB</span>
+							</label>
+							<input 
+								type="file" 
+								id="building-image-upload" 
+								name="buildingImage" 
+								accept="image/*" 
+								onchange={handleBuildingImageChange} 
+								class="sr-only" 
+							/>
+						{/if}
+					</div>
+				</div>
+				
+				<!-- Section 3: Map Coordinates -->
+				<div class="space-y-3">
+					<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">3. Map Coordinates & Pin (Optional)</div>
+					<div class="grid grid-cols-3 gap-2">
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Pin Color</label>
+							<input type="hidden" name="color" value={createColor} />
+							<Select.Root
+								type="single"
+								value={createColor}
+								onValueChange={(val) => createColor = val}
+							>
+								<Select.Trigger class="h-9 w-full rounded-lg cursor-pointer truncate">
+									<span class="text-xs font-semibold flex items-center gap-2">
+										<span class="size-3 rounded-full border border-border shrink-0" style="background-color: {createColor};"></span>
+										<span>{RAINBOW_COLORS.find(c => c.value === createColor)?.label || "Select"}</span>
+									</span>
+								</Select.Trigger>
+								<Select.Content class="rounded-xl border border-border bg-card z-[2700]">
+									<Select.Group>
+										{#each RAINBOW_COLORS as colorOpt}
+											<Select.Item value={colorOpt.value} label={colorOpt.label}>
+												<div class="flex items-center gap-2">
+													<span class="size-3 rounded-full border border-border shrink-0" style="background-color: {colorOpt.value};"></span>
+													<span>{colorOpt.label}</span>
+												</div>
+											</Select.Item>
+										{/each}
+									</Select.Group>
+								</Select.Content>
+							</Select.Root>
+						</div>
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Latitude</label>
+							<Input name="xCoord" type="number" step="any" placeholder="e.g. 9.894" class="h-9 rounded-lg text-xs" />
+						</div>
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Longitude</label>
+							<Input name="yCoord" type="number" step="any" placeholder="e.g. 123.882" class="h-9 rounded-lg text-xs" />
+						</div>
+					</div>
+				</div>
+				
+				<!-- Section 4: Admin Contacts -->
+				<div class="space-y-3">
+					<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">4. Department Contacts (Optional)</div>
+					<div class="grid grid-cols-2 gap-2">
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Head Person</label>
+							<Input name="headPerson" placeholder="Engr. Robert Lee" class="h-9 rounded-lg text-xs" />
+						</div>
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Contact Email</label>
+							<Input name="contactEmail" type="email" placeholder="ccs@university.edu" class="h-9 rounded-lg text-xs" />
+						</div>
+					</div>
+				</div>
+				
+				<input type="hidden" name="imageUrl" value="" />
+
+				<div class="pt-4 border-t border-border/60 flex items-center justify-end gap-3 mt-4 shrink-0">
+					<Button 
+						type="button" 
+						variant="outline" 
+						onclick={() => { isCreatingBuilding = false; clearBuildingImage(); }} 
+						class="px-4 py-2 border border-border rounded-xl text-xs font-bold hover:bg-muted/40 cursor-pointer h-9"
+					>
+						Cancel
+					</Button>
+					<Button 
+						type="submit" 
+						disabled={isUploadingBuildingImage} 
+						class="px-5 py-2 rounded-xl text-xs font-extrabold shadow-sm cursor-pointer h-9"
+					>
+						Create Landmark
+					</Button>
+				</div>
+			</form>
+		</Dialog.Content>
+	</Dialog.Portal>
+</Dialog.Root>
+
+<!-- Edit Building Dialog Modal -->
+<Dialog.Root
 	open={!!activeEditingBuilding}
 	onOpenChange={(open) => {
 		if (!open) {
@@ -707,169 +723,182 @@
 		}
 	}}
 >
-	<Sheet.Content class="sm:max-w-md md:max-w-lg flex flex-col h-full bg-card border-l border-border/80 overflow-hidden p-0">
-		<Sheet.Header class="p-6 border-b border-border/60">
-			<Sheet.Title class="font-black text-lg text-left">Edit Building / Landmark</Sheet.Title>
-			<Sheet.Description class="text-xs text-muted-foreground font-semibold leading-relaxed text-left">
-				Modify building node or department office details.
-			</Sheet.Description>
-		</Sheet.Header>
-		
-		<form 
-			method="POST" 
-			action="?/updateBuilding" 
-			enctype="multipart/form-data"
-			use:enhance={handleUpdateBuildingEnhance} 
-			class="flex-grow overflow-y-auto p-6 flex flex-col gap-6 text-xs font-semibold"
-		>
-			<input type="hidden" name="id" value={activeEditingBuilding?.id} />
-
-			<!-- Section 1: Core Info -->
-			<div class="space-y-3">
-				<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">1. Core Information (Required)</div>
-				<div class="grid grid-cols-3 gap-2">
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Code *</label>
-						<Input name="code" placeholder="e.g. TECH" maxlength={5} required bind:value={editCode} class="h-9 rounded-lg text-xs font-semibold" />
-					</div>
-					<div class="flex flex-col gap-1.5 col-span-2">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Building Name *</label>
-						<Input name="name" placeholder="e.g. Technology Complex" required bind:value={editName} class="h-9 rounded-lg text-xs font-semibold" />
-					</div>
+	<Dialog.Portal>
+		<Dialog.Content class="z-[2600] max-w-2xl w-[95vw] border-border bg-card text-card-foreground shadow-2xl rounded-3xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
+			<div class="p-6 border-b border-border/60 bg-muted/20 flex items-center justify-between">
+				<div>
+					<Dialog.Title class="font-black text-lg text-left text-foreground">Edit Building / Landmark</Dialog.Title>
+					<Dialog.Description class="text-xs text-muted-foreground font-semibold leading-relaxed text-left mt-0.5">
+						Modify building node or department office details.
+					</Dialog.Description>
 				</div>
-				
-				<div class="grid grid-cols-2 gap-2">
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Total Floors *</label>
-						<Input name="floors" type="number" min="1" placeholder="e.g. 4" required bind:value={editFloors} class="h-9 rounded-lg text-xs" />
-					</div>
-				</div>
-				
-				<div class="flex flex-col gap-1.5">
-					<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Brief Description *</label>
-					<Input name="description" placeholder="Dean offices, lecture complexes, and research labs." required bind:value={editDescription} class="h-9 rounded-lg text-xs" />
-				</div>
-			</div>
-
-			<!-- Section 2: Reddit Style Photo Uploader -->
-			<div class="space-y-3">
-				<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">2. Visual Asset (Optional)</div>
-				<div class="flex flex-col gap-1.5">
-					<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Landmark Image</label>
-					{#if editBuildingImagePreview}
-						<div class="relative w-full h-40 rounded-xl overflow-hidden border border-border bg-muted/40 flex items-center justify-center group">
-							<img src={editBuildingImagePreview} alt="Preview" class="size-full object-cover" />
-							<button 
-								type="button" 
-								onclick={clearEditBuildingImage}
-								class="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 hover:bg-black/85 text-white transition-all cursor-pointer shadow-md"
-							>
-								<XIcon class="size-4 pointer-events-none" />
-							</button>
-						</div>
-					{:else}
-						<label 
-							for="edit-building-image-upload" 
-							class="w-full h-28 border border-dashed border-border/80 rounded-xl flex flex-col items-center justify-center gap-1 bg-muted/10 hover:bg-muted/20 transition-all cursor-pointer select-none"
-						>
-							<UploadCloudIcon class="size-6 text-muted-foreground pointer-events-none" />
-							<span class="text-xs font-bold text-foreground">Upload Landmark Photo</span>
-							<span class="text-[10px] text-muted-foreground/80 font-medium">JPEG, PNG up to 5MB</span>
-						</label>
-						<input 
-							type="file" 
-							id="edit-building-image-upload" 
-							name="editBuildingImage"
-							accept="image/*" 
-							onchange={handleEditBuildingImageChange} 
-							class="sr-only" 
-						/>
-					{/if}
-				</div>
-			</div>
-			
-			<!-- Section 3: Map Coordinates -->
-			<div class="space-y-3">
-				<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">3. Map Coordinates & Pin (Optional)</div>
-				<div class="grid grid-cols-3 gap-2">
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Pin Color</label>
-						<input type="hidden" name="color" value={editColor} />
-						<Select.Root
-							type="single"
-							value={editColor}
-							onValueChange={(val) => editColor = val}
-						>
-							<Select.Trigger class="h-9 w-full rounded-lg cursor-pointer truncate">
-								<span class="text-xs font-semibold flex items-center gap-2">
-									<span class="size-3 rounded-full border border-border shrink-0" style="background-color: {editColor};"></span>
-									<span>{RAINBOW_COLORS.find(c => c.value === editColor)?.label || "Select"}</span>
-								</span>
-							</Select.Trigger>
-							<Select.Content class="rounded-xl border border-border bg-card">
-								<Select.Group>
-									{#each RAINBOW_COLORS as colorOpt}
-										<Select.Item value={colorOpt.value} label={colorOpt.label}>
-											<div class="flex items-center gap-2">
-												<span class="size-3 rounded-full border border-border shrink-0" style="background-color: {colorOpt.value};"></span>
-												<span>{colorOpt.label}</span>
-											</div>
-										</Select.Item>
-									{/each}
-								</Select.Group>
-							</Select.Content>
-						</Select.Root>
-					</div>
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Latitude</label>
-						<Input name="xCoord" type="number" step="any" placeholder="e.g. 9.894" bind:value={editXCoord} class="h-9 rounded-lg text-xs" />
-					</div>
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Longitude</label>
-						<Input name="yCoord" type="number" step="any" placeholder="e.g. 123.882" bind:value={editYCoord} class="h-9 rounded-lg text-xs" />
-					</div>
-				</div>
-			</div>
-			
-			<!-- Section 4: Admin Contacts -->
-			<div class="space-y-3">
-				<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">4. Department Contacts (Optional)</div>
-				<div class="grid grid-cols-2 gap-2">
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Head Person</label>
-						<Input name="headPerson" placeholder="Engr. Robert Lee" bind:value={editHeadPerson} class="h-9 rounded-lg text-xs" />
-					</div>
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Contact Email</label>
-						<Input name="contactEmail" type="email" placeholder="ccs@university.edu" bind:value={editContactEmail} class="h-9 rounded-lg text-xs" />
-					</div>
-				</div>
-			</div>
-			
-			<input type="hidden" name="imageUrl" value="" />
-
-			<div class="pt-4 border-t border-border/60 flex items-center justify-end gap-3 mt-4 shrink-0">
-				<button 
-					type="button" 
+				<Button
+					variant="ghost"
+					size="icon"
 					onclick={() => { activeEditingBuilding = null; clearEditBuildingImage(); }}
-					class="px-4 py-2 border border-border rounded-xl text-xs font-bold hover:bg-muted/40 cursor-pointer bg-transparent font-semibold"
+					class="size-8 rounded-full hover:bg-muted cursor-pointer shrink-0"
 				>
-					Cancel
-				</button>
-				<Button 
-					type="submit" 
-					disabled={isUpdatingBuildingImage}
-					class="px-5 py-2 rounded-xl text-xs font-extrabold shadow-sm cursor-pointer h-9"
-				>
-					Save Changes
+					<XIcon class="size-4 pointer-events-none" />
 				</Button>
 			</div>
-		</form>
-	</Sheet.Content>
-</Sheet.Root>
+			
+			<form 
+				method="POST" 
+				action="?/updateBuilding" 
+				enctype="multipart/form-data" 
+				use:enhance={handleUpdateBuildingEnhance} 
+				class="flex-grow overflow-y-auto p-6 flex flex-col gap-6 text-xs font-semibold"
+			>
+				<input type="hidden" name="id" value={activeEditingBuilding?.id} />
 
-<!-- Manage Rooms Side Sheet -->
-<Sheet.Root
+				<!-- Section 1: Core Info -->
+				<div class="space-y-3">
+					<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">1. Core Information (Required)</div>
+					<div class="grid grid-cols-3 gap-2">
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Code *</label>
+							<Input name="code" placeholder="e.g. TECH" maxlength={5} required bind:value={editCode} class="h-9 rounded-lg text-xs font-semibold" />
+						</div>
+						<div class="flex flex-col gap-1.5 col-span-2">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Building Name *</label>
+							<Input name="name" placeholder="e.g. Technology Complex" required bind:value={editName} class="h-9 rounded-lg text-xs font-semibold" />
+						</div>
+					</div>
+					
+					<div class="grid grid-cols-2 gap-2">
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Total Floors *</label>
+							<Input name="floors" type="number" min="1" placeholder="e.g. 4" required bind:value={editFloors} class="h-9 rounded-lg text-xs" />
+						</div>
+					</div>
+					
+					<div class="flex flex-col gap-1.5">
+						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Brief Description *</label>
+						<Input name="description" placeholder="Dean offices, lecture complexes, and research labs." required bind:value={editDescription} class="h-9 rounded-lg text-xs" />
+					</div>
+				</div>
+
+				<!-- Section 2: Photo Uploader -->
+				<div class="space-y-3">
+					<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">2. Visual Asset (Optional)</div>
+					<div class="flex flex-col gap-1.5">
+						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Landmark Image</label>
+						{#if editBuildingImagePreview}
+							<div class="relative w-full h-40 rounded-xl overflow-hidden border border-border bg-muted/40 flex items-center justify-center group">
+								<img src={editBuildingImagePreview} alt="Preview" class="size-full object-cover" />
+								<button 
+									type="button" 
+									onclick={clearEditBuildingImage} 
+									class="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 hover:bg-black/85 text-white transition-all cursor-pointer shadow-md"
+								>
+									<XIcon class="size-4 pointer-events-none" />
+								</button>
+							</div>
+						{:else}
+							<label 
+								for="edit-building-image-upload" 
+								class="w-full h-28 border border-dashed border-border/80 rounded-xl flex flex-col items-center justify-center gap-1 bg-muted/10 hover:bg-muted/20 transition-all cursor-pointer select-none"
+							>
+								<UploadCloudIcon class="size-6 text-muted-foreground pointer-events-none" />
+								<span class="text-xs font-bold text-foreground">Upload Landmark Photo</span>
+								<span class="text-[10px] text-muted-foreground/80 font-medium">JPEG, PNG up to 5MB</span>
+							</label>
+							<input 
+								type="file" 
+								id="edit-building-image-upload" 
+								name="editBuildingImage" 
+								accept="image/*" 
+								onchange={handleEditBuildingImageChange} 
+								class="sr-only" 
+							/>
+						{/if}
+					</div>
+				</div>
+				
+				<!-- Section 3: Map Coordinates -->
+				<div class="space-y-3">
+					<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">3. Map Coordinates & Pin (Optional)</div>
+					<div class="grid grid-cols-3 gap-2">
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Pin Color</label>
+							<input type="hidden" name="color" value={editColor} />
+							<Select.Root
+								type="single"
+								value={editColor}
+								onValueChange={(val) => editColor = val}
+							>
+								<Select.Trigger class="h-9 w-full rounded-lg cursor-pointer truncate">
+									<span class="text-xs font-semibold flex items-center gap-2">
+										<span class="size-3 rounded-full border border-border shrink-0" style="background-color: {editColor};"></span>
+										<span>{RAINBOW_COLORS.find(c => c.value === editColor)?.label || "Select"}</span>
+									</span>
+								</Select.Trigger>
+								<Select.Content class="rounded-xl border border-border bg-card z-[2700]">
+									<Select.Group>
+										{#each RAINBOW_COLORS as colorOpt}
+											<Select.Item value={colorOpt.value} label={colorOpt.label}>
+												<div class="flex items-center gap-2">
+													<span class="size-3 rounded-full border border-border shrink-0" style="background-color: {colorOpt.value};"></span>
+													<span>{colorOpt.label}</span>
+												</div>
+											</Select.Item>
+										{/each}
+									</Select.Group>
+								</Select.Content>
+							</Select.Root>
+						</div>
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Latitude</label>
+							<Input name="xCoord" type="number" step="any" placeholder="e.g. 9.894" bind:value={editXCoord} class="h-9 rounded-lg text-xs" />
+						</div>
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Longitude</label>
+							<Input name="yCoord" type="number" step="any" placeholder="e.g. 123.882" bind:value={editYCoord} class="h-9 rounded-lg text-xs" />
+						</div>
+					</div>
+				</div>
+				
+				<!-- Section 4: Admin Contacts -->
+				<div class="space-y-3">
+					<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">4. Department Contacts (Optional)</div>
+					<div class="grid grid-cols-2 gap-2">
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Head Person</label>
+							<Input name="headPerson" placeholder="Engr. Robert Lee" bind:value={editHeadPerson} class="h-9 rounded-lg text-xs" />
+						</div>
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Contact Email</label>
+							<Input name="contactEmail" type="email" placeholder="ccs@university.edu" bind:value={editContactEmail} class="h-9 rounded-lg text-xs" />
+						</div>
+					</div>
+				</div>
+				
+				<input type="hidden" name="imageUrl" value="" />
+
+				<div class="pt-4 border-t border-border/60 flex items-center justify-end gap-3 mt-4 shrink-0">
+					<Button 
+						type="button" 
+						variant="outline" 
+						onclick={() => { activeEditingBuilding = null; clearEditBuildingImage(); }} 
+						class="px-4 py-2 border border-border rounded-xl text-xs font-bold hover:bg-muted/40 cursor-pointer h-9"
+					>
+						Cancel
+					</Button>
+					<Button 
+						type="submit" 
+						disabled={isUpdatingBuildingImage} 
+						class="px-5 py-2 rounded-xl text-xs font-extrabold shadow-sm cursor-pointer h-9"
+					>
+						Save Changes
+					</Button>
+				</div>
+			</form>
+		</Dialog.Content>
+	</Dialog.Portal>
+</Dialog.Root>
+
+<!-- Manage Rooms Dialog Modal -->
+<Dialog.Root
 	open={!!activeManageRoomsBuilding}
 	onOpenChange={(open) => {
 		if (!open) {
@@ -878,165 +907,177 @@
 		}
 	}}
 >
-	<Sheet.Content class="sm:max-w-md md:max-w-lg flex flex-col h-full bg-card border-l border-border/80 overflow-hidden p-0">
-		{#if activeManageRoomsBuilding}
-			<Sheet.Header class="p-6 border-b border-border/60">
-				<Sheet.Title class="text-left font-black text-lg">Manage Classrooms</Sheet.Title>
-				<Sheet.Description class="text-left text-xs font-semibold text-muted-foreground">
-					{activeManageRoomsBuilding.name} ({activeManageRoomsBuilding.code})
-				</Sheet.Description>
-			</Sheet.Header>
-
-			<!-- Rooms list section (scrollable) -->
-			<div class="flex-grow overflow-y-auto p-6 flex flex-col gap-4">
-				<div class="flex items-center justify-between pb-1">
-					<span class="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Registered Classrooms / Labs</span>
-					<Badge variant="secondary" class="font-bold text-[10px]">{rooms.filter(r => r.buildingId === activeManageRoomsBuilding?.id).length} Rooms</Badge>
+	<Dialog.Portal>
+		<Dialog.Content class="z-[2600] max-w-2xl w-[95vw] border-border bg-card text-card-foreground shadow-2xl rounded-3xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
+			{#if activeManageRoomsBuilding}
+				<div class="p-6 border-b border-border/60 bg-muted/20 flex items-center justify-between">
+					<div>
+						<Dialog.Title class="text-left font-black text-lg text-foreground">Manage Classrooms</Dialog.Title>
+						<Dialog.Description class="text-left text-xs font-semibold text-muted-foreground mt-0.5">
+							{activeManageRoomsBuilding.name} ({activeManageRoomsBuilding.code})
+						</Dialog.Description>
+					</div>
+					<Button
+						variant="ghost"
+						size="icon"
+						onclick={() => { activeManageRoomsBuilding = null; clearRoomImage(); }}
+						class="size-8 rounded-full hover:bg-muted cursor-pointer shrink-0"
+					>
+						<XIcon class="size-4 pointer-events-none" />
+					</Button>
 				</div>
 
-				<div class="flex flex-col gap-3">
-					{#each rooms.filter(r => r.buildingId === activeManageRoomsBuilding?.id) as room}
-						<div class="flex items-start justify-between p-3 border border-border bg-card rounded-xl shadow-xs gap-3">
-							{#if room.imageUrl}
-								<div class="size-12 rounded-lg overflow-hidden border border-border shrink-0">
-									<img src={room.imageUrl} alt={room.roomNumber} class="size-full object-cover" />
-								</div>
-							{/if}
-							<div class="flex-grow flex flex-col gap-0.5 min-w-0">
-								<div class="flex items-center gap-1.5 flex-wrap">
-									<span class="text-xs font-bold text-foreground font-mono">{room.roomNumber}</span>
-									<span class="text-xs text-muted-foreground font-semibold truncate">- {room.roomName}</span>
-								</div>
-								{#if room.description}
-									<p class="text-[10px] text-muted-foreground/80 font-semibold line-clamp-1">{room.description}</p>
+				<!-- Rooms list section (scrollable) -->
+				<div class="flex-grow overflow-y-auto p-6 flex flex-col gap-4">
+					<div class="flex items-center justify-between pb-1">
+						<span class="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Registered Classrooms / Labs</span>
+						<Badge variant="secondary" class="font-bold text-[10px]">{rooms.filter(r => r.buildingId === activeManageRoomsBuilding?.id).length} Rooms</Badge>
+					</div>
+
+					<div class="flex flex-col gap-3">
+						{#each rooms.filter(r => r.buildingId === activeManageRoomsBuilding?.id) as room}
+							<div class="flex items-start justify-between p-3 border border-border bg-card rounded-xl shadow-xs gap-3">
+								{#if room.imageUrl}
+									<div class="size-12 rounded-lg overflow-hidden border border-border shrink-0">
+										<img src={room.imageUrl} alt={room.roomNumber} class="size-full object-cover" />
+									</div>
 								{/if}
-								<div class="flex items-center gap-3 text-[9px] text-muted-foreground font-bold pt-1">
-									<span>Floor: {room.floor}</span>
-									<span>Coords: {room.xCoord}, {room.yCoord}</span>
+								<div class="flex-grow flex flex-col gap-0.5 min-w-0">
+									<div class="flex items-center gap-1.5 flex-wrap">
+										<span class="text-xs font-bold text-foreground font-mono">{room.roomNumber}</span>
+										<span class="text-xs text-muted-foreground font-semibold truncate">- {room.roomName}</span>
+									</div>
+									{#if room.description}
+										<p class="text-[10px] text-muted-foreground/80 font-semibold line-clamp-1">{room.description}</p>
+									{/if}
+									<div class="flex items-center gap-3 text-[9px] text-muted-foreground font-bold pt-1">
+										<span>Floor: {room.floor}</span>
+										<span>Coords: {room.xCoord}, {room.yCoord}</span>
+									</div>
 								</div>
-							</div>
 
-							<div class="flex items-center gap-1 shrink-0">
-								<Button 
-									type="button" 
-									onclick={() => startEditRoom(room)} 
-									variant="ghost" 
-									size="icon" 
-									class="size-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
-								>
-									<PencilIcon class="size-3.5 pointer-events-none" />
-								</Button>
-								<Button 
-									type="button" 
-									onclick={() => (deletingRoomTarget = room)} 
-									variant="ghost" 
-									size="icon" 
-									class="size-8 rounded-lg hover:bg-destructive/15 text-muted-foreground hover:text-destructive shrink-0 cursor-pointer"
-								>
-									<Trash2Icon class="size-3.5 pointer-events-none" />
-								</Button>
-							</div>
-						</div>
-					{:else}
-						<div class="text-center py-8 text-xs text-muted-foreground/80 font-semibold bg-muted/10 border border-dashed border-border rounded-xl">
-							No classrooms bound to this building yet. Provision one below.
-						</div>
-					{/each}
-				</div>
-			</div>
-
-			<!-- Create Classroom/Lab Bottom Panel Form -->
-			<div class="border-t border-border/80 bg-muted/20 p-6 max-h-[50vh] overflow-y-auto shrink-0">
-				<form method="POST" action="?/createRoom" enctype="multipart/form-data" use:enhance={handleCreateRoomEnhance} class="flex flex-col gap-4 text-xs font-semibold">
-					<input type="hidden" name="buildingId" value={activeManageRoomsBuilding?.id} />
-
-					<div class="pb-1 border-b border-border/60">
-						<h4 class="text-[10px] font-black uppercase tracking-wider text-primary">Provision Classroom / Lab</h4>
-					</div>
-					
-					<div class="grid grid-cols-3 gap-2">
-						<div class="flex flex-col gap-1.5 col-span-2">
-							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Room Number *</label>
-							<Input name="roomNumber" placeholder="e.g. Room 201" required class="h-9 rounded-lg text-xs font-semibold" />
-						</div>
-						<div class="flex flex-col gap-1.5">
-							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Floor Level *</label>
-							<select name="floor" required class="h-9 w-full rounded-lg border border-border bg-background px-3 py-1 text-xs font-bold shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring cursor-pointer">
-								{#each Array.from({ length: activeManageRoomsBuilding?.floors || 1 }, (_, i) => i + 1) as fl}
-									<option value={String(fl)}>{fl}{fl === 1 ? 'st' : fl === 2 ? 'nd' : fl === 3 ? 'rd' : 'th'} Floor</option>
-								{/each}
-							</select>
-						</div>
-					</div>
-
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Room Name *</label>
-						<Input name="roomName" placeholder="e.g. Computer Lab A" required class="h-9 rounded-lg text-xs" />
-					</div>
-					
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Room Description *</label>
-						<Input name="description" placeholder="e.g. Cisco networking workstation center" required class="h-9 rounded-lg text-xs" />
-					</div>
-
-					<!-- Reddit-style image uploader for Rooms -->
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Room Photo (Optional)</label>
-						{#if roomImagePreview}
-							<div class="relative w-full h-32 rounded-xl overflow-hidden border border-border bg-muted/40 flex items-center justify-center group">
-								<img src={roomImagePreview} alt="Preview" class="size-full object-cover" />
-								<button 
-									type="button" 
-									onclick={clearRoomImage}
-									class="absolute top-2 right-2 p-1 rounded-full bg-black/60 hover:bg-black/85 text-white transition-all cursor-pointer shadow-md"
-								>
-									<XIcon class="size-3.5 pointer-events-none" />
-								</button>
+								<div class="flex items-center gap-1 shrink-0">
+									<Button 
+										type="button" 
+										onclick={() => startEditRoom(room)} 
+										variant="ghost" 
+										size="icon" 
+										class="size-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+									>
+										<PencilIcon class="size-3.5 pointer-events-none" />
+									</Button>
+									<Button 
+										type="button" 
+										onclick={() => (deletingRoomTarget = room)} 
+										variant="ghost" 
+										size="icon" 
+										class="size-8 rounded-lg hover:bg-destructive/15 text-muted-foreground hover:text-destructive shrink-0 cursor-pointer"
+									>
+										<Trash2Icon class="size-3.5 pointer-events-none" />
+									</Button>
+								</div>
 							</div>
 						{:else}
-							<label 
-								for="room-image-upload" 
-								class="w-full h-20 border border-dashed border-border/80 rounded-xl flex flex-col items-center justify-center gap-1 bg-muted/10 hover:bg-muted/20 transition-all cursor-pointer select-none"
-							>
-								<UploadCloudIcon class="size-5 text-muted-foreground pointer-events-none" />
-								<span class="text-xs font-bold text-foreground">Upload Room Photo</span>
-							</label>
-							<input 
-								type="file" 
-								id="room-image-upload" 
-								name="roomImage"
-								accept="image/*" 
-								onchange={handleRoomImageChange} 
-								class="sr-only" 
-							/>
-						{/if}
+							<div class="text-center py-8 text-xs text-muted-foreground/80 font-semibold bg-muted/10 border border-dashed border-border rounded-xl">
+								No classrooms bound to this building yet. Provision one below.
+							</div>
+						{/each}
 					</div>
+				</div>
 
-					<div class="grid grid-cols-2 gap-2">
-						<div class="flex flex-col gap-1.5">
-							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Latitude (Optional)</label>
-							<Input name="xCoord" type="number" step="any" placeholder="e.g. 9.894" class="h-9 rounded-lg text-xs" />
-						</div>
-						<div class="flex flex-col gap-1.5">
-							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Longitude (Optional)</label>
-							<Input name="yCoord" type="number" step="any" placeholder="e.g. 123.882" class="h-9 rounded-lg text-xs" />
-						</div>
-					</div>
-					
-					<input type="hidden" name="imageUrl" value="" />
+				<!-- Create Classroom/Lab Bottom Panel Form -->
+				<div class="border-t border-border/80 bg-muted/20 p-6 max-h-[50vh] overflow-y-auto shrink-0">
+					<form method="POST" action="?/createRoom" enctype="multipart/form-data" use:enhance={handleCreateRoomEnhance} class="flex flex-col gap-4 text-xs font-semibold">
+						<input type="hidden" name="buildingId" value={activeManageRoomsBuilding?.id} />
 
-					<Button 
-						type="submit" 
-						disabled={isUploadingRoomImage}
-						class="w-full text-xs font-extrabold rounded-xl h-9 cursor-pointer shadow-sm"
-					>
-						Create & Bind Room
-					</Button>
-				</form>
-			</div>
-		{/if}
-	</Sheet.Content>
-</Sheet.Root>
+						<div class="pb-1 border-b border-border/60">
+							<h4 class="text-[10px] font-black uppercase tracking-wider text-primary">Provision Classroom / Lab</h4>
+						</div>
+						
+						<div class="grid grid-cols-3 gap-2">
+							<div class="flex flex-col gap-1.5 col-span-2">
+								<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Room Number *</label>
+								<Input name="roomNumber" placeholder="e.g. Room 201" required class="h-9 rounded-lg text-xs font-semibold" />
+							</div>
+							<div class="flex flex-col gap-1.5">
+								<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Floor Level *</label>
+								<select name="floor" required class="h-9 w-full rounded-lg border border-border bg-background px-3 py-1 text-xs font-bold shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring cursor-pointer">
+									{#each Array.from({ length: activeManageRoomsBuilding?.floors || 1 }, (_, i) => i + 1) as fl}
+										<option value={String(fl)}>{fl}{fl === 1 ? 'st' : fl === 2 ? 'nd' : fl === 3 ? 'rd' : 'th'} Floor</option>
+									{/each}
+								</select>
+							</div>
+						</div>
+
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Room Name *</label>
+							<Input name="roomName" placeholder="e.g. Computer Lab A" required class="h-9 rounded-lg text-xs" />
+						</div>
+						
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Room Description *</label>
+							<Input name="description" placeholder="e.g. Cisco networking workstation center" required class="h-9 rounded-lg text-xs" />
+						</div>
+
+						<!-- Photo uploader for Rooms -->
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Room Photo (Optional)</label>
+							{#if roomImagePreview}
+								<div class="relative w-full h-32 rounded-xl overflow-hidden border border-border bg-muted/40 flex items-center justify-center group">
+									<img src={roomImagePreview} alt="Preview" class="size-full object-cover" />
+									<button 
+										type="button" 
+										onclick={clearRoomImage} 
+										class="absolute top-2 right-2 p-1 rounded-full bg-black/60 hover:bg-black/85 text-white transition-all cursor-pointer shadow-md"
+									>
+										<XIcon class="size-3.5 pointer-events-none" />
+									</button>
+								</div>
+							{:else}
+								<label 
+									for="room-image-upload" 
+									class="w-full h-20 border border-dashed border-border/80 rounded-xl flex flex-col items-center justify-center gap-1 bg-muted/10 hover:bg-muted/20 transition-all cursor-pointer select-none"
+								>
+									<UploadCloudIcon class="size-5 text-muted-foreground pointer-events-none" />
+									<span class="text-xs font-bold text-foreground">Upload Room Photo</span>
+								</label>
+								<input 
+									type="file" 
+									id="room-image-upload" 
+									name="roomImage" 
+									accept="image/*" 
+									onchange={handleRoomImageChange} 
+									class="sr-only" 
+								/>
+							{/if}
+						</div>
+
+						<div class="grid grid-cols-2 gap-2">
+							<div class="flex flex-col gap-1.5">
+								<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Latitude (Optional)</label>
+								<Input name="xCoord" type="number" step="any" placeholder="e.g. 9.894" class="h-9 rounded-lg text-xs" />
+							</div>
+							<div class="flex flex-col gap-1.5">
+								<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Longitude (Optional)</label>
+								<Input name="yCoord" type="number" step="any" placeholder="e.g. 123.882" class="h-9 rounded-lg text-xs" />
+							</div>
+						</div>
+						
+						<input type="hidden" name="imageUrl" value="" />
+
+						<Button 
+							type="submit" 
+							disabled={isUploadingRoomImage} 
+							class="w-full text-xs font-extrabold rounded-xl h-9 cursor-pointer shadow-sm"
+						>
+							Create & Bind Room
+						</Button>
+					</form>
+				</div>
+			{/if}
+		</Dialog.Content>
+	</Dialog.Portal>
+</Dialog.Root>
 
 <!-- Delete Building Confirmation Dialog -->
 <Dialog.Root open={!!deletingBuildingTarget} onOpenChange={(open) => { if (!open) deletingBuildingTarget = null; }}>
