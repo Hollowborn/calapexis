@@ -493,6 +493,266 @@ export async function exportAuditLogsToDocx(
 }
 
 /**
+ * Exports audit logs directly to PDF using headers, footers, and media logos extracted from the Word template.
+ */
+export async function exportAuditLogsToPdf(
+  visitors: Visitor[] | any[],
+  options: DocxExportOptions = {},
+): Promise<{ success: boolean; filename: string }> {
+  const templateCandidates = [
+    options.templateUrl || "/audit_template.docx",
+    "/templates/audit_template.docx",
+    "/templates/visitor_audit_log_template.docx",
+  ];
+
+  let arrayBuffer: ArrayBuffer | null = null;
+  for (const url of templateCandidates) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        arrayBuffer = await res.arrayBuffer();
+        break;
+      }
+    } catch {
+      // Continue
+    }
+  }
+
+  let logoImages: string[] = [];
+  if (arrayBuffer) {
+    try {
+      const zip = new PizZip(arrayBuffer);
+      const mediaFiles = Object.keys(zip.files).filter(
+        (k) =>
+          k.startsWith("word/media/") && /\.(png|jpe?g|svg)$/i.test(k),
+      );
+      for (const mPath of mediaFiles) {
+        const file = zip.file(mPath);
+        if (file) {
+          const binary = file.asBinary();
+          const ext = mPath.split(".").pop()?.toLowerCase() || "png";
+          const mime =
+            ext === "svg"
+              ? "image/svg+xml"
+              : `image/${ext === "jpg" ? "jpeg" : ext}`;
+          const b64 = btoa(binary);
+          logoImages.push(`data:${mime};base64,${b64}`);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to extract images from docx template:", e);
+    }
+  }
+
+  const now = new Date();
+  const generatedAtStr =
+    now.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    }) +
+    " at " +
+    now.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+
+  const formattedVisitors: PrintableVisitorRecord[] = visitors.map(
+    (v, idx) => ({
+      index: idx + 1,
+      fullName: v.fullName || "-",
+      officeName: v.officeName || "General Campus",
+      purpose: v.purpose || "-",
+      checkInTime: v.checkInTime ? formatTime(v.checkInTime) : "-",
+      checkOutTime: formatCheckOut(v.checkInTime, v.checkOutTime, v.status),
+      status: v.status === "checked_in" ? "CHECKED-IN" : "COMPLETED",
+      date: v.checkInTime ? formatDate(v.checkInTime) : "-",
+      rawCheckInTime: v.checkInTime || "",
+    }),
+  );
+
+  const scope = options.scopeLabel || "ALL RECORDS";
+  const dateRange = options.dateRange || formatDate(now.toISOString());
+  const generatedBy = options.generatedBy || "Security Desk Officer";
+
+  const columnDefs = [
+    {
+      key: "fullName",
+      label: "Visitor Name",
+      align: "left",
+      isBold: true,
+      width: "26%",
+    },
+    {
+      key: "officeName",
+      label: "Office / Desk",
+      align: "left",
+      isBold: false,
+      width: "24%",
+    },
+    {
+      key: "purpose",
+      label: "Purpose of Visit",
+      align: "left",
+      isBold: false,
+      width: "26%",
+    },
+    {
+      key: "checkInTime",
+      label: "Time In",
+      align: "center",
+      isBold: false,
+      width: "12%",
+      mono: true,
+    },
+    {
+      key: "checkOutTime",
+      label: "Time Out",
+      align: "center",
+      isBold: false,
+      width: "12%",
+      mono: true,
+    },
+  ];
+
+  const activeCols = columnDefs.filter((col) =>
+    options.columns
+      ? options.columns[col.key as keyof DocxColumnsConfig] !== false
+      : true,
+  );
+  const colCount = Math.max(1, activeCols.length);
+
+  let tableHeaderHtml = activeCols
+    .map(
+      (c) =>
+        `<th style="background-color: #f4f4f5; border: 1px solid #a1a1aa; padding: 7px 9px; font-weight: bold; font-size: 9.5px; text-transform: uppercase; color: #000000; text-align: ${c.align}; width: ${c.width};">${c.label}</th>`,
+    )
+    .join("");
+
+  const groups = groupVisitorsForDocx(formattedVisitors);
+  let tableBodyHtml = "";
+
+  if (groups.length === 0) {
+    tableBodyHtml = `<tr><td colspan="${colCount}" style="padding: 24px; text-align: center; color: #71717a; font-style: italic; border: 1px solid #d4d4d8;">No visitor log records found for the selected scope.</td></tr>`;
+  } else {
+    for (const group of groups) {
+      tableBodyHtml += `
+        <tr style="background-color: #e4e4e7; border-top: 2px solid #71717a; border-bottom: 1px solid #a1a1aa; page-break-inside: avoid;">
+          <td colspan="${colCount}" style="padding: 7px 10px; font-weight: 800; font-size: 11px; color: #09090b; border: 1px solid #d4d4d8;">
+            📅 ${group.dateLabel} &nbsp;•&nbsp; <span style="font-weight: 600; font-size: 10px; color: #52525b;">${group.visitors.length} ${group.visitors.length === 1 ? "Record" : "Records"}</span>
+          </td>
+        </tr>
+      `;
+
+      for (let i = 0; i < group.visitors.length; i++) {
+        const v = group.visitors[i];
+        const bg = i % 2 === 1 ? "#f4f4f5" : "#ffffff";
+        let cells = "";
+        for (const col of activeCols) {
+          let val = "";
+          if (col.key === "fullName") val = v.fullName;
+          else if (col.key === "officeName") val = v.officeName;
+          else if (col.key === "purpose") val = v.purpose;
+          else if (col.key === "checkInTime") val = v.checkInTime;
+          else if (col.key === "checkOutTime") val = v.checkOutTime;
+
+          const fontStyle = col.mono
+            ? "font-family: monospace; font-size: 10px;"
+            : "";
+          const weightStyle = col.isBold
+            ? "font-weight: 700; color: #09090b;"
+            : "color: #18181b;";
+          cells += `<td style="border: 1px solid #d4d4d8; padding: 6px 9px; text-align: ${col.align}; ${fontStyle} ${weightStyle}">${val}</td>`;
+        }
+        tableBodyHtml += `<tr style="background-color: ${bg}; border-bottom: 1px solid #e4e4e7; page-break-inside: avoid;">${cells}</tr>`;
+      }
+    }
+  }
+
+  // Try loading /header.png image asset
+  let headerImgBase64 = "";
+  try {
+    const res = await fetch("/header.png");
+    if (res.ok) {
+      const blob = await res.blob();
+      headerImgBase64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+    }
+  } catch (e) {
+    console.warn("Could not load /header.png:", e);
+  }
+
+  const logoLeft = logoImages[0] || "";
+  const logoRight = logoImages[1] || "";
+
+  const letterheadHtml = headerImgBase64
+    ? `
+      <div class="letterhead" style="margin-bottom: 12px; padding-bottom: 4px; border-bottom: 2px solid #000000; overflow: hidden; page-break-inside: avoid;">
+        <div style="width: 100%; max-height: 125px; overflow: hidden; display: flex; align-items: flex-start;">
+          <img src="${headerImgBase64}" style="width: 100%; display: block; object-fit: cover; object-position: top;" alt="Official Letterhead" />
+        </div>
+      </div>
+    `
+    : `
+      <div class="letterhead" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #000000; padding-bottom: 12px; margin-bottom: 14px; page-break-inside: avoid;">
+        ${logoLeft ? `<img src="${logoLeft}" style="height: 56px; width: auto; max-width: 70px; object-fit: contain;" alt="Seal" />` : '<div style="width: 50px;"></div>'}
+        <div style="text-align: center; flex: 1; padding: 0 12px;">
+          <p style="font-size: 9.5px; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; color: #52525b; font-weight: 600;">Republic of the Philippines</p>
+          <h1 style="font-size: 14px; font-weight: 900; margin: 2px 0; letter-spacing: 0.5px; text-transform: uppercase; color: #000000;">BOHOL ISLAND STATE UNIVERSITY</h1>
+          <p style="font-size: 10.5px; font-weight: 700; margin: 0; text-transform: uppercase; color: #27272a;">Calape Campus • San Isidro, Calape, Bohol</p>
+          <p style="font-size: 9px; color: #52525b; margin: 2px 0 0; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;">Official Visitor Compliance Audit Report</p>
+        </div>
+        ${logoRight ? `<img src="${logoRight}" style="height: 56px; width: auto; max-width: 70px; object-fit: contain;" alt="Seal" />` : logoLeft ? `<img src="${logoLeft}" style="height: 56px; width: auto; max-width: 70px; object-fit: contain; opacity: 0;" alt="" />` : '<div style="width: 50px;"></div>'}
+      </div>
+    `;
+
+  const footerDocCodeHtml = headerImgBase64
+    ? `
+      <div style="width: 100%; max-height: 25px; overflow: hidden; display: flex; align-items: flex-end;">
+        <img src="${headerImgBase64}" style="width: 100%; display: block; object-fit: cover; object-position: bottom;" alt="Document Tracking Code" />
+      </div>
+    `
+    : `
+      <div style="display: flex; justify-content: space-between; font-size: 8.5px; color: #71717a; width: 100%;">
+        <span>F-ADF-ADM-011 | Rev. 2 | 07/01/24 | Page 1 of 1</span>
+        <span>BISU Calape Campus Visitor Logbook</span>
+      </div>
+    `;
+
+  const reportHtml = `
+    ${letterheadHtml}
+
+    <div style="display: flex; justify-content: space-between; font-size: 9.5px; font-weight: 600; color: #3f3f46; margin-bottom: 10px; padding: 5px 8px; background: #f4f4f5; border: 1px solid #d4d4d8; border-radius: 4px;">
+      <div>Report Scope: <strong style="color: #000;">${scope}</strong> • Date Range: <strong style="color: #000;">${dateRange}</strong></div>
+      <div>Total Log Entries: <strong style="color: #000;">${formattedVisitors.length}</strong> • Generated: ${generatedAtStr}</div>
+    </div>
+
+    <table style="width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 10.5px;">
+      <thead>
+        <tr>${tableHeaderHtml}</tr>
+      </thead>
+      <tbody>
+        ${tableBodyHtml}
+      </tbody>
+    </table>
+
+    <div class="footer" style="margin-top: 24px; padding-top: 8px; border-top: 1px solid #d4d4d8; page-break-inside: avoid;">
+      ${footerDocCodeHtml}
+    </div>
+  `;
+
+  const outFilename =
+    options.filename ||
+    `Visitor_Audit_Report_${now.toISOString().slice(0, 10)}.pdf`;
+
+  return await exportHtmlToPdf(reportHtml, outFilename);
+}
+
+/**
  * Directly exports an HTML string to a downloadable .pdf file using an isolated iframe sandbox
  * to completely eliminate Tailwind CSS oklch() color parsing incompatibilities.
  */
@@ -538,12 +798,15 @@ export async function exportHtmlToPdf(
 			padding: 24px;
 			font-size: 11px;
 			line-height: 1.4;
+			-webkit-print-color-adjust: exact;
+			print-color-adjust: exact;
 		}
 		.letterhead {
 			text-align: center;
 			border-bottom: 2px solid #000000;
 			padding-bottom: 12px;
 			margin-bottom: 16px;
+			page-break-inside: avoid;
 		}
 		.letterhead h1 {
 			font-size: 15px;
@@ -570,6 +833,12 @@ export async function exportHtmlToPdf(
 			margin-top: 8px;
 			font-size: 10.5px;
 		}
+		thead {
+			display: table-header-group;
+		}
+		tr {
+			page-break-inside: avoid;
+		}
 		th {
 			background-color: #f4f4f5;
 			border: 1px solid #a1a1aa;
@@ -594,6 +863,7 @@ export async function exportHtmlToPdf(
 			display: flex;
 			justify-content: space-between;
 			font-weight: bold;
+			page-break-inside: avoid;
 		}
 	</style>
 </head>
@@ -615,12 +885,96 @@ export async function exportHtmlToPdf(
       useCORS: true,
       letterRendering: true,
       logging: false,
+      onclone: (clonedDoc: Document) => {
+        // Strip all external and global stylesheets (including Tailwind v4 oklch variables)
+        Array.from(clonedDoc.querySelectorAll("style, link")).forEach((el) =>
+          el.remove(),
+        );
+        const cleanStyle = clonedDoc.createElement("style");
+        cleanStyle.textContent = `
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body {
+            font-family: Arial, Helvetica, sans-serif;
+            background-color: #ffffff;
+            color: #000000;
+            padding: 24px;
+            font-size: 11px;
+            line-height: 1.4;
+          }
+          .letterhead {
+            text-align: center;
+            border-bottom: 2px solid #000000;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+            page-break-inside: avoid;
+          }
+          .letterhead h1 {
+            font-size: 15px;
+            font-weight: bold;
+            margin-bottom: 4px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: #000000;
+          }
+          .letterhead h2 {
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            color: #27272a;
+          }
+          .letterhead p {
+            font-size: 10px;
+            color: #52525b;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+            font-size: 10.5px;
+          }
+          thead {
+            display: table-header-group;
+          }
+          tr {
+            page-break-inside: avoid;
+          }
+          th {
+            background-color: #f4f4f5;
+            border: 1px solid #a1a1aa;
+            padding: 7px 9px;
+            font-weight: bold;
+            font-size: 9.5px;
+            text-transform: uppercase;
+            color: #000000;
+            text-align: left;
+          }
+          td {
+            border: 1px solid #d4d4d8;
+            padding: 6px 9px;
+            color: #18181b;
+          }
+          .footer {
+            margin-top: 24px;
+            padding-top: 10px;
+            border-top: 1px solid #d4d4d8;
+            font-size: 9.5px;
+            color: #71717a;
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            page-break-inside: avoid;
+          }
+        `;
+        clonedDoc.head.appendChild(cleanStyle);
+      },
     },
     jsPDF: {
       unit: "mm" as const,
       format: "a4" as const,
       orientation: "portrait" as const,
     },
+    pagebreak: { mode: ["avoid-all", "css", "legacy"] },
   };
 
   try {
