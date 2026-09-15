@@ -2082,7 +2082,7 @@
 					<div
 						class="size-16 bg-primary/10 border border-primary/20 text-primary rounded-3xl flex items-center justify-center mx-auto mb-3 shadow-md"
 					>
-						<BrandLogo class="size-10" />
+						<BrandLogo class="ml-0.5 mt-0.5" />
 					</div>
 					<h2
 						class="text-xl font-black text-foreground tracking-tight"

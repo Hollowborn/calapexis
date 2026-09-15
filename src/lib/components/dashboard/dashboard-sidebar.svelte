@@ -191,7 +191,7 @@
 								<div
 									class="bg-primary text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg shadow-md font-mono font-black text-sm"
 								>
-									<BrandLogo class="size-5" />
+									<BrandLogo class="ml-0.5 mt-0.5" />
 								</div>
 							</a>
 						{/snippet}
