@@ -2081,7 +2081,7 @@
 					<div
 						class="size-16 bg-primary/10 border border-primary/20 text-primary rounded-3xl flex items-center justify-center mx-auto mb-3 shadow-md"
 					>
-						<img src='favicon.png' alt="BISU Calape Logo" /> 
+						<img src='/favicon.png' alt="BISU Calape Logo" /> 
 					</div>
 					<h2
 						class="text-xl font-black text-foreground tracking-tight"

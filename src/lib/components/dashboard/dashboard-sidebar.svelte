@@ -190,7 +190,7 @@
 								<div
 									class="bg-primary text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg shadow-md font-mono font-black text-sm"
 								>
-									<img src="favicon.png" />
+									<img src="/favicon.png" />
 								</div>
 							</a>
 						{/snippet}

@@ -23,7 +23,7 @@
 
 
 <svelte:head>
-	<link rel="icon" type="image/png" href="favicon.png" />
+	<link rel="icon" type="image/png" href="/favicon.png" />
 	<link rel="alternate icon" type="image/svg+xml" href={favicon} />
 	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 	<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

@@ -468,7 +468,7 @@
 				<div class="p-4 rounded-2xl border border-border/80 bg-muted/30 flex flex-col gap-3">
 					<div class="flex items-center gap-3">
 						<div class="size-11 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center font-mono font-black text-sm shadow-md shadow-primary/20 shrink-0">
-							<img src="favicon.png" alt="Calapexis Logo" class="size-7" />
+							<img src="/favicon.png" alt="Calapexis Logo" class="size-7" />
 						</div>
 						<div class="flex flex-col min-w-0">
 							<div class="flex items-center gap-2">
