@@ -23,7 +23,7 @@
 	import * as Alert from "$lib/components/ui/alert/index.js";
 	import { Separator } from "$lib/components/ui/separator/index.js";
 	import VisitorPassBadge from "$lib/components/visitor-pass-badge.svelte";
-	import { exportAuditLogsToDocx, exportHtmlToPdf } from '$lib/report-export';
+	import { exportAuditLogsToDocx, exportAuditLogsToPdf } from '$lib/report-export';
 
 	let { data } = $props();
 
@@ -338,8 +338,8 @@
 			</table>
 
 			<div style="margin-top: 24px; padding-top: 10px; border-top: 1px solid #d4d4d8; font-size: 9.5px; color: #71717a; display: flex; justify-content: space-between; font-weight: 600;">
-				<div>Certified Official Audit Record • BISU Calape Campus Security Desk</div>
-				<div>Generated from Calapexis Secure Logbook Master</div>
+				<div>F-ADF-ADM-011 | Rev. 2 | 07/01/24 | Page 1 of 1</div>
+				<div>BISU Calape Campus Visitor Logbook</div>
 			</div>
 		`;
 	}
@@ -473,11 +473,19 @@
 		}
 		isExportingPdf = true;
 		try {
-			const filename = `Visitor_Audit_Report_${new Date().toISOString().slice(0, 10)}.pdf`;
-			const reportHtml = generateReportBodyHTML();
-			await exportHtmlToPdf(reportHtml, filename);
+			const scopeText = printDateMode.toUpperCase();
+			const dateRangeText = printDateMode === 'today'
+				? new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+				: (printStartDate ? `${printStartDate} ${printEndDate ? 'to ' + printEndDate : ''}` : 'All Dates');
 
-			toast.success(`Generated and downloaded ${filename}`);
+			const res = await exportAuditLogsToPdf(printableVisitors, {
+				scopeLabel: scopeText,
+				dateRange: dateRangeText,
+				generatedBy: (data?.user as any)?.user_metadata?.full_name || (data?.user as any)?.email || "Security Desk Officer",
+				columns: printColumns
+			});
+
+			toast.success(`Generated and downloaded ${res.filename}`);
 			isPrintModalOpen = false;
 		} catch (err: any) {
 			console.error("PDF generation error:", err);
@@ -1062,7 +1070,7 @@
 						<button
 							type="button"
 							onclick={handleExportDocx}
-							disabled={isExportingDocx}
+							disabled={isExportingDocx || isExportingPdf}
 							class="p-4 rounded-2xl border border-border bg-card hover:bg-accent hover:border-primary/40 text-left transition-all cursor-pointer flex flex-col justify-between gap-3 group shadow-xs hover:shadow-md disabled:opacity-50"
 						>
 							<div class="flex items-center justify-between">
@@ -1083,34 +1091,36 @@
 							</div>
 						</button>
 
-						<!-- PDF Document Option (Temporarily Disabled) -->
-						<div
-							class="p-4 rounded-2xl border border-border/60 bg-muted/40 text-left flex flex-col justify-between gap-3 opacity-60 cursor-not-allowed select-none"
-							aria-disabled="true"
+						<!-- PDF Document Option -->
+						<button
+							type="button"
+							onclick={handleExportPdf}
+							disabled={isExportingPdf || isExportingDocx}
+							class="p-4 rounded-2xl border border-border bg-card hover:bg-accent hover:border-primary/40 text-left transition-all cursor-pointer flex flex-col justify-between gap-3 group shadow-xs hover:shadow-md disabled:opacity-50"
 						>
 							<div class="flex items-center justify-between">
-								<div class="size-8 rounded-xl bg-muted text-muted-foreground flex items-center justify-center">
+								<div class="size-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
 									<FileDownIcon class="size-4" />
 								</div>
-								<Badge variant="outline" class="text-[9px] font-semibold text-muted-foreground">
-									Disabled
-								</Badge>
+								{#if isExportingPdf}
+									<span class="text-[10px] font-bold text-primary animate-pulse">Exporting...</span>
+								{/if}
 							</div>
 							<div class="flex flex-col gap-0.5">
-								<div class="font-black text-xs text-muted-foreground">
+								<div class="font-black text-xs text-foreground group-hover:text-primary transition-colors">
 									Download PDF (.pdf)
 								</div>
-								<div class="text-[10px] text-muted-foreground/80 font-medium leading-tight">
-									PDF direct download temporarily unavailable
+								<div class="text-[10px] text-muted-foreground font-medium leading-tight">
+									Vectorized A4 printable report document
 								</div>
 							</div>
-						</div>
+						</button>
 
 						<!-- Print Preview Option -->
 						<button
 							type="button"
 							onclick={executePrintReport}
-							disabled={isExportingDocx}
+							disabled={isExportingDocx || isExportingPdf}
 							class="p-4 rounded-2xl border border-border bg-card hover:bg-accent hover:border-primary/40 text-left transition-all cursor-pointer flex flex-col justify-between gap-3 group shadow-xs hover:shadow-md disabled:opacity-50"
 						>
 							<div class="flex items-center justify-between">
