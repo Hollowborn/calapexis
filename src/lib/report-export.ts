@@ -523,8 +523,7 @@ export async function exportAuditLogsToPdf(
     try {
       const zip = new PizZip(arrayBuffer);
       const mediaFiles = Object.keys(zip.files).filter(
-        (k) =>
-          k.startsWith("word/media/") && /\.(png|jpe?g|svg)$/i.test(k),
+        (k) => k.startsWith("word/media/") && /\.(png|jpe?g|svg)$/i.test(k),
       );
       for (const mPath of mediaFiles) {
         const file = zip.file(mPath);
@@ -640,7 +639,7 @@ export async function exportAuditLogsToPdf(
       tableBodyHtml += `
         <tr style="background-color: #e4e4e7; border-top: 2px solid #71717a; border-bottom: 1px solid #a1a1aa; page-break-inside: avoid;">
           <td colspan="${colCount}" style="padding: 7px 10px; font-weight: 800; font-size: 11px; color: #09090b; border: 1px solid #d4d4d8;">
-            📅 ${group.dateLabel} &nbsp;•&nbsp; <span style="font-weight: 600; font-size: 10px; color: #52525b;">${group.visitors.length} ${group.visitors.length === 1 ? "Record" : "Records"}</span>
+             ${group.dateLabel} &nbsp;•&nbsp; <span style="font-weight: 600; font-size: 10px; color: #52525b;">${group.visitors.length} ${group.visitors.length === 1 ? "Record" : "Records"}</span>
           </td>
         </tr>
       `;
