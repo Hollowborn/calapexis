@@ -25,3 +25,6 @@ vite.config.ts.timestamp-*
 # Misc
 /static/prev-proj
 /static/assets
+/MDs
+/.agents
+skills-lock.json
