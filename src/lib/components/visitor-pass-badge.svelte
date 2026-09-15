@@ -7,6 +7,7 @@
 	import Building2Icon from "@lucide/svelte/icons/building-2";
 	import ClockIcon from "@lucide/svelte/icons/clock";
 	import CheckCircle2Icon from "@lucide/svelte/icons/check-circle-2";
+	import BrandLogo from "$lib/components/brand-logo.svelte";
 
 	let {
 		open = $bindable(false),
@@ -37,7 +38,7 @@
 				<!-- Header Letterhead -->
 				<div class="flex flex-col items-center gap-1.5 pb-4 border-b border-border/70">
 					<div class="size-12 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center font-black shadow-md shadow-primary/20 mb-1">
-						<img src="/favicon.png" alt="BISU Logo" class="size-7" />
+						<BrandLogo class="size-7" />
 					</div>
 					<h2 class="text-xs font-black uppercase tracking-widest text-primary">
 						Bohol Island State University

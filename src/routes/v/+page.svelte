@@ -28,6 +28,7 @@
 	import * as Alert from "$lib/components/ui/alert/index.js";
 	import { checkoutLocalVisitor, signInWithGoogle, isSupabaseConfigured, supabase, getDbClient } from "$lib/supabase";
 	import type { Visitor, Office, Building, Room } from "$lib/types";
+	import BrandLogo from "$lib/components/brand-logo.svelte";
 	import { AnimatedThemeToggler } from "$lib/components/magic/animated-theme-toggler";
 	import LazyImage from "$lib/components/LazyImage.svelte";
 
@@ -2081,7 +2082,7 @@
 					<div
 						class="size-16 bg-primary/10 border border-primary/20 text-primary rounded-3xl flex items-center justify-center mx-auto mb-3 shadow-md"
 					>
-						<img src='/favicon.png' alt="BISU Calape Logo" /> 
+						<BrandLogo class="size-10" />
 					</div>
 					<h2
 						class="text-xl font-black text-foreground tracking-tight"

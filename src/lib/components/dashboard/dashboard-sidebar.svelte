@@ -10,6 +10,7 @@
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
 	import { Separator } from "$lib/components/ui/separator/index.js";
 	import { page } from "$app/state";
+	import BrandLogo from "$lib/components/brand-logo.svelte";
 
 	let {
 		ref = $bindable(null),
@@ -190,7 +191,7 @@
 								<div
 									class="bg-primary text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg shadow-md font-mono font-black text-sm"
 								>
-									<img src="/favicon.png" />
+									<BrandLogo class="size-5" />
 								</div>
 							</a>
 						{/snippet}

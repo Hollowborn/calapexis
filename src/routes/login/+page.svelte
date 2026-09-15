@@ -20,6 +20,7 @@
 	import { signInWithGoogle } from "$lib/supabase";
 	import { toast } from "svelte-sonner";
 	import * as Alert from "$lib/components/ui/alert/index.js";
+	import BrandLogo from "$lib/components/brand-logo.svelte";
 
 	// Icons
 	import BookOpenIcon from "@lucide/svelte/icons/book-open";
@@ -566,7 +567,7 @@
 			<!-- Header Title -->
 			<div class="flex flex-col gap-2">
 				<div class="size-11 rounded-2xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground flex items-center justify-center text-xl font-black font-mono shadow-md shadow-primary/20 ring-4 ring-primary/10">
-					<img src="/favicon.png" alt="Calapexis Logo" class="size-7" />
+					<BrandLogo class="size-7" />
 				</div>
 				<h2 class="text-3xl font-black tracking-tight text-foreground mt-2">
 					Welcome back
