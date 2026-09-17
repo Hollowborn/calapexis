@@ -28,17 +28,17 @@
 					<Sidebar.MenuButton
 						{...props}
 						size="lg"
-						class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground md:h-8 md:p-0"
+						class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground rounded-xl px-2 py-1.5 transition-all hover:bg-sidebar-accent/60 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:justify-center"
 					>
-						<Avatar.Root class="size-8 rounded-lg">
+						<Avatar.Root class="size-8 rounded-lg shrink-0">
 							<Avatar.Image src={user.avatar} alt={user.name} />
 							<Avatar.Fallback class="rounded-lg">{user.name.substring(0, 2).toUpperCase()}</Avatar.Fallback>
 						</Avatar.Root>
-						<div class="grid flex-1 text-start text-sm leading-tight">
+						<div class="grid flex-1 text-start text-sm leading-tight group-data-[collapsible=icon]:hidden">
 							<span class="truncate font-medium">{user.name}</span>
 							<span class="truncate text-xs text-muted-foreground">{user.email}</span>
 						</div>
-						<ChevronsUpDownIcon class="ms-auto size-4" />
+						<ChevronsUpDownIcon class="ms-auto size-4 group-data-[collapsible=icon]:hidden" />
 					</Sidebar.MenuButton>
 				{/snippet}
 			</DropdownMenu.Trigger>
