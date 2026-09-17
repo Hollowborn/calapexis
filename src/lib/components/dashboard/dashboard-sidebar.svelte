@@ -1,14 +1,18 @@
 <script lang="ts">
 	import type { ComponentProps } from "svelte";
 	import LayoutDashboardIcon from "@lucide/svelte/icons/layout-dashboard";
+	import BookOpenIcon from "@lucide/svelte/icons/book-open";
+	import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
+	import UserCheckIcon from "@lucide/svelte/icons/user-check";
 	import UsersIcon from "@lucide/svelte/icons/users";
-	import SettingsIcon from "@lucide/svelte/icons/settings";
-	import CommandIcon from "@lucide/svelte/icons/command";
+	import Building2Icon from "@lucide/svelte/icons/building-2";
+	import LayersIcon from "@lucide/svelte/icons/layers";
+	import RouteIcon from "@lucide/svelte/icons/route";
+	import ExternalLinkIcon from "@lucide/svelte/icons/external-link";
 
 	import NavUser from "./nav-user.svelte";
-	import { useSidebar } from "$lib/components/ui/sidebar/context.svelte.js";
 	import * as Sidebar from "$lib/components/ui/sidebar/index.js";
-	import { Separator } from "$lib/components/ui/separator/index.js";
+	import { useSidebar } from "$lib/components/ui/sidebar/context.svelte.js";
 	import { page } from "$app/state";
 	import BrandLogo from "$lib/components/brand-logo.svelte";
 
@@ -28,129 +32,79 @@
 		officeId?: string;
 	} = $props();
 
-	// Route mapping coordinates
-	const routeMap: Record<string, string> = {
-		analytics: "/dashboard",
-		"logs-master": "/dashboard/logs",
-		"security-desk": "/dashboard/security",
-		"staff-desk": "/dashboard/staff",
-		"user-accounts": "/dashboard/admin/users",
-		"offices-config": "/dashboard/admin/offices",
-		"office-config": "/dashboard/admin/buildings",
-		"map-edges": "/dashboard/admin/edges",
-	};
+	const sidebar = useSidebar();
 
-	const activeView = $derived(
-		Object.keys(routeMap).find(
-			(id) => page.url.pathname === routeMap[id],
-		) || "analytics",
-	);
-
-	// Sidebar Menu Groups containing access policies based on credentials role
-	const allGroups = [
+	// Primary operational navigation items
+	const allOperations = [
 		{
-			id: "overview",
-			title: "Overview",
+			id: "analytics",
+			title: "Analytics",
+			url: "/dashboard",
 			icon: LayoutDashboardIcon,
-			items: [
-				{
-					id: "analytics",
-					title: "Analytics",
-					roles: ["admin", "staff"],
-					description: "Visitor traffic & compliance statistics",
-				},
-				{
-					id: "logs-master",
-					title: "Logbook Master",
-					roles: ["admin", "security", "staff"],
-					description: "Historical database log spreadsheets",
-				},
-			],
+			roles: ["admin", "staff"],
 		},
 		{
-			id: "desks",
-			title: "Visitor Desks",
-			icon: UsersIcon,
-			items: [
-				{
-					id: "security-desk",
-					title: "Security Desk",
-					roles: ["admin", "security"],
-					description: "Guard verification control console",
-				},
-				{
-					id: "staff-desk",
-					title: "Staff Desk",
-					roles: ["admin", "staff"],
-					description: "Department manual walk-in check-in desk",
-				},
-			],
+			id: "logs-master",
+			title: "Logbook Master",
+			url: "/dashboard/logs",
+			icon: BookOpenIcon,
+			roles: ["admin", "security", "staff"],
 		},
 		{
-			id: "admin",
-			title: "System Admin",
-			icon: SettingsIcon,
-			items: [
-				{
-					id: "user-accounts",
-					title: "User Accounts",
-					roles: ["admin"],
-					description: "Provision security and staff portals access",
-				},
-				{
-					id: "offices-config",
-					title: "Check-In Offices",
-					roles: ["admin"],
-					description:
-						"Designate official reception counters and desks",
-				},
-				{
-					id: "office-config",
-					title: "Buildings & Rooms",
-					roles: ["admin"],
-					description:
-						"Manage campus layouts and printable QR passes",
-				},
-				{
-					id: "map-edges",
-					title: "Map Edges & Paths",
-					roles: ["admin"],
-					description:
-						"Configure campus navigation pathways & curves",
-				},
-			],
+			id: "security-desk",
+			title: "Security Desk",
+			url: "/dashboard/security",
+			icon: ShieldCheckIcon,
+			roles: ["admin", "security"],
+		},
+		{
+			id: "staff-desk",
+			title: "Staff Desk",
+			url: "/dashboard/staff",
+			icon: UserCheckIcon,
+			roles: ["admin", "staff"],
 		},
 	];
 
-	// Filter visible menus dynamically using Svelte 5 derived states
-	const visibleGroups = $derived(
-		allGroups
-			.map((group) => ({
-				...group,
-				items: group.items.filter((item) => item.roles.includes(role)),
-			}))
-			.filter((group) => group.items.length > 0),
+	// Campus administrative management items (Admin Only)
+	const allAdmin = [
+		{
+			id: "user-accounts",
+			title: "User Accounts",
+			url: "/dashboard/admin/users",
+			icon: UsersIcon,
+			roles: ["admin"],
+		},
+		{
+			id: "offices-config",
+			title: "Check-In Offices",
+			url: "/dashboard/admin/offices",
+			icon: Building2Icon,
+			roles: ["admin"],
+		},
+		{
+			id: "office-config",
+			title: "Buildings & Rooms",
+			url: "/dashboard/admin/buildings",
+			icon: LayersIcon,
+			roles: ["admin"],
+		},
+		{
+			id: "map-edges",
+			title: "Map Edges & Paths",
+			url: "/dashboard/admin/edges",
+			icon: RouteIcon,
+			roles: ["admin"],
+		},
+	];
+
+	const visibleOperations = $derived(
+		allOperations.filter((item) => item.roles.includes(role)),
 	);
 
-	let activeGroup = $state<any>(null);
-
-	// Align activeGroup when routing paths or authentication roles change
-	$effect(() => {
-		const matchingGroup = visibleGroups.find((group) =>
-			group.items.some((item) => routeMap[item.id] === page.url.pathname),
-		);
-		if (matchingGroup) {
-			activeGroup = matchingGroup;
-		} else if (
-			visibleGroups.length > 0 &&
-			!visibleGroups.some((g) => g.id === activeGroup?.id)
-		) {
-			activeGroup = visibleGroups[0];
-		}
-	});
-
-	const activeGroupItems = $derived(activeGroup?.items || []);
-	const sidebar = useSidebar();
+	const visibleAdmin = $derived(
+		allAdmin.filter((item) => item.roles.includes(role)),
+	);
 
 	const userProfile = $derived({
 		name:
@@ -163,143 +117,193 @@
 		email: email || "user@calapexis.local",
 		avatar: avatar || "",
 		role: role,
-		officeId: officeId
+		officeId: officeId,
 	});
 </script>
 
 <Sidebar.Root
 	bind:ref
 	collapsible="icon"
-	class="overflow-hidden [&>[data-sidebar=sidebar]]:flex-row print:hidden"
+	class="border-r border-sidebar-border bg-sidebar text-sidebar-foreground print:hidden"
 	{...restProps}
 >
-	<!-- Primary Icon Rail Sidebar (Renders inline submenus below corresponding menus on mobile) -->
-	<Sidebar.Root
-		collapsible="none"
-		class="w-full md:!w-[calc(var(--sidebar-width-icon)_+_1px)] border-e bg-sidebar text-sidebar-foreground"
-	>
-		<Sidebar.Header class="border-b border-sidebar-border bg-sidebar/30">
-			<Sidebar.Menu>
-				<Sidebar.MenuItem>
-					<Sidebar.MenuButton size="lg" class="md:h-8 md:p-0">
-						{#snippet child({ props })}
-							<a
-								href="/dashboard"
-								{...props}
-								class="flex items-center justify-center"
+	<!-- Sidebar Brand Header -->
+	<Sidebar.Header class="border-b border-sidebar-border/80 bg-sidebar/50 p-3 group-data-[collapsible=icon]:p-2">
+		<Sidebar.Menu>
+			<Sidebar.MenuItem>
+				<Sidebar.MenuButton
+					size="lg"
+					class="hover:bg-sidebar-accent/50 rounded-xl transition-colors group-data-[collapsible=icon]:!p-0"
+				>
+					{#snippet child({ props })}
+						<a
+							href="/dashboard"
+							{...props}
+						>
+							<div
+								class="bg-primary text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-xl shadow-md font-mono font-black text-sm shrink-0"
 							>
-								<div
-									class="bg-primary text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg shadow-md font-mono font-black text-sm"
+								<BrandLogo class='ml-0.5 mt-0.5' />
+							</div>
+							<div
+								class="grid flex-1 text-start leading-tight min-w-0 group-data-[collapsible=icon]:hidden"
+							>
+								<span
+									class="truncate font-black text-sm text-foreground tracking-tight"
+									>Calapexis</span
 								>
-									<BrandLogo class="ml-0.5 mt-0.5" />
-								</div>
-							</a>
-						{/snippet}
-					</Sidebar.MenuButton>
-				</Sidebar.MenuItem>
-			</Sidebar.Menu>
-		</Sidebar.Header>
+								<span
+									class="truncate text-[10px] font-bold text-muted-foreground uppercase tracking-wide"
+								>
+									{role} Console
+								</span>
+							</div>
+						</a>
+					{/snippet}
+				</Sidebar.MenuButton>
+			</Sidebar.MenuItem>
+		</Sidebar.Menu>
+	</Sidebar.Header>
 
-		<Sidebar.Content class="bg-sidebar/10 overflow-y-auto">
-			<Sidebar.Group>
-				<Sidebar.GroupContent class="px-1.5 md:px-0">
-					<Sidebar.Menu class="gap-2">
-						{#each visibleGroups as group (group.id)}
+	<!-- Sidebar Navigation Content -->
+	<Sidebar.Content class="overflow-y-auto px-3.5 py-3 space-y-4 group-data-[collapsible=icon]:px-2">
+		<!-- Section 1: Core Operations -->
+		<Sidebar.Group class="p-0">
+			<Sidebar.GroupLabel
+				class="text-[10px] font-extrabold tracking-wider uppercase text-muted-foreground/80 px-2 mb-1 group-data-[collapsible=icon]:hidden"
+			>
+				Operations
+			</Sidebar.GroupLabel>
+			<Sidebar.GroupContent>
+				<Sidebar.Menu class="gap-1.5">
+					{#each visibleOperations as item (item.id)}
+						<Sidebar.MenuItem>
+							<Sidebar.MenuButton
+								isActive={page.url.pathname === item.url}
+								tooltipContentProps={{ hidden: false }}
+								class="rounded-xl px-2.5 py-2 font-semibold text-xs transition-all {page
+									.url.pathname === item.url
+									? 'bg-sidebar-accent text-sidebar-accent-foreground font-bold shadow-xs'
+									: 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground'}"
+							>
+								{#snippet tooltipContent()}
+									{item.title}
+								{/snippet}
+								{#snippet child({ props })}
+									<a
+										href={item.url}
+										{...props}
+										onclick={() =>
+											sidebar.setOpenMobile(false)}
+									>
+										<item.icon
+											class="size-4 shrink-0 {page.url
+												.pathname === item.url
+												? 'text-primary'
+												: 'text-muted-foreground'}"
+										/>
+										<span class="truncate group-data-[collapsible=icon]:hidden">{item.title}</span>
+									</a>
+								{/snippet}
+							</Sidebar.MenuButton>
+						</Sidebar.MenuItem>
+					{/each}
+				</Sidebar.Menu>
+			</Sidebar.GroupContent>
+		</Sidebar.Group>
+
+		<!-- Section 2: Campus Administration (Admin Role Only) -->
+		{#if visibleAdmin.length > 0}
+			<Sidebar.Group class="p-0">
+				<Sidebar.GroupLabel
+					class="text-[10px] font-extrabold tracking-wider uppercase text-muted-foreground/80 px-2 mb-1 group-data-[collapsible=icon]:hidden"
+				>
+					Management
+				</Sidebar.GroupLabel>
+				<Sidebar.GroupContent>
+					<Sidebar.Menu class="gap-1.5">
+						{#each visibleAdmin as item (item.id)}
 							<Sidebar.MenuItem>
 								<Sidebar.MenuButton
+									isActive={page.url.pathname === item.url}
 									tooltipContentProps={{ hidden: false }}
-									onclick={() => {
-										activeGroup = group;
-										sidebar.setOpen(true);
-									}}
-									isActive={activeGroup?.id === group.id}
-									class="px-2.5 md:px-2 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors font-bold"
+									class="rounded-xl px-2.5 py-2 font-semibold text-xs transition-all {page
+										.url.pathname === item.url
+										? 'bg-sidebar-accent text-sidebar-accent-foreground font-bold shadow-xs'
+										: 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground'}"
 								>
 									{#snippet tooltipContent()}
-										{group.title}
+										{item.title}
 									{/snippet}
-									<group.icon
-										class="size-5 pointer-events-none"
-									/>
-									<span>{group.title}</span>
-								</Sidebar.MenuButton>
-
-								<!-- Nested Submenus appearing directly below corresponding menu on Mobile view -->
-								<div
-									class="flex flex-col gap-1 pl-6 py-1 md:hidden"
-								>
-									{#each group.items as item (item.id)}
+									{#snippet child({ props })}
 										<a
-											href={routeMap[item.id]}
+											href={item.url}
+											{...props}
 											onclick={() =>
 												sidebar.setOpenMobile(false)}
-											class="text-start flex flex-col items-start gap-0.5 p-2 text-xs transition-all cursor-pointer {activeView ===
-											item.id
-												? 'bg-sidebar-accent text-sidebar-accent-foreground font-bold border-s-2 border-primary'
-												: 'text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
 										>
-											<span
-												class="font-bold text-foreground text-xs"
+											<item.icon
+												class="size-4 shrink-0 {page.url
+													.pathname === item.url
+													? 'text-primary'
+													: 'text-muted-foreground'}"
+											/>
+											<span class="truncate group-data-[collapsible=icon]:hidden"
 												>{item.title}</span
 											>
-											<span
-												class="text-[10px] text-muted-foreground line-clamp-1 leading-tight"
-												>{item.description}</span
-											>
 										</a>
-									{/each}
-								</div>
+									{/snippet}
+								</Sidebar.MenuButton>
 							</Sidebar.MenuItem>
 						{/each}
 					</Sidebar.Menu>
 				</Sidebar.GroupContent>
 			</Sidebar.Group>
-		</Sidebar.Content>
+		{/if}
 
-		<Sidebar.Footer class="border-t border-sidebar-border bg-sidebar/30">
-			<NavUser user={userProfile} />
-		</Sidebar.Footer>
-	</Sidebar.Root>
-
-	<!-- Secondary Detailed Sub-Navigation Sidebar -->
-	<Sidebar.Root
-		collapsible="none"
-		class="hidden flex-1 md:flex bg-card border-r border-border"
-	>
-		<Sidebar.Header class="gap-3.5 border-b border-border p-4 bg-muted/20">
-			<div class="flex w-full items-center justify-between">
-				<div class="text-foreground text-sm font-bold tracking-tight">
-					{activeGroup?.title || "Navigation"}
-				</div>
-			</div>
-		</Sidebar.Header>
-
-		<Sidebar.Content>
-			<Sidebar.Group class="px-0 py-0">
-				<Sidebar.GroupContent>
-					<div class="flex flex-col gap-1 p-3">
-						{#each activeGroupItems as item (item.id)}
-							<a
-								href={routeMap[item.id]}
-								class="text-start flex flex-col items-start gap-1 p-3.5 text-xs leading-tight transition-all cursor-pointer border-l-2 {activeView ===
-								item.id
-									? 'bg-sidebar-accent border-primary text-sidebar-accent-foreground font-bold shadow-xs'
-									: 'border-transparent text-muted-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'}"
-							>
-								<span class="font-bold text-foreground"
-									>{item.title}</span
+		<!-- Section 3: External Utilities (Pinned Bottom) -->
+		<Sidebar.Group
+			class="mt-auto p-0 pt-3 border-t border-sidebar-border/60"
+		>
+			<Sidebar.GroupLabel
+				class="text-[10px] font-extrabold tracking-wider uppercase text-muted-foreground/80 px-2 mb-1 group-data-[collapsible=icon]:hidden"
+			>
+				Quick Access
+			</Sidebar.GroupLabel>
+			<Sidebar.GroupContent>
+				<Sidebar.Menu class="gap-1.5">
+					<Sidebar.MenuItem>
+						<Sidebar.MenuButton
+							tooltipContentProps={{ hidden: false }}
+							class="rounded-xl px-2.5 py-2 text-xs font-semibold text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-all"
+						>
+							{#snippet tooltipContent()}
+								Visitor Kiosk
+							{/snippet}
+							{#snippet child({ props })}
+								<a
+									href="/v"
+									target="_blank"
+									rel="noreferrer"
+									{...props}
 								>
-								<span
-									class="text-[10px] text-muted-foreground line-clamp-2"
-								>
-									{item.description}
-								</span>
-							</a>
-							<Separator />
-						{/each}
-					</div>
-				</Sidebar.GroupContent>
-			</Sidebar.Group>
-		</Sidebar.Content>
-	</Sidebar.Root>
+									<ExternalLinkIcon
+										class="size-4 shrink-0 text-muted-foreground"
+									/>
+									<span class="truncate group-data-[collapsible=icon]:hidden"
+										>Visitor Kiosk Portal</span
+									>
+								</a>
+							{/snippet}
+						</Sidebar.MenuButton>
+					</Sidebar.MenuItem>
+				</Sidebar.Menu>
+			</Sidebar.GroupContent>
+		</Sidebar.Group>
+	</Sidebar.Content>
+
+	<!-- Sidebar Footer User Profile -->
+	<Sidebar.Footer class="border-t border-sidebar-border/80 bg-sidebar/50 p-3 group-data-[collapsible=icon]:p-2">
+		<NavUser user={userProfile} />
+	</Sidebar.Footer>
 </Sidebar.Root>
