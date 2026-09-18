@@ -2,6 +2,9 @@
 
 Institutional Visitor Management and Interactive Campus Wayfinding System for Bohol Island State University (BISU) Calape Campus.
 
+<img width="1849" height="916" alt="image" src="https://github.com/user-attachments/assets/9cafb376-8572-420d-95d7-971809f588fd" />
+
+
 ---
 
 ## Overview
