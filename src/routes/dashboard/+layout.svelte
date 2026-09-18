@@ -110,7 +110,7 @@
 	let pageLabel = $derived(routeLabels[$page.url.pathname] || "Overview");
 </script>
 
-<Sidebar.Provider style="--sidebar-width: 350px;">
+<Sidebar.Provider style="--sidebar-width: 16rem;">
 	<!-- Mount the dashboard sidebar -->
 	<DashboardSidebar role={data.role} email={data.email} name={data.name} avatar={data.avatar} officeId={data.officeId || undefined} />
 	
