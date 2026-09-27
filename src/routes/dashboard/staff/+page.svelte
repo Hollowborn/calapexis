@@ -48,10 +48,10 @@
 		if (data.role === 'admin' && selectedOfficeId === 'all') {
 			return {
 				id: 'all',
-				name: 'All Campus Desks (Consolidated)',
+				name: 'All Campus Desks',
 				code: 'ALL',
 				buildingName: 'Campus Wide',
-				headPerson: 'Administrator Oversight',
+				headPerson: 'Admin',
 				description: 'Consolidated monitoring across all department desks'
 			};
 		}
