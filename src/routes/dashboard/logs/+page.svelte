@@ -23,7 +23,7 @@
 	import * as Alert from "$lib/components/ui/alert/index.js";
 	import { Separator } from "$lib/components/ui/separator/index.js";
 	import VisitorPassBadge from "$lib/components/visitor-pass-badge.svelte";
-	import { exportAuditLogsToDocx, exportAuditLogsToPdf } from '$lib/report-export';
+	import { exportAuditLogsToDocx, exportAuditLogsToPdf, generateAuditReportHtml } from '$lib/report-export';
 
 	let { data } = $props();
 
@@ -275,163 +275,6 @@
 	let isExportingDocx = $state(false);
 	let isExportingPdf = $state(false);
 
-	function generateReportBodyHTML(): string {
-		const scopeLabel = printDateMode.toUpperCase();
-		const totalEntries = printableVisitors.length;
-		const generatedTime = new Date().toLocaleString();
-
-		let tableHeaders = '';
-		if (printColumns.fullName) tableHeaders += '<th style="padding: 8px 10px; border: 1px solid #a1a1aa; text-align: left;">Visitor Name</th>';
-		if (printColumns.officeName) tableHeaders += '<th style="padding: 8px 10px; border: 1px solid #a1a1aa; text-align: left;">Office / Desk</th>';
-		if (printColumns.purpose) tableHeaders += '<th style="padding: 8px 10px; border: 1px solid #a1a1aa; text-align: left;">Purpose of Visit</th>';
-		if (printColumns.checkInTime) tableHeaders += '<th style="padding: 8px 10px; border: 1px solid #a1a1aa; text-align: left; white-space: nowrap;">Check-In Time</th>';
-		if (printColumns.checkOutTime) tableHeaders += '<th style="padding: 8px 10px; border: 1px solid #a1a1aa; text-align: left; white-space: nowrap;">Check-Out Time</th>';
-
-		let tableBody = '';
-		if (groupedPrintableVisitors.length === 0) {
-			tableBody = `<tr><td colspan="${activeColumnCount}" style="padding: 24px; text-align: center; color: #71717a; font-style: italic; font-weight: 600;">No visitor log records found for the selected date scope.</td></tr>`;
-		} else {
-			for (const group of groupedPrintableVisitors) {
-				tableBody += `
-					<tr style="background-color: #e4e4e7; -webkit-print-color-adjust: exact; print-color-adjust: exact; border-top: 2px solid #71717a; border-bottom: 1px solid #a1a1aa;">
-						<td colspan="${activeColumnCount}" style="padding: 8px 10px; font-weight: 900; font-size: 11.5px; color: #09090b; letter-spacing: 0.2px;">
-							 ${group.dateLabel} &nbsp;•&nbsp; <span style="font-weight: 700; font-size: 10.5px; color: #52525b;">${group.visitors.length} ${group.visitors.length === 1 ? 'Record' : 'Records'}</span>
-						</td>
-					</tr>
-				`;
-
-				for (let i = 0; i < group.visitors.length; i++) {
-					const v = group.visitors[i];
-					const bg = i % 2 === 1 ? '#f4f4f5' : '#ffffff';
-					const checkInStr = v.checkInTime ? formatTimeOnly(v.checkInTime) : '-';
-					const checkOutStr = formatCheckOutTime(v.checkInTime, v.checkOutTime, v.status);
-
-					tableBody += `
-						<tr style="background-color: ${bg}; -webkit-print-color-adjust: exact; print-color-adjust: exact; border-bottom: 1px solid #e4e4e7;">
-							${printColumns.fullName ? `<td style="padding: 7px 10px; border: 1px solid #d4d4d8; font-weight: 700; color: #09090b;">${v.fullName || ''}</td>` : ''}
-							${printColumns.officeName ? `<td style="padding: 7px 10px; border: 1px solid #d4d4d8; color: #18181b;">${v.officeName || 'General Campus'}</td>` : ''}
-							${printColumns.purpose ? `<td style="padding: 7px 10px; border: 1px solid #d4d4d8; color: #27272a;">${v.purpose || '-'}</td>` : ''}
-							${printColumns.checkInTime ? `<td style="padding: 7px 10px; border: 1px solid #d4d4d8; font-family: monospace; font-weight: 700; font-size: 10.5px; white-space: nowrap; color: #09090b;">${checkInStr}</td>` : ''}
-							${printColumns.checkOutTime ? `<td style="padding: 7px 10px; border: 1px solid #d4d4d8; font-family: monospace; font-weight: 700; font-size: 10.5px; white-space: nowrap; color: #09090b;">${checkOutStr}</td>` : ''}
-						</tr>
-					`;
-				}
-			}
-		}
-
-		return `
-			<div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 12px; margin-bottom: 16px;">
-				<h1 style="font-size: 16px; font-weight: 900; margin: 0 0 3px; letter-spacing: 0.5px; text-transform: uppercase;">BOHOL ISLAND STATE UNIVERSITY - CALAPE CAMPUS</h1>
-				<h2 style="font-size: 12px; font-weight: 800; margin: 0 0 4px; color: #27272a; text-transform: uppercase;">OFFICIAL VISITOR COMPLIANCE AUDIT REPORT</h2>
-				<p style="font-size: 10px; font-weight: 600; color: #52525b; margin: 0;">Report Scope: <strong>${scopeLabel}</strong> • Total Log Entries: <strong>${totalEntries}</strong> • Generated: ${generatedTime}</p>
-			</div>
-
-			<table style="width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px;">
-				<thead>
-					<tr style="background-color: #f4f4f5; border-bottom: 2px solid #71717a;">
-						${tableHeaders}
-					</tr>
-				</thead>
-				<tbody>
-					${tableBody}
-				</tbody>
-			</table>
-
-			<div style="margin-top: 24px; padding-top: 10px; border-top: 1px solid #d4d4d8; font-size: 9.5px; color: #71717a; display: flex; justify-content: space-between; font-weight: 600;">
-				<div>F-ADF-ADM-011 | Rev. 2 | 07/01/24 | Page 1 of 1</div>
-				<div>BISU Calape Campus Visitor Logbook</div>
-			</div>
-		`;
-	}
-
-	function generatePrintableReportHTML(): string {
-		const scopeLabel = printDateMode.toUpperCase();
-		const totalEntries = printableVisitors.length;
-		const innerContent = generateReportBodyHTML();
-
-		return `<!DOCTYPE html>
-<html>
-<head>
-	<meta charset="utf-8" />
-	<title>Visitor Compliance Audit Report - BISU Calape</title>
-	<style>
-		@page { size: portrait; margin: 12mm; }
-		* { box-sizing: border-box; }
-		body {
-			font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-			color: #000;
-			background: #fff;
-			margin: 0;
-			padding: 16px;
-			font-size: 11px;
-			line-height: 1.4;
-			-webkit-print-color-adjust: exact;
-			print-color-adjust: exact;
-		}
-		.toolbar {
-			display: flex;
-			justify-content: space-between;
-			align-items: center;
-			background: #f4f4f5;
-			border: 1px solid #d4d4d8;
-			padding: 8px 12px;
-			border-radius: 8px;
-			margin-bottom: 16px;
-		}
-		.btn {
-			padding: 6px 14px;
-			border-radius: 6px;
-			font-weight: 700;
-			font-size: 11px;
-			cursor: pointer;
-			border: none;
-		}
-		.btn-primary {
-			background: #000;
-			color: #fff;
-		}
-		.btn-outline {
-			background: #fff;
-			color: #000;
-			border: 1px solid #a1a1aa;
-		}
-		th {
-			background-color: #f4f4f5;
-			font-weight: 800;
-			text-transform: uppercase;
-			font-size: 9.5px;
-			color: #09090b;
-		}
-		@media print {
-			.toolbar { display: none !important; }
-			body { padding: 0; }
-		}
-	</style>
-</head>
-<body>
-	<div class="toolbar">
-		<span style="font-weight: 700; font-size: 11px; color: #27272a;">
-			🖨️ Ready to print: <strong>${totalEntries} ${totalEntries === 1 ? 'Record' : 'Records'}</strong> (${scopeLabel})
-		</span>
-		<div style="display: flex; gap: 8px;">
-			<button class="btn btn-primary" onclick="window.print()">Print / Save PDF</button>
-			<button class="btn btn-outline" onclick="window.close()">Close Window</button>
-		</div>
-	</div>
-
-	${innerContent}
-
-	<script>
-		window.onload = function() {
-			setTimeout(function() {
-				window.print();
-			}, 300);
-		};
-	<\/script>
-</body>
-</html>`;
-	}
-
 	let printModalTab = $state<'configure' | 'review'>('configure');
 
 	function handlePrintReport() {
@@ -495,21 +338,129 @@
 		}
 	}
 
-	function executePrintReport() {
+	async function executePrintReport() {
 		if (printableVisitors.length === 0) {
 			toast.error("No visitor log records found for the selected date filter.");
 			return;
 		}
+
+		// Open popup synchronously before async operations to prevent browser popup blocking
+		const printWin = window.open('about:blank', '_blank');
+		if (!printWin) {
+			toast.error("Pop-up blocked. Please allow pop-ups for this site to print the report.");
+			return;
+		}
+
+		// Immediate loading indicator in the new window
+		printWin.document.write(`<!DOCTYPE html>
+<html>
+<head><title>Loading Audit Report...</title></head>
+<body style="font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; color: #52525b;">
+	<div style="text-align: center;">
+		<h3 style="margin-bottom: 8px;">Preparing Printable Report...</h3>
+		<p style="font-size: 13px; color: #71717a;">Embedding official campus letterhead and compiling logbook entries.</p>
+	</div>
+</body>
+</html>`);
+		printWin.document.close();
+
 		isPrintModalOpen = false;
 
-		const html = generatePrintableReportHTML();
-		const printWin = window.open('', '_blank');
-		if (printWin) {
+		try {
+			const scopeText = printDateMode.toUpperCase();
+			const dateRangeText = printDateMode === 'today'
+				? new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+				: (printStartDate ? `${printStartDate} ${printEndDate ? 'to ' + printEndDate : ''}` : 'All Dates');
+
+			const reportInnerHtml = await generateAuditReportHtml(printableVisitors, {
+				scopeLabel: scopeText,
+				dateRange: dateRangeText,
+				generatedBy: (data?.user as any)?.user_metadata?.full_name || (data?.user as any)?.email || "Security Desk Officer",
+				columns: printColumns
+			});
+
+			const fullHtml = `<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title>Visitor Compliance Audit Report - BISU Calape</title>
+	<style>
+		@page { size: portrait; margin: 10mm; }
+		* { box-sizing: border-box; }
+		body {
+			font-family: Arial, Helvetica, sans-serif;
+			color: #000;
+			background: #fff;
+			margin: 0;
+			padding: 16px;
+			font-size: 11px;
+			line-height: 1.4;
+			-webkit-print-color-adjust: exact;
+			print-color-adjust: exact;
+		}
+		.toolbar {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			background: #f4f4f5;
+			border: 1px solid #d4d4d8;
+			padding: 8px 12px;
+			border-radius: 8px;
+			margin-bottom: 16px;
+		}
+		.btn {
+			padding: 6px 14px;
+			border-radius: 6px;
+			font-weight: 700;
+			font-size: 11px;
+			cursor: pointer;
+			border: none;
+		}
+		.btn-primary {
+			background: #000;
+			color: #fff;
+		}
+		.btn-outline {
+			background: #fff;
+			color: #000;
+			border: 1px solid #a1a1aa;
+		}
+		@media print {
+			.toolbar { display: none !important; }
+			body { padding: 0; }
+		}
+	</style>
+</head>
+<body>
+	<div class="toolbar">
+		<span style="font-weight: 700; font-size: 11px; color: #27272a;">
+			Ready to print: <strong>${printableVisitors.length} ${printableVisitors.length === 1 ? 'Record' : 'Records'}</strong> (${scopeText})
+		</span>
+		<div style="display: flex; gap: 8px;">
+			<button class="btn btn-primary" onclick="window.print()">Print / Save PDF</button>
+			<button class="btn btn-outline" onclick="window.close()">Close Window</button>
+		</div>
+	</div>
+
+	${reportInnerHtml}
+
+	<script>
+		window.onload = function() {
+			setTimeout(function() {
+				window.print();
+			}, 400);
+		};
+	<\/script>
+</body>
+</html>`;
+
 			printWin.document.open();
-			printWin.document.write(html);
+			printWin.document.write(fullHtml);
 			printWin.document.close();
-		} else {
-			toast.error("Pop-up blocked. Please allow pop-ups for this site to print the report.");
+		} catch (err: any) {
+			console.error("Print report generation error:", err);
+			printWin.close();
+			toast.error(err?.message || "Failed to prepare print preview.");
 		}
 	}
 </script>
@@ -1020,6 +971,24 @@
 							{#if printColumns.checkInTime}<Badge variant="secondary" class="text-[9px]">Check-In</Badge>{/if}
 							{#if printColumns.checkOutTime}<Badge variant="secondary" class="text-[9px]">Check-Out</Badge>{/if}
 						</div>
+					</div>
+				</div>
+
+				<!-- Campus Letterhead Preview Banner -->
+				<div class="rounded-2xl border border-border bg-white overflow-hidden shadow-xs">
+					<div class="w-full h-14 overflow-hidden flex items-start bg-white">
+						<img
+							src="/header.png"
+							alt="BISU Calape Official Campus Letterhead"
+							class="w-full h-auto object-cover object-top"
+						/>
+					</div>
+					<div class="px-3 py-1.5 bg-muted/60 border-t border-border flex items-center justify-between text-[10px] text-muted-foreground font-semibold">
+						<span class="flex items-center gap-1.5">
+							<ShieldCheckIcon class="size-3.5 text-emerald-600" />
+							Official Letterhead Attached
+						</span>
+						<span class="font-mono text-[9px]">F-ADF-ADM-011</span>
 					</div>
 				</div>
 

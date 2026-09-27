@@ -493,69 +493,22 @@ export async function exportAuditLogsToDocx(
 }
 
 /**
- * Exports audit logs directly to PDF using headers, footers, and media logos extracted from the Word template.
+ * Generates the unified, official audit report HTML with the designated campus header,
+ * date-grouped records table, and official ISO footer tracking code from /header.png.
+ * Shared between PDF export and Print Preview to guarantee 100% visual parity.
  */
-export async function exportAuditLogsToPdf(
-  visitors: Visitor[] | any[],
+export async function generateAuditReportHtml(
+  visitors: Visitor[],
   options: DocxExportOptions = {},
-): Promise<{ success: boolean; filename: string }> {
-  const templateCandidates = [
-    options.templateUrl || "/audit_template.docx",
-    "/templates/audit_template.docx",
-    "/templates/visitor_audit_log_template.docx",
-  ];
-
-  let arrayBuffer: ArrayBuffer | null = null;
-  for (const url of templateCandidates) {
-    try {
-      const res = await fetch(url);
-      if (res.ok) {
-        arrayBuffer = await res.arrayBuffer();
-        break;
-      }
-    } catch {
-      // Continue
-    }
-  }
-
-  let logoImages: string[] = [];
-  if (arrayBuffer) {
-    try {
-      const zip = new PizZip(arrayBuffer);
-      const mediaFiles = Object.keys(zip.files).filter(
-        (k) => k.startsWith("word/media/") && /\.(png|jpe?g|svg)$/i.test(k),
-      );
-      for (const mPath of mediaFiles) {
-        const file = zip.file(mPath);
-        if (file) {
-          const binary = file.asBinary();
-          const ext = mPath.split(".").pop()?.toLowerCase() || "png";
-          const mime =
-            ext === "svg"
-              ? "image/svg+xml"
-              : `image/${ext === "jpg" ? "jpeg" : ext}`;
-          const b64 = btoa(binary);
-          logoImages.push(`data:${mime};base64,${b64}`);
-        }
-      }
-    } catch (e) {
-      console.warn("Failed to extract images from docx template:", e);
-    }
-  }
-
+): Promise<string> {
   const now = new Date();
-  const generatedAtStr =
-    now.toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-    }) +
-    " at " +
-    now.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
+  const generatedAtStr = now.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   const formattedVisitors: PrintableVisitorRecord[] = visitors.map(
     (v, idx) => ({
@@ -669,7 +622,7 @@ export async function exportAuditLogsToPdf(
     }
   }
 
-  // Try loading /header.png image asset
+  // Try loading /header.png image asset as base64
   let headerImgBase64 = "";
   try {
     const res = await fetch("/header.png");
@@ -685,44 +638,23 @@ export async function exportAuditLogsToPdf(
     console.warn("Could not load /header.png:", e);
   }
 
-  const logoLeft = logoImages[0] || "";
-  const logoRight = logoImages[1] || "";
+  const headerSrc = headerImgBase64 || "/header.png";
 
-  const letterheadHtml = headerImgBase64
-    ? `
-      <div class="letterhead" style="margin-bottom: 12px; padding-bottom: 4px; border-bottom: 2px solid #000000; overflow: hidden; page-break-inside: avoid;">
-        <div style="width: 100%; max-height: 125px; overflow: hidden; display: flex; align-items: flex-start;">
-          <img src="${headerImgBase64}" style="width: 100%; display: block; object-fit: cover; object-position: top;" alt="Official Letterhead" />
-        </div>
+  const letterheadHtml = `
+    <div class="letterhead" style="margin-bottom: 12px; padding-bottom: 4px; border-bottom: 2px solid #000000; overflow: hidden; page-break-inside: avoid;">
+      <div style="width: 100%; max-height: 125px; overflow: hidden; display: flex; align-items: flex-start;">
+        <img src="${headerSrc}" style="width: 100%; display: block; object-fit: cover; object-position: top;" alt="Official Letterhead" />
       </div>
-    `
-    : `
-      <div class="letterhead" style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #000000; padding-bottom: 12px; margin-bottom: 14px; page-break-inside: avoid;">
-        ${logoLeft ? `<img src="${logoLeft}" style="height: 56px; width: auto; max-width: 70px; object-fit: contain;" alt="Seal" />` : '<div style="width: 50px;"></div>'}
-        <div style="text-align: center; flex: 1; padding: 0 12px;">
-          <p style="font-size: 9.5px; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; color: #52525b; font-weight: 600;">Republic of the Philippines</p>
-          <h1 style="font-size: 14px; font-weight: 900; margin: 2px 0; letter-spacing: 0.5px; text-transform: uppercase; color: #000000;">BOHOL ISLAND STATE UNIVERSITY</h1>
-          <p style="font-size: 10.5px; font-weight: 700; margin: 0; text-transform: uppercase; color: #27272a;">Calape Campus • San Isidro, Calape, Bohol</p>
-          <p style="font-size: 9px; color: #52525b; margin: 2px 0 0; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;">Official Visitor Compliance Audit Report</p>
-        </div>
-        ${logoRight ? `<img src="${logoRight}" style="height: 56px; width: auto; max-width: 70px; object-fit: contain;" alt="Seal" />` : logoLeft ? `<img src="${logoLeft}" style="height: 56px; width: auto; max-width: 70px; object-fit: contain; opacity: 0;" alt="" />` : '<div style="width: 50px;"></div>'}
-      </div>
-    `;
+    </div>
+  `;
 
-  const footerDocCodeHtml = headerImgBase64
-    ? `
-      <div style="width: 100%; max-height: 25px; overflow: hidden; display: flex; align-items: flex-end;">
-        <img src="${headerImgBase64}" style="width: 100%; display: block; object-fit: cover; object-position: bottom;" alt="Document Tracking Code" />
-      </div>
-    `
-    : `
-      <div style="display: flex; justify-content: space-between; font-size: 8.5px; color: #71717a; width: 100%;">
-        <span>F-ADF-ADM-011 | Rev. 2 | 07/01/24 | Page 1 of 1</span>
-        <span>BISU Calape Campus Visitor Logbook</span>
-      </div>
-    `;
+  const footerDocCodeHtml = `
+    <div style="width: 100%; max-height: 25px; overflow: hidden; display: flex; align-items: flex-end;">
+      <img src="${headerSrc}" style="width: 100%; display: block; object-fit: cover; object-position: bottom;" alt="Document Tracking Code" />
+    </div>
+  `;
 
-  const reportHtml = `
+  return `
     ${letterheadHtml}
 
     <div style="display: flex; justify-content: space-between; font-size: 9.5px; font-weight: 600; color: #3f3f46; margin-bottom: 10px; padding: 5px 8px; background: #f4f4f5; border: 1px solid #d4d4d8; border-radius: 4px;">
@@ -743,7 +675,14 @@ export async function exportAuditLogsToPdf(
       ${footerDocCodeHtml}
     </div>
   `;
+}
 
+export async function exportAuditLogsToPdf(
+  visitors: Visitor[],
+  options: DocxExportOptions = {},
+): Promise<{ success: boolean; filename: string }> {
+  const now = new Date();
+  const reportHtml = await generateAuditReportHtml(visitors, options);
   const outFilename =
     options.filename ||
     `Visitor_Audit_Report_${now.toISOString().slice(0, 10)}.pdf`;
