@@ -242,7 +242,7 @@
 
 		const satTile = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
 			attribution: '&copy; Esri',
-			maxNativeZoom: 19,
+			maxNativeZoom: 18,
 			maxZoom: 22
 		});
 
