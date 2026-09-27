@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
+	import { goto } from '$app/navigation';
 	import * as Card from "$lib/components/ui/card/index.js";
 	import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
+	import * as Popover from "$lib/components/ui/popover/index.js";
+	import * as Command from "$lib/components/ui/command/index.js";
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
@@ -22,6 +25,8 @@
 	import FileTextIcon from "@lucide/svelte/icons/file-text";
 	import ArrowUpRightIcon from "@lucide/svelte/icons/arrow-up-right";
 	import SparklesIcon from "@lucide/svelte/icons/sparkles";
+	import ChevronsUpDownIcon from "@lucide/svelte/icons/chevrons-up-down";
+	import CheckIcon from "@lucide/svelte/icons/check";
 
 	let { data } = $props();
 
@@ -29,9 +34,41 @@
 	let visitors = $derived(dashboardContext?.visitors || []);
 
 	let officesList = $derived(data?.offices || []);
-	let activeOffice = $derived(
-		officesList.find((o: any) => o.id === data.assignedOfficeId) || officesList[0]
-	);
+
+	let selectedOfficeId = $state<string>('all');
+	let isOfficeSwitcherOpen = $state(false);
+
+	$effect.pre(() => {
+		selectedOfficeId = data.role === 'staff'
+			? (data.assignedOfficeId || (data?.offices?.[0]?.id ?? ''))
+			: (data.selectedOfficeId || 'all');
+	});
+
+	let activeOffice = $derived.by(() => {
+		if (data.role === 'admin' && selectedOfficeId === 'all') {
+			return {
+				id: 'all',
+				name: 'All Campus Desks (Consolidated)',
+				code: 'ALL',
+				buildingName: 'Campus Wide',
+				headPerson: 'Administrator Oversight',
+				description: 'Consolidated monitoring across all department desks'
+			};
+		}
+		return officesList.find((o: any) => o.id === selectedOfficeId) || officesList[0];
+	});
+
+	function handleOfficeChange(officeId: string) {
+		selectedOfficeId = officeId;
+		isOfficeSwitcherOpen = false;
+		const url = new URL(window.location.href);
+		if (officeId === 'all') {
+			url.searchParams.delete('office');
+		} else {
+			url.searchParams.set('office', officeId);
+		}
+		goto(url.toString(), { replaceState: true, keepFocus: true, noScroll: true });
+	}
 
 	// Assisted Check-In Modal state
 	let isAssistModalOpen = $state(false);
@@ -48,9 +85,9 @@
 
 	// Derived active visitors for staff desk
 	let officeVisitors = $derived(
-		data.role === 'admin' 
-			? visitors 
-			: visitors.filter((v: any) => v.officeId === data.assignedOfficeId || !v.officeId)
+		data.role === 'admin' && selectedOfficeId === 'all'
+			? visitors
+			: visitors.filter((v: any) => v.officeId === activeOffice?.id || v.officeName === activeOffice?.name)
 	);
 
 	let activeCheckedInVisitors = $derived(
@@ -120,7 +157,7 @@
 		if (!checkoutTargetVisitor) return;
 		isCheckingOut = true;
 		try {
-			await checkoutLocalVisitor(checkoutTargetVisitor.id, data.assignedOfficeId, data.role === 'staff');
+			await checkoutLocalVisitor(checkoutTargetVisitor.id, activeOffice?.id === 'all' ? null : activeOffice?.id, data.role === 'staff');
 			toast.info(`Visitor ${checkoutTargetVisitor.fullName} checked out successfully.`);
 			if (dashboardContext?.loadData) dashboardContext.loadData();
 		} catch (e: any) {
@@ -146,11 +183,16 @@
 						<Badge variant="secondary" class="font-mono text-[10px] font-black uppercase rounded-lg px-2 py-0.5">{activeOffice.code}</Badge>
 					{/if}
 					<h1 class="text-base md:text-lg font-black text-foreground truncate tracking-tight">{activeOffice?.name || 'Staff Desk Console'}</h1>
+					{#if data.role === 'admin'}
+						<Badge variant="outline" class="text-[9px] font-extrabold uppercase tracking-wide border-primary/30 text-primary bg-primary/5">
+							Admin View
+						</Badge>
+					{/if}
 				</div>
 				<div class="flex items-center gap-2 text-[11px] text-muted-foreground font-semibold truncate mt-0.5">
 					<span class="flex items-center gap-1">
 						<Building2Icon class="size-3 text-primary pointer-events-none shrink-0" />
-						<span class="truncate">{activeOffice?.name || 'Department Desk'}</span>
+						<span class="truncate">{activeOffice?.buildingName || activeOffice?.name || 'Department Desk'}</span>
 					</span>
 					<span>•</span>
 					<span class="flex items-center gap-1">
@@ -163,6 +205,64 @@
 
 		<!-- Action Buttons & Badges -->
 		<div class="flex items-center gap-2.5 shrink-0 flex-wrap justify-end">
+			{#if data.role === 'admin'}
+				<Popover.Root bind:open={isOfficeSwitcherOpen}>
+					<Popover.Trigger>
+						<Button
+							variant="outline"
+							class="rounded-xl h-9 px-3 gap-2 text-xs font-bold border-border bg-background hover:bg-muted/70 cursor-pointer shadow-xs"
+						>
+							<Building2Icon class="size-3.5 text-primary pointer-events-none shrink-0" />
+							<span class="truncate max-w-[140px] sm:max-w-[200px]">
+								{selectedOfficeId === 'all' ? 'All Offices' : (activeOffice?.name || 'Select Office')}
+							</span>
+							<ChevronsUpDownIcon class="size-3.5 opacity-50 shrink-0 pointer-events-none ml-0.5" />
+						</Button>
+					</Popover.Trigger>
+					<Popover.Content align="end" sideOffset={6} class="w-72 p-0 rounded-2xl border-border bg-popover text-popover-foreground shadow-2xl z-[2500]">
+						<Command.Root class="w-full">
+							<Command.Input placeholder="Search office desk..." class="h-9 text-xs px-3 border-b border-border/60" />
+							<Command.List class="p-1 max-h-56 overflow-y-auto">
+								<Command.Empty class="p-3 text-xs text-muted-foreground text-center">No office found.</Command.Empty>
+								<Command.Group heading="Consolidated View">
+									<Command.Item
+										value="all All Offices Consolidated Overview"
+										onSelect={() => handleOfficeChange('all')}
+										class="text-xs font-semibold cursor-pointer rounded-xl px-2.5 py-2 flex items-center justify-between hover:bg-muted/60"
+									>
+										<div class="flex items-center gap-2">
+											<Badge variant="outline" class="font-mono text-[9px] px-1">ALL</Badge>
+											<span>All Offices (Overview)</span>
+										</div>
+										{#if selectedOfficeId === 'all'}
+											<CheckIcon class="size-4 text-primary shrink-0" />
+										{/if}
+									</Command.Item>
+								</Command.Group>
+								<Command.Separator class="my-1" />
+								<Command.Group heading="Campus Desks">
+									{#each officesList as office (office.id)}
+										<Command.Item
+											value="{office.name} {office.code} {office.buildingName || ''}"
+											onSelect={() => handleOfficeChange(office.id)}
+											class="text-xs font-semibold cursor-pointer rounded-xl px-2.5 py-2 flex items-center justify-between hover:bg-muted/60"
+										>
+											<div class="min-w-0 pr-2">
+												<div class="font-bold text-xs truncate">{office.name}</div>
+												<div class="text-[10px] text-muted-foreground font-mono font-medium">{office.code || office.buildingName || 'Desk'}</div>
+											</div>
+											{#if selectedOfficeId === office.id}
+												<CheckIcon class="size-4 text-primary shrink-0" />
+											{/if}
+										</Command.Item>
+									{/each}
+								</Command.Group>
+							</Command.List>
+						</Command.Root>
+					</Popover.Content>
+				</Popover.Root>
+			{/if}
+
 			<Badge class="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs py-1.5 px-3 rounded-xl border-emerald-500/30 gap-1.5">
 				<span class="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
 				<span>{activePassesCount} Active Passes</span>
@@ -373,7 +473,7 @@
 	bind:open={isAssistModalOpen}
 	offices={data.offices}
 	role={data.role}
-	assignedOfficeId={data.assignedOfficeId}
+	assignedOfficeId={selectedOfficeId === 'all' ? null : activeOffice?.id}
 	prefillVisitor={selectedPrefillVisitor}
 	onSuccess={() => {
 		if (dashboardContext?.loadData) dashboardContext.loadData();

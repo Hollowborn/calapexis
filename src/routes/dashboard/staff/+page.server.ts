@@ -7,7 +7,7 @@ import {
 	mapDbVisitorToVisitor
 } from "$lib/supabase";
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
 	const session = locals.session;
 
 	// Enforce session and roles validation for Staff Desk
@@ -46,6 +46,19 @@ export const load: PageServerLoad = async ({ locals }) => {
 				assignedOfficeId = offices[0].id;
 			}
 
+			// Determine selected office for view
+			const queryOffice = url.searchParams.get("office");
+			let selectedOfficeId: string = "all";
+			if (session.role === "staff") {
+				selectedOfficeId = assignedOfficeId || (offices.length > 0 ? offices[0].id : "");
+			} else if (session.role === "admin") {
+				if (queryOffice && (queryOffice === "all" || offices.some(o => o.id === queryOffice))) {
+					selectedOfficeId = queryOffice;
+				} else {
+					selectedOfficeId = "all";
+				}
+			}
+
 			// Query visitor_logs joining registered_visitors to get office visitor history
 			let logsQuery = dbClient
 				.from("visitor_logs")
@@ -68,8 +81,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 				.order("check_in_time", { ascending: false })
 				.limit(100);
 
-			if (session.role === "staff" && assignedOfficeId) {
-				logsQuery = logsQuery.eq("office_id", assignedOfficeId);
+			if (selectedOfficeId && selectedOfficeId !== "all") {
+				logsQuery = logsQuery.eq("office_id", selectedOfficeId);
 			}
 
 			const { data: logsData, error: logsError } = await logsQuery;
@@ -124,10 +137,49 @@ export const load: PageServerLoad = async ({ locals }) => {
 		}
 	}
 
+	// Fallback when Supabase is not configured or returned no offices
+	if (offices.length === 0) {
+		const { getLocalOffices } = await import("$lib/supabase");
+		offices = await getLocalOffices();
+		if (session.role === "staff" && !assignedOfficeId && offices.length > 0) {
+			assignedOfficeId = offices[0].id;
+		}
+	}
+
+	const queryOffice = url.searchParams.get("office");
+	let selectedOfficeId: string = "all";
+	if (session.role === "staff") {
+		selectedOfficeId = assignedOfficeId || (offices.length > 0 ? offices[0].id : "");
+	} else if (session.role === "admin") {
+		if (queryOffice && (queryOffice === "all" || offices.some(o => o.id === queryOffice))) {
+			selectedOfficeId = queryOffice;
+		} else {
+			selectedOfficeId = "all";
+		}
+	}
+
+	if (recentOfficeVisitors.length === 0) {
+		const { getLocalVisitors } = await import("$lib/supabase");
+		const allVisitors = await getLocalVisitors(false, selectedOfficeId === 'all' ? null : selectedOfficeId);
+		recentOfficeVisitors = allVisitors.map((v) => ({
+			id: v.visitorId || v.id,
+			fullName: v.fullName,
+			firstName: v.firstName || "",
+			middleName: v.middleName || "",
+			lastName: v.lastName || "",
+			email: v.email || "",
+			phone: v.phone || "",
+			photoUrl: v.photoUrl || "",
+			lastPurpose: v.purpose || "",
+			lastVisitTime: v.checkInTime
+		}));
+	}
+
 	return {
 		role: session.role,
 		offices,
 		assignedOfficeId,
+		selectedOfficeId,
 		recentOfficeVisitors
 	};
 };
