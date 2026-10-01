@@ -29,6 +29,7 @@
 	import AlertCircleIcon from "@lucide/svelte/icons/alert-circle";
 	import ShieldAlertIcon from "@lucide/svelte/icons/shield-alert";
 	import ArrowLeftIcon from "@lucide/svelte/icons/arrow-left";
+	import ArrowRightIcon from "@lucide/svelte/icons/arrow-right";
 	import XIcon from "@lucide/svelte/icons/x";
 	import MapIcon from "@lucide/svelte/icons/map";
 	import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
@@ -734,36 +735,38 @@
 		<!-- Interactive Role Switcher Tabs -->
 		<Tabs.Root value="staff" class="flex-1 flex flex-col min-h-0 overflow-hidden">
 			<div class="px-5 sm:px-6 pt-3.5 pb-2.5 border-b border-border bg-card/90 backdrop-blur-xs shrink-0">
-				<Tabs.List class="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 bg-muted/60 rounded-2xl h-auto">
-					<Tabs.Trigger
-						value="staff"
-						class="rounded-xl text-xs font-bold py-2 flex items-center justify-center gap-1.5 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer"
-					>
-						<UserCheckIcon class="size-3.5 shrink-0 text-blue-600 dark:text-blue-400" />
-						<span>Office Staff</span>
-					</Tabs.Trigger>
-					<Tabs.Trigger
-						value="security"
-						class="rounded-xl text-xs font-bold py-2 flex items-center justify-center gap-1.5 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer"
-					>
-						<ShieldCheckIcon class="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
-						<span>Security Desk</span>
-					</Tabs.Trigger>
-					<Tabs.Trigger
-						value="admin"
-						class="rounded-xl text-xs font-bold py-2 flex items-center justify-center gap-1.5 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer"
-					>
-						<KeyRoundIcon class="size-3.5 shrink-0 text-purple-600 dark:text-purple-400" />
-						<span>System Admin</span>
-					</Tabs.Trigger>
-					<Tabs.Trigger
-						value="visitor"
-						class="rounded-xl text-xs font-bold py-2 flex items-center justify-center gap-1.5 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer"
-					>
-						<NavigationIcon class="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-						<span>Visitor Kiosk</span>
-					</Tabs.Trigger>
-				</Tabs.List>
+				<div class="overflow-x-auto no-scrollbar -mx-1 px-1">
+					<Tabs.List class="flex sm:grid sm:grid-cols-4 gap-1.5 p-1 bg-muted/60 rounded-2xl h-auto w-max sm:w-full min-w-full">
+						<Tabs.Trigger
+							value="staff"
+							
+						>
+							<UserCheckIcon class="size-3.5 shrink-0 text-blue-600 dark:text-blue-400" />
+							<span>Office Staff</span>
+						</Tabs.Trigger>
+						<Tabs.Trigger
+							value="security"
+							
+						>
+							<ShieldCheckIcon class="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+							<span>Security Desk</span>
+						</Tabs.Trigger>
+						<Tabs.Trigger
+							value="admin"
+						
+						>
+							<KeyRoundIcon class="size-3.5 shrink-0 text-purple-600 dark:text-purple-400" />
+							<span>System Admin</span>
+						</Tabs.Trigger>
+						<Tabs.Trigger
+							value="visitor"
+							
+						>
+							<NavigationIcon class="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+							<span>Visitor Kiosk</span>
+						</Tabs.Trigger>
+					</Tabs.List>
+				</div>
 			</div>
 
 			<!-- TAB 1: OFFICE STAFF -->
@@ -800,8 +803,8 @@
 						<span class="text-[10px] font-semibold text-muted-foreground">4-Step Procedure</span>
 					</div>
 
-					<div class="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
-						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+					<div class="flex flex-col sm:flex-row items-stretch gap-2 sm:gap-2.5">
+						<div class="flex-1 p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
 							<div class="flex items-center justify-between">
 								<span class="size-5 rounded-full bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center">1</span>
 								<DoorOpenIcon class="size-3.5 text-muted-foreground" />
@@ -812,7 +815,11 @@
 							</p>
 						</div>
 
-						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+						<div class="flex items-center justify-center py-0.5 sm:py-0 text-muted-foreground/40 shrink-0">
+							<ArrowRightIcon class="size-4 rotate-90 sm:rotate-0" />
+						</div>
+
+						<div class="flex-1 p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
 							<div class="flex items-center justify-between">
 								<span class="size-5 rounded-full bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center">2</span>
 								<CameraIcon class="size-3.5 text-muted-foreground" />
@@ -823,7 +830,11 @@
 							</p>
 						</div>
 
-						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+						<div class="flex items-center justify-center py-0.5 sm:py-0 text-muted-foreground/40 shrink-0">
+							<ArrowRightIcon class="size-4 rotate-90 sm:rotate-0" />
+						</div>
+
+						<div class="flex-1 p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
 							<div class="flex items-center justify-between">
 								<span class="size-5 rounded-full bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center">3</span>
 								<QrCodeIcon class="size-3.5 text-muted-foreground" />
@@ -834,7 +845,11 @@
 							</p>
 						</div>
 
-						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+						<div class="flex items-center justify-center py-0.5 sm:py-0 text-muted-foreground/40 shrink-0">
+							<ArrowRightIcon class="size-4 rotate-90 sm:rotate-0" />
+						</div>
+
+						<div class="flex-1 p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
 							<div class="flex items-center justify-between">
 								<span class="size-5 rounded-full bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center">4</span>
 								<LogOutIcon class="size-3.5 text-muted-foreground" />
@@ -848,7 +863,7 @@
 				</div>
 
 				<!-- Deep Dive Feature Cards -->
-				<div class="flex flex-col gap-2.5">
+				<div class="flex flex-col gap-2.5 mt-4">
 					<span class="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
 						Core Tools & Capabilities
 					</span>
@@ -933,8 +948,8 @@
 						<span class="text-[10px] font-semibold text-muted-foreground">4-Step Protocol</span>
 					</div>
 
-					<div class="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
-						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+					<div class="flex flex-col sm:flex-row items-stretch gap-2 sm:gap-2.5">
+						<div class="flex-1 p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
 							<div class="flex items-center justify-between">
 								<span class="size-5 rounded-full bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center">1</span>
 								<MapPinIcon class="size-3.5 text-muted-foreground" />
@@ -945,7 +960,11 @@
 							</p>
 						</div>
 
-						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+						<div class="flex items-center justify-center py-0.5 sm:py-0 text-muted-foreground/40 shrink-0">
+							<ArrowRightIcon class="size-4 rotate-90 sm:rotate-0" />
+						</div>
+
+						<div class="flex-1 p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
 							<div class="flex items-center justify-between">
 								<span class="size-5 rounded-full bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center">2</span>
 								<QrCodeIcon class="size-3.5 text-muted-foreground" />
@@ -956,7 +975,11 @@
 							</p>
 						</div>
 
-						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+						<div class="flex items-center justify-center py-0.5 sm:py-0 text-muted-foreground/40 shrink-0">
+							<ArrowRightIcon class="size-4 rotate-90 sm:rotate-0" />
+						</div>
+
+						<div class="flex-1 p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
 							<div class="flex items-center justify-between">
 								<span class="size-5 rounded-full bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center">3</span>
 								<UserCheckIcon class="size-3.5 text-muted-foreground" />
@@ -967,7 +990,11 @@
 							</p>
 						</div>
 
-						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+						<div class="flex items-center justify-center py-0.5 sm:py-0 text-muted-foreground/40 shrink-0">
+							<ArrowRightIcon class="size-4 rotate-90 sm:rotate-0" />
+						</div>
+
+						<div class="flex-1 p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
 							<div class="flex items-center justify-between">
 								<span class="size-5 rounded-full bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center">4</span>
 								<CheckIcon class="size-3.5 text-muted-foreground" />
@@ -981,7 +1008,7 @@
 				</div>
 
 				<!-- Deep Dive Feature Cards -->
-				<div class="flex flex-col gap-2.5">
+				<div class="flex flex-col gap-2.5 mt-4">
 					<span class="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
 						Monitoring Tools
 					</span>
@@ -1066,8 +1093,8 @@
 						<span class="text-[10px] font-semibold text-muted-foreground">4 Pillars</span>
 					</div>
 
-					<div class="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
-						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+					<div class="flex flex-col sm:flex-row items-stretch gap-2 sm:gap-2.5">
+						<div class="flex-1 p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
 							<div class="flex items-center justify-between">
 								<span class="size-5 rounded-full bg-purple-600 text-white text-[10px] font-black flex items-center justify-center">1</span>
 								<Building2Icon class="size-3.5 text-muted-foreground" />
@@ -1078,7 +1105,11 @@
 							</p>
 						</div>
 
-						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+						<div class="flex items-center justify-center py-0.5 sm:py-0 text-muted-foreground/40 shrink-0">
+							<ArrowRightIcon class="size-4 rotate-90 sm:rotate-0" />
+						</div>
+
+						<div class="flex-1 p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
 							<div class="flex items-center justify-between">
 								<span class="size-5 rounded-full bg-purple-600 text-white text-[10px] font-black flex items-center justify-center">2</span>
 								<NetworkIcon class="size-3.5 text-muted-foreground" />
@@ -1089,7 +1120,11 @@
 							</p>
 						</div>
 
-						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+						<div class="flex items-center justify-center py-0.5 sm:py-0 text-muted-foreground/40 shrink-0">
+							<ArrowRightIcon class="size-4 rotate-90 sm:rotate-0" />
+						</div>
+
+						<div class="flex-1 p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
 							<div class="flex items-center justify-between">
 								<span class="size-5 rounded-full bg-purple-600 text-white text-[10px] font-black flex items-center justify-center">3</span>
 								<UsersIcon class="size-3.5 text-muted-foreground" />
@@ -1100,7 +1135,11 @@
 							</p>
 						</div>
 
-						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+						<div class="flex items-center justify-center py-0.5 sm:py-0 text-muted-foreground/40 shrink-0">
+							<ArrowRightIcon class="size-4 rotate-90 sm:rotate-0" />
+						</div>
+
+						<div class="flex-1 p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
 							<div class="flex items-center justify-between">
 								<span class="size-5 rounded-full bg-purple-600 text-white text-[10px] font-black flex items-center justify-center">4</span>
 								<FileTextIcon class="size-3.5 text-muted-foreground" />
@@ -1114,7 +1153,7 @@
 				</div>
 
 				<!-- Deep Dive Feature Cards (2x2 Grid) -->
-				<div class="flex flex-col gap-2.5">
+				<div class="flex flex-col gap-2.5 mt-4">
 					<span class="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
 						Administrative Infrastructure Suite
 					</span>
@@ -1205,8 +1244,8 @@
 						<span class="text-[10px] font-semibold text-muted-foreground">Contactless Flow</span>
 					</div>
 
-					<div class="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
-						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+					<div class="flex flex-col sm:flex-row items-stretch gap-2 sm:gap-2.5">
+						<div class="flex-1 p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
 							<div class="flex items-center justify-between">
 								<span class="size-5 rounded-full bg-amber-600 text-white text-[10px] font-black flex items-center justify-center">1</span>
 								<SmartphoneIcon class="size-3.5 text-muted-foreground" />
@@ -1217,7 +1256,11 @@
 							</p>
 						</div>
 
-						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+						<div class="flex items-center justify-center py-0.5 sm:py-0 text-muted-foreground/40 shrink-0">
+							<ArrowRightIcon class="size-4 rotate-90 sm:rotate-0" />
+						</div>
+
+						<div class="flex-1 p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
 							<div class="flex items-center justify-between">
 								<span class="size-5 rounded-full bg-amber-600 text-white text-[10px] font-black flex items-center justify-center">2</span>
 								<CameraIcon class="size-3.5 text-muted-foreground" />
@@ -1228,7 +1271,11 @@
 							</p>
 						</div>
 
-						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+						<div class="flex items-center justify-center py-0.5 sm:py-0 text-muted-foreground/40 shrink-0">
+							<ArrowRightIcon class="size-4 rotate-90 sm:rotate-0" />
+						</div>
+
+						<div class="flex-1 p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
 							<div class="flex items-center justify-between">
 								<span class="size-5 rounded-full bg-amber-600 text-white text-[10px] font-black flex items-center justify-center">3</span>
 								<QrCodeIcon class="size-3.5 text-muted-foreground" />
@@ -1239,7 +1286,11 @@
 							</p>
 						</div>
 
-						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+						<div class="flex items-center justify-center py-0.5 sm:py-0 text-muted-foreground/40 shrink-0">
+							<ArrowRightIcon class="size-4 rotate-90 sm:rotate-0" />
+						</div>
+
+						<div class="flex-1 p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
 							<div class="flex items-center justify-between">
 								<span class="size-5 rounded-full bg-amber-600 text-white text-[10px] font-black flex items-center justify-center">4</span>
 								<CompassIcon class="size-3.5 text-muted-foreground" />
@@ -1253,7 +1304,7 @@
 				</div>
 
 				<!-- Deep Dive Feature Cards -->
-				<div class="flex flex-col gap-2.5">
+				<div class="flex flex-col gap-2.5 mt-4">
 					<span class="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
 						Visitor Convenience & Navigation Features
 					</span>
