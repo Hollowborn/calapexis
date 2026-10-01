@@ -15,7 +15,9 @@
 	import * as Field from "$lib/components/ui/field/index.js";
 	import * as Carousel from "$lib/components/ui/carousel/index.js";
 	import type { CarouselAPI } from "$lib/components/ui/carousel/context.js";
-	import * as Sheet from "$lib/components/ui/sheet/index.js";
+	import * as Dialog from "$lib/components/ui/dialog/index.js";
+	import * as Tabs from "$lib/components/ui/tabs/index.js";
+	import { Separator } from "$lib/components/ui/separator/index.js";
 	import ThemeToggle from "$lib/components/theme-toggle.svelte";
 	import { signInWithGoogle } from "$lib/supabase";
 	import { toast } from "svelte-sonner";
@@ -49,6 +51,13 @@
 	import DoorOpenIcon from "@lucide/svelte/icons/door-open";
 	import LayersIcon from "@lucide/svelte/icons/layers";
 	import ArrowRightLeftIcon from "@lucide/svelte/icons/arrow-right-left";
+	import CameraIcon from "@lucide/svelte/icons/camera";
+	import SmartphoneIcon from "@lucide/svelte/icons/smartphone";
+	import CompassIcon from "@lucide/svelte/icons/compass";
+	import FileTextIcon from "@lucide/svelte/icons/file-text";
+	import UsersIcon from "@lucide/svelte/icons/users";
+	import RouteIcon from "@lucide/svelte/icons/route";
+	import ExternalLinkIcon from "@lucide/svelte/icons/external-link";
 
 	let { data, form } = $props();
 
@@ -695,102 +704,629 @@
 	</div>
 </div>
 
-<!-- Admin Guide Sheet Drawer -->
-<Sheet.Root bind:open={isGuideOpen}>
-	<Sheet.Content side="right" class="w-full sm:max-w-md p-0 flex flex-col gap-0 border-l border-border bg-card">
-		<Sheet.Header class="p-6 border-b border-border text-start">
-			<div class="flex items-center gap-2.5">
-				<div class="size-9 rounded-xl bg-primary/10 border border-primary/20 text-primary flex items-center justify-center shrink-0">
-					<BookOpenIcon data-icon="inline-start" />
-				</div>
-				<div>
-					<Sheet.Title class="text-base font-black text-foreground">Operational System Manual</Sheet.Title>
-					<Sheet.Description class="text-xs text-muted-foreground font-semibold">BISU Calape - Campus Visitor Management Guide</Sheet.Description>
-				</div>
-			</div>
-		</Sheet.Header>
-
-		<div class="flex-1 overflow-y-auto p-6 space-y-6 font-medium">
-			<!-- Feature 1 -->
-			<div class="flex gap-4">
-				<div class="size-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/20">
-					<BookOpenIcon class="size-5" />
-				</div>
-				<div>
-					<h3 class="font-extrabold text-sm text-foreground mb-1">
-						Live Visitor Monitoring
-					</h3>
-					<p class="text-xs text-muted-foreground leading-relaxed font-semibold">
-						Track incoming and active visitors in real-time with comprehensive search and status filters.
-					</p>
+<!-- Comprehensive User Guide Dialog Modal -->
+<Dialog.Root bind:open={isGuideOpen}>
+	<Dialog.Content class="max-w-4xl sm:max-w-4xl p-0 gap-0 overflow-hidden rounded-3xl border-border bg-card shadow-2xl max-h-[90vh] flex flex-col">
+		<!-- Modal Header -->
+		<Dialog.Header class="p-5 sm:p-6 pb-4 border-b border-border bg-muted/20 text-start">
+			<div class="flex items-center justify-between gap-4 flex-wrap">
+				<div class="flex items-center gap-3">
+					<div class="size-10 rounded-2xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground flex items-center justify-center font-mono font-black shadow-md shadow-primary/20 ring-4 ring-primary/10 shrink-0">
+						<BrandLogo class="ml-0.5 mt-0.5" />
+					</div>
+					<div>
+						<div class="flex items-center gap-2">
+							<Dialog.Title class="text-base sm:text-lg font-black tracking-tight text-foreground">
+								User Manual and Role Guide
+							</Dialog.Title>
+							<Badge variant="outline" class="text-[9px] font-mono font-bold uppercase tracking-wider hidden sm:inline-flex">
+								v2.4
+							</Badge>
+						</div>
+						<Dialog.Description class="text-xs text-muted-foreground font-semibold">
+							Explore role-specific workflows, permissions, and system capabilities across the campus platform.
+						</Dialog.Description>
+					</div>
 				</div>
 			</div>
+		</Dialog.Header>
 
-			<!-- Feature 2 -->
-			<div class="flex gap-4">
-				<div class="size-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
-					<UserCheckIcon class="size-5" />
-				</div>
-				<div>
-					<h3 class="font-extrabold text-sm text-foreground mb-1">
-						Assisted Check-In / Out
-					</h3>
-					<p class="text-xs text-muted-foreground leading-relaxed font-semibold">
-						Assisted walk-in desk registration and one-click visitor checkout by unique pass codes.
-					</p>
-				</div>
+		<!-- Interactive Role Switcher Tabs -->
+		<Tabs.Root value="staff" class="flex-1 flex flex-col min-h-0 overflow-hidden">
+			<div class="px-5 sm:px-6 pt-3.5 pb-2.5 border-b border-border bg-card/90 backdrop-blur-xs shrink-0">
+				<Tabs.List class="grid grid-cols-2 sm:grid-cols-4 gap-1 p-1 bg-muted/60 rounded-2xl h-auto">
+					<Tabs.Trigger
+						value="staff"
+						class="rounded-xl text-xs font-bold py-2 flex items-center justify-center gap-1.5 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer"
+					>
+						<UserCheckIcon class="size-3.5 shrink-0 text-blue-600 dark:text-blue-400" />
+						<span>Office Staff</span>
+					</Tabs.Trigger>
+					<Tabs.Trigger
+						value="security"
+						class="rounded-xl text-xs font-bold py-2 flex items-center justify-center gap-1.5 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer"
+					>
+						<ShieldCheckIcon class="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+						<span>Security Desk</span>
+					</Tabs.Trigger>
+					<Tabs.Trigger
+						value="admin"
+						class="rounded-xl text-xs font-bold py-2 flex items-center justify-center gap-1.5 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer"
+					>
+						<KeyRoundIcon class="size-3.5 shrink-0 text-purple-600 dark:text-purple-400" />
+						<span>System Admin</span>
+					</Tabs.Trigger>
+					<Tabs.Trigger
+						value="visitor"
+						class="rounded-xl text-xs font-bold py-2 flex items-center justify-center gap-1.5 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-xs transition-all cursor-pointer"
+					>
+						<NavigationIcon class="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+						<span>Visitor Kiosk</span>
+					</Tabs.Trigger>
+				</Tabs.List>
 			</div>
 
-			<!-- Feature 3 -->
-			<div class="flex gap-4">
-				<div class="size-10 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 border border-purple-500/20">
-					<Building2Icon class="size-5" />
+			<!-- TAB 1: OFFICE STAFF -->
+			<Tabs.Content value="staff" class="flex-1 overflow-y-auto p-5 sm:p-6 flex flex-col gap-6 focus-visible:outline-hidden">
+				<!-- Role Banner -->
+				<div class="p-4 sm:p-5 rounded-2xl border border-blue-500/20 bg-blue-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+					<div class="flex items-center gap-3.5">
+						<div class="size-11 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/20">
+							<UserCheckIcon class="size-5" />
+						</div>
+						<div>
+							<div class="flex items-center gap-2">
+								<h3 class="text-sm sm:text-base font-black text-foreground">Department & Office Staff Desk</h3>
+								<Badge variant="secondary" class="text-[9px] font-bold">Desk Officer</Badge>
+							</div>
+							<p class="text-xs text-muted-foreground font-semibold mt-0.5">
+								Dedicated console for department secretaries, registrars, and cashiers managing desk walk-ins and visitor queues.
+							</p>
+						</div>
+					</div>
+					<div class="flex items-center gap-1.5 flex-wrap shrink-0">
+						<Badge variant="outline" class="text-[9px] font-mono font-semibold">/dashboard/staff</Badge>
+						<Badge variant="outline" class="text-[9px] font-mono font-semibold">/dashboard/logs</Badge>
+						<Badge variant="outline" class="text-[9px] font-mono font-semibold">/dashboard</Badge>
+					</div>
 				</div>
-				<div>
-					<h3 class="font-extrabold text-sm text-foreground mb-1">
-						Buildings & Rooms
-					</h3>
-					<p class="text-xs text-muted-foreground leading-relaxed font-semibold">
-						Manage university building structures, floor levels, landmark photos, and department rooms.
-					</p>
-				</div>
-			</div>
 
-			<!-- Feature 4 -->
-			<div class="flex gap-4">
-				<div class="size-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/20">
-					<NetworkIcon class="size-5" />
-				</div>
-				<div>
-					<h3 class="font-extrabold text-sm text-foreground mb-1">
-						Map Edges & Navigation
-					</h3>
-					<p class="text-xs text-muted-foreground leading-relaxed font-semibold">
-						Configure connected walking pathways between campus landmarks for pathfinding.
-					</p>
-				</div>
-			</div>
+				<!-- Step-by-Step Desk Workflow -->
+				<div class="flex flex-col gap-2.5">
+					<div class="flex items-center justify-between">
+						<span class="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
+							Standard Operational Workflow
+						</span>
+						<span class="text-[10px] font-semibold text-muted-foreground">4-Step Procedure</span>
+					</div>
 
-			<!-- Feature 5 -->
-			<div class="flex gap-4">
-				<div class="size-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-500/20">
-					<KeyRoundIcon class="size-5" />
-				</div>
-				<div>
-					<h3 class="font-extrabold text-sm text-foreground mb-1">
-						User Account Provisioning
-					</h3>
-					<p class="text-xs text-muted-foreground leading-relaxed font-semibold">
-						Provision admin, security guard, and office staff accounts bound to specific departments.
-					</p>
-				</div>
-			</div>
-		</div>
+					<div class="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+							<div class="flex items-center justify-between">
+								<span class="size-5 rounded-full bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center">1</span>
+								<DoorOpenIcon class="size-3.5 text-muted-foreground" />
+							</div>
+							<span class="text-xs font-bold text-foreground">Receive Visitor</span>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Greet visitors arriving at your department or registrar counter.
+							</p>
+						</div>
 
-		<div class="p-6 bg-muted/40 border-t border-border">
-			<p class="text-[10px] text-muted-foreground/60 text-center font-bold">
-				BISU Calape - Campus Guide Security System Manual
-			</p>
-		</div>
-	</Sheet.Content>
-</Sheet.Root>
+						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+							<div class="flex items-center justify-between">
+								<span class="size-5 rounded-full bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center">2</span>
+								<CameraIcon class="size-3.5 text-muted-foreground" />
+							</div>
+							<span class="text-xs font-bold text-foreground">Assisted Sign-In</span>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Click "+ New Walk-In Visitor", take webcam photo, record name & purpose.
+							</p>
+						</div>
+
+						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+							<div class="flex items-center justify-between">
+								<span class="size-5 rounded-full bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center">3</span>
+								<QrCodeIcon class="size-3.5 text-muted-foreground" />
+							</div>
+							<span class="text-xs font-bold text-foreground">Issue Pass Badge</span>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								System issues a digital pass code (`VP-XXXX`) and auto-binds to your desk.
+							</p>
+						</div>
+
+						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+							<div class="flex items-center justify-between">
+								<span class="size-5 rounded-full bg-primary/10 text-primary text-[10px] font-black flex items-center justify-center">4</span>
+								<LogOutIcon class="size-3.5 text-muted-foreground" />
+							</div>
+							<span class="text-xs font-bold text-foreground">Desk Check-Out</span>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Click "Check Out" on the visitor card once business is concluded.
+							</p>
+						</div>
+					</div>
+				</div>
+
+				<!-- Deep Dive Feature Cards -->
+				<div class="flex flex-col gap-2.5">
+					<span class="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
+						Core Tools & Capabilities
+					</span>
+
+					<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+						<!-- <div class="p-4 rounded-2xl border border-border bg-card flex flex-col gap-2.5 shadow-xs">
+							<div class="size-9 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+								<CameraIcon class="size-4" />
+							</div>
+							<h4 class="text-xs font-bold text-foreground">Webcam Snapshot & Photo Upload</h4>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Integrated camera tool captures facial portrait photos of visitors directly in browser for visual security identification.
+							</p>
+							<div class="mt-auto pt-2 flex items-center gap-1.5">
+								<Badge variant="secondary" class="text-[9px]">WebRTC Camera</Badge>
+								<Badge variant="secondary" class="text-[9px]">Face Verification</Badge>
+							</div>
+						</div> -->
+
+						<div class="p-4 rounded-2xl border border-border bg-card flex flex-col gap-2.5 shadow-xs">
+							<div class="size-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+								<ClockIcon class="size-4" />
+							</div>
+							<h4 class="text-xs font-bold text-foreground">Active Desk Queue & Fast Search</h4>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Real-time list of visitors currently transacting at your office desk with visit timers and instant visitor search.
+							</p>
+							<div class="mt-auto pt-2 flex items-center gap-1.5">
+								<Badge variant="secondary" class="text-[9px]">Live Status</Badge>
+								<Badge variant="secondary" class="text-[9px]">1-Click Checkout</Badge>
+							</div>
+						</div>
+
+						<div class="p-4 rounded-2xl border border-border bg-card flex flex-col gap-2.5 shadow-xs">
+							<div class="size-9 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+								<BarChart3Icon class="size-4" />
+							</div>
+							<h4 class="text-xs font-bold text-foreground">Desk History & Analytics</h4>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Review daily visitor volume, peak queue hours, and historical visitor log records filtered to your department desk.
+							</p>
+							<div class="mt-auto pt-2 flex items-center gap-1.5">
+								<Badge variant="secondary" class="text-[9px]">Daily Trends</Badge>
+								<Badge variant="secondary" class="text-[9px]">Audit Trail</Badge>
+							</div>
+						</div>
+					</div>
+				</div>
+			</Tabs.Content>
+
+			<!-- TAB 2: SECURITY PERSONNEL -->
+			<Tabs.Content value="security" class="flex-1 overflow-y-auto p-5 sm:p-6 flex flex-col gap-6 focus-visible:outline-hidden">
+				<!-- Role Banner -->
+				<div class="p-4 sm:p-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+					<div class="flex items-center gap-3.5">
+						<div class="size-11 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/20">
+							<ShieldCheckIcon class="size-5" />
+						</div>
+						<div>
+							<div class="flex items-center gap-2">
+								<h3 class="text-sm sm:text-base font-black text-foreground">Campus Gate & Perimeter Security</h3>
+								<Badge variant="secondary" class="text-[9px] font-bold">Gate Guard / Officer</Badge>
+							</div>
+							<p class="text-xs text-muted-foreground font-semibold mt-0.5">
+								Dedicated console for campus security personnel safeguarding entry gates and tracking live on-campus occupancy.
+							</p>
+						</div>
+					</div>
+					<div class="flex items-center gap-1.5 flex-wrap shrink-0">
+						<Badge variant="outline" class="text-[9px] font-mono font-semibold">/dashboard/security</Badge>
+						<Badge variant="outline" class="text-[9px] font-mono font-semibold">/dashboard/logs</Badge>
+						<Badge variant="outline" class="text-[9px] font-mono font-semibold">Gate Radar</Badge>
+					</div>
+				</div>
+
+				<!-- Step-by-Step Gate Workflow -->
+				<div class="flex flex-col gap-2.5">
+					<div class="flex items-center justify-between">
+						<span class="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
+							Standard Gate Security Procedure
+						</span>
+						<span class="text-[10px] font-semibold text-muted-foreground">4-Step Protocol</span>
+					</div>
+
+					<div class="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+							<div class="flex items-center justify-between">
+								<span class="size-5 rounded-full bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center">1</span>
+								<MapPinIcon class="size-3.5 text-muted-foreground" />
+							</div>
+							<span class="text-xs font-bold text-foreground">Gate Arrival</span>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Screen vehicles & pedestrians entering through main or side campus gates.
+							</p>
+						</div>
+
+						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+							<div class="flex items-center justify-between">
+								<span class="size-5 rounded-full bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center">2</span>
+								<QrCodeIcon class="size-3.5 text-muted-foreground" />
+							</div>
+							<span class="text-xs font-bold text-foreground">Monitor Visitors</span>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Monitor visitor activity on the live map, showing each visitors' locations.
+							</p>
+						</div>
+
+						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+							<div class="flex items-center justify-between">
+								<span class="size-5 rounded-full bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center">3</span>
+								<UserCheckIcon class="size-3.5 text-muted-foreground" />
+							</div>
+							<span class="text-xs font-bold text-foreground">Verify Destination</span>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Check visitor photo portrait, destination building, and approved purpose.
+							</p>
+						</div>
+
+						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+							<div class="flex items-center justify-between">
+								<span class="size-5 rounded-full bg-emerald-600 text-white text-[10px] font-black flex items-center justify-center">4</span>
+								<CheckIcon class="size-3.5 text-muted-foreground" />
+							</div>
+							<span class="text-xs font-bold text-foreground">Departure Check-Out</span>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Record exit check-out timestamp as visitors leave to keep headcounts exact.
+							</p>
+						</div>
+					</div>
+				</div>
+
+				<!-- Deep Dive Feature Cards -->
+				<div class="flex flex-col gap-2.5">
+					<span class="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
+						Monitoring Tools
+					</span>
+
+					<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+						<div class="p-4 rounded-2xl border border-border bg-card flex flex-col gap-2.5 shadow-xs">
+							<div class="size-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+								<MapIcon class="size-4" />
+							</div>
+							<h4 class="text-xs font-bold text-foreground">Live Interactive Radar Map</h4>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Satellite & street map view tracking active visitor pins, cluster densities, and building destinations across campus in real time.
+							</p>
+							<div class="mt-auto pt-2 flex items-center gap-1.5">
+								<Badge variant="secondary" class="text-[9px]">Leaflet Radar</Badge>
+								<Badge variant="secondary" class="text-[9px]">Building Pins</Badge>
+							</div>
+						</div>
+
+						<!-- <div class="p-4 rounded-2xl border border-border bg-card flex flex-col gap-2.5 shadow-xs">
+							<div class="size-9 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+								<ShieldAlertIcon class="size-4" />
+							</div>
+							<h4 class="text-xs font-bold text-foreground">Emergency Evacuation Roster</h4>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Instant 1-click generation of every civilian visitor currently inside university perimeter for emergency response and drills.
+							</p>
+							<div class="mt-auto pt-2 flex items-center gap-1.5">
+								<Badge variant="secondary" class="text-[9px]">Occupancy Count</Badge>
+								<Badge variant="secondary" class="text-[9px]">Evac Roster</Badge>
+							</div>
+						</div> -->
+
+						<div class="p-4 rounded-2xl border border-border bg-card flex flex-col gap-2.5 shadow-xs">
+							<div class="size-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+								<BookOpenIcon class="size-4" />
+							</div>
+							<h4 class="text-xs font-bold text-foreground">Master Logbook & Incident Audit</h4>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Search full history of passes, investigate unauthorized stays, verify check-in timestamps, and review past incidents.
+							</p>
+							<div class="mt-auto pt-2 flex items-center gap-1.5">
+								<Badge variant="secondary" class="text-[9px]">Gate History</Badge>
+								<Badge variant="secondary" class="text-[9px]">Audit Search</Badge>
+							</div>
+						</div>
+					</div>
+				</div>
+			</Tabs.Content>
+
+			<!-- TAB 3: SYSTEM ADMINISTRATOR -->
+			<Tabs.Content value="admin" class="flex-1 overflow-y-auto p-5 sm:p-6 flex flex-col gap-6 focus-visible:outline-hidden">
+				<!-- Role Banner -->
+				<div class="p-4 sm:p-5 rounded-2xl border border-purple-500/20 bg-purple-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+					<div class="flex items-center gap-3.5">
+						<div class="size-11 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 border border-purple-500/20">
+							<KeyRoundIcon class="size-5" />
+						</div>
+						<div>
+							<div class="flex items-center gap-2">
+								<h3 class="text-sm sm:text-base font-black text-foreground">System Administration & Infrastructure</h3>
+								<Badge variant="secondary" class="text-[9px] font-bold">Administrator</Badge>
+							</div>
+							<p class="text-xs text-muted-foreground font-semibold mt-0.5">
+								Master system governance, user account provisioning, campus digital twin modeling, and official compliance audit exports.
+							</p>
+						</div>
+					</div>
+					<div class="flex items-center gap-1.5 flex-wrap shrink-0">
+						<Badge variant="outline" class="text-[9px] font-mono font-semibold">All Routes</Badge>
+						<Badge variant="outline" class="text-[9px] font-mono font-semibold">/dashboard/admin/*</Badge>
+						<Badge variant="outline" class="text-[9px] font-mono font-semibold">Full Authority</Badge>
+					</div>
+				</div>
+
+				<!-- Step-by-Step Admin Management Cycle -->
+				<div class="flex flex-col gap-2.5">
+					<div class="flex items-center justify-between">
+						<span class="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
+							Campus Administration Lifecycle
+						</span>
+						<span class="text-[10px] font-semibold text-muted-foreground">4 Pillars</span>
+					</div>
+
+					<div class="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+							<div class="flex items-center justify-between">
+								<span class="size-5 rounded-full bg-purple-600 text-white text-[10px] font-black flex items-center justify-center">1</span>
+								<Building2Icon class="size-3.5 text-muted-foreground" />
+							</div>
+							<span class="text-xs font-bold text-foreground">Buildings & Rooms</span>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Configure buildings, floor plans, GPS coordinates, and landmark photos.
+							</p>
+						</div>
+
+						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+							<div class="flex items-center justify-between">
+								<span class="size-5 rounded-full bg-purple-600 text-white text-[10px] font-black flex items-center justify-center">2</span>
+								<NetworkIcon class="size-3.5 text-muted-foreground" />
+							</div>
+							<span class="text-xs font-bold text-foreground">Map Edges & Paths</span>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Define pedestrian graph nodes and walking paths for wayfinding.
+							</p>
+						</div>
+
+						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+							<div class="flex items-center justify-between">
+								<span class="size-5 rounded-full bg-purple-600 text-white text-[10px] font-black flex items-center justify-center">3</span>
+								<UsersIcon class="size-3.5 text-muted-foreground" />
+							</div>
+							<span class="text-xs font-bold text-foreground">User Provisioning</span>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Provision guard and staff accounts bound to specific department desks.
+							</p>
+						</div>
+
+						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+							<div class="flex items-center justify-between">
+								<span class="size-5 rounded-full bg-purple-600 text-white text-[10px] font-black flex items-center justify-center">4</span>
+								<FileTextIcon class="size-3.5 text-muted-foreground" />
+							</div>
+							<span class="text-xs font-bold text-foreground">Audit Compliance</span>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Generate official reports (PDF, Word, Print, CSV) with campus letterhead.
+							</p>
+						</div>
+					</div>
+				</div>
+
+				<!-- Deep Dive Feature Cards (2x2 Grid) -->
+				<div class="flex flex-col gap-2.5">
+					<span class="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
+						Administrative Infrastructure Suite
+					</span>
+
+					<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+						<div class="p-4 rounded-2xl border border-border bg-card flex flex-col gap-2 shadow-xs">
+							<div class="flex items-center gap-2.5">
+								<div class="size-8 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+									<BarChart2Icon class="size-4" />
+								</div>
+								<h4 class="text-xs font-bold text-foreground">Master Analytics & Multi-Desk Oversight</h4>
+							</div>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Campus-wide metrics showing peak volume hours, visit purpose breakdowns, and full multi-office switcher on Staff Desk to inspect any department.
+							</p>
+						</div>
+
+						<div class="p-4 rounded-2xl border border-border bg-card flex flex-col gap-2 shadow-xs">
+							<div class="flex items-center gap-2.5">
+								<div class="size-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+									<FileTextIcon class="size-4" />
+								</div>
+								<h4 class="text-xs font-bold text-foreground">ISO 9001 Compliance Reporting</h4>
+							</div>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Generate certified audit reports with university seals and tracking code (`F-ADF-ADM-011`) exported to Word (`.docx`), PDF, CSV, and Print Preview.
+							</p>
+						</div>
+
+						<div class="p-4 rounded-2xl border border-border bg-card flex flex-col gap-2 shadow-xs">
+							<div class="flex items-center gap-2.5">
+								<div class="size-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+									<Building2Icon class="size-4" />
+								</div>
+								<h4 class="text-xs font-bold text-foreground">Campus Digital Twin Modeling</h4>
+							</div>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Configure physical landmarks: 3D/2D buildings, floor levels, GPS pins, landmark photo assets, and department office desks.
+							</p>
+						</div>
+
+						<div class="p-4 rounded-2xl border border-border bg-card flex flex-col gap-2 shadow-xs">
+							<div class="flex items-center gap-2.5">
+								<div class="size-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+									<RouteIcon class="size-4" />
+								</div>
+								<h4 class="text-xs font-bold text-foreground">Pedestrian Waypoint Routing & Graph</h4>
+							</div>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Manage interconnected walking paths, distances, and waypoints that power the shortest-path Dijkstra engine for visitor navigation.
+							</p>
+						</div>
+					</div>
+				</div>
+			</Tabs.Content>
+
+			<!-- TAB 4: VISITOR / KIOSK GUEST -->
+			<Tabs.Content value="visitor" class="flex-1 overflow-y-auto p-5 sm:p-6 flex flex-col gap-6 focus-visible:outline-hidden">
+				<!-- Role Banner -->
+				<div class="p-4 sm:p-5 rounded-2xl border border-amber-500/20 bg-amber-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+					<div class="flex items-center gap-3.5">
+						<div class="size-11 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/20">
+							<NavigationIcon class="size-5" />
+						</div>
+						<div>
+							<div class="flex items-center gap-2">
+								<h3 class="text-sm sm:text-base font-black text-foreground">Campus Visitor & Kiosk Portal</h3>
+								<Badge variant="secondary" class="text-[9px] font-bold">Public / Visitor</Badge>
+							</div>
+							<p class="text-xs text-muted-foreground font-semibold mt-0.5">
+								Self-service kiosk and smartphone companion for university guests, parents, contractors, and visiting alumni.
+							</p>
+						</div>
+					</div>
+					<div class="flex items-center gap-1.5 flex-wrap shrink-0">
+						<Badge variant="outline" class="text-[9px] font-mono font-semibold">/v (Kiosk Portal)</Badge>
+						<Badge variant="outline" class="text-[9px] font-mono font-semibold">Mobile Pass</Badge>
+						<Badge variant="outline" class="text-[9px] font-mono font-semibold">Wayfinding</Badge>
+					</div>
+				</div>
+
+				<!-- Step-by-Step Visitor Experience -->
+				<div class="flex flex-col gap-2.5">
+					<div class="flex items-center justify-between">
+						<span class="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
+							Visitor Self-Service Journey
+						</span>
+						<span class="text-[10px] font-semibold text-muted-foreground">Contactless Flow</span>
+					</div>
+
+					<div class="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+							<div class="flex items-center justify-between">
+								<span class="size-5 rounded-full bg-amber-600 text-white text-[10px] font-black flex items-center justify-center">1</span>
+								<SmartphoneIcon class="size-3.5 text-muted-foreground" />
+							</div>
+							<span class="text-xs font-bold text-foreground">Kiosk Sign-In</span>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Tap 'Start Check-In' on the touch kiosk screen or open on your smartphone.
+							</p>
+						</div>
+
+						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+							<div class="flex items-center justify-between">
+								<span class="size-5 rounded-full bg-amber-600 text-white text-[10px] font-black flex items-center justify-center">2</span>
+								<CameraIcon class="size-3.5 text-muted-foreground" />
+							</div>
+							<span class="text-xs font-bold text-foreground">Photo & Details</span>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Snap quick photo, select target department / office, and state purpose.
+							</p>
+						</div>
+
+						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+							<div class="flex items-center justify-between">
+								<span class="size-5 rounded-full bg-amber-600 text-white text-[10px] font-black flex items-center justify-center">3</span>
+								<QrCodeIcon class="size-3.5 text-muted-foreground" />
+							</div>
+							<span class="text-xs font-bold text-foreground">Digital Pass</span>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Receive your pass code (`VP-XXXX`) with QR code for gate and desk scanning.
+							</p>
+						</div>
+
+						<div class="p-3 rounded-2xl border border-border bg-muted/30 flex flex-col gap-1.5">
+							<div class="flex items-center justify-between">
+								<span class="size-5 rounded-full bg-amber-600 text-white text-[10px] font-black flex items-center justify-center">4</span>
+								<CompassIcon class="size-3.5 text-muted-foreground" />
+							</div>
+							<span class="text-xs font-bold text-foreground">Turn-by-Turn Map</span>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Follow animated pedestrian walking directions directly to your destination room.
+							</p>
+						</div>
+					</div>
+				</div>
+
+				<!-- Deep Dive Feature Cards -->
+				<div class="flex flex-col gap-2.5">
+					<span class="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
+						Visitor Convenience & Navigation Features
+					</span>
+
+					<div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+						<div class="p-4 rounded-2xl border border-border bg-card flex flex-col gap-2.5 shadow-xs">
+							<div class="size-9 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+								<CompassIcon class="size-4" />
+							</div>
+							<h4 class="text-xs font-bold text-foreground">Shortest-Path Wayfinding</h4>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Automated walking directions calculating optimal paths between campus gates, buildings, floor levels, and office doors.
+							</p>
+							<div class="mt-auto pt-2 flex items-center gap-1.5">
+								<Badge variant="secondary" class="text-[9px]">Dijkstra Routing</Badge>
+								<Badge variant="secondary" class="text-[9px]">Pedestrian Graph</Badge>
+							</div>
+						</div>
+
+						<div class="p-4 rounded-2xl border border-border bg-card flex flex-col gap-2.5 shadow-xs">
+							<div class="size-9 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+								<SmartphoneIcon class="size-4" />
+							</div>
+							<h4 class="text-xs font-bold text-foreground">Mobile Pass Retention</h4>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								Keep your visitor pass on your smartphone screen to show security guards at checkpoints and scan into office counters.
+							</p>
+							<div class="mt-auto pt-2 flex items-center gap-1.5">
+								<Badge variant="secondary" class="text-[9px]">Mobile Friendly</Badge>
+								<Badge variant="secondary" class="text-[9px]">QR Pass</Badge>
+							</div>
+						</div>
+
+						<div class="p-4 rounded-2xl border border-border bg-card flex flex-col gap-2.5 shadow-xs">
+							<div class="size-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+								<LogOutIcon class="size-4" />
+							</div>
+							<h4 class="text-xs font-bold text-foreground">Self-Checkout at Departure</h4>
+							<p class="text-[11px] text-muted-foreground leading-relaxed font-medium">
+								When leaving campus, scan your QR code at the exit kiosk or security guard station to instantly close your visit session.
+							</p>
+							<div class="mt-auto pt-2 flex items-center gap-1.5">
+								<Badge variant="secondary" class="text-[9px]">Contactless</Badge>
+								<Badge variant="secondary" class="text-[9px]">Instant Checkout</Badge>
+							</div>
+						</div>
+					</div>
+				</div>
+			</Tabs.Content>
+		</Tabs.Root>
+
+		<!-- Modal Footer -->
+		<Dialog.Footer class="p-3.5 sm:p-4 px-6 border-t border-border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+			<div class="flex items-center gap-2 text-[11px] text-muted-foreground font-medium">
+				<span>Need access credentials or role assignment?</span>
+				<a
+					href="##"
+					onclick={() => {
+						toast.info("Please contact the campus IT / system administrator to request access credentials.");
+					}}
+					class="underline underline-offset-4 font-bold text-foreground hover:text-primary transition-colors cursor-pointer"
+				>
+					Contact Campus Admin
+				</a>
+			</div>
+			<Button
+				variant="outline"
+				size="sm"
+				onclick={() => (isGuideOpen = false)}
+				class="rounded-xl text-xs font-bold px-4 cursor-pointer"
+			>
+				<span>Close Guide</span>
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
