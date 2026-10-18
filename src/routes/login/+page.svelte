@@ -59,12 +59,19 @@
 	import UsersIcon from "@lucide/svelte/icons/users";
 	import RouteIcon from "@lucide/svelte/icons/route";
 	import ExternalLinkIcon from "@lucide/svelte/icons/external-link";
+	import MailIcon from "@lucide/svelte/icons/mail";
+	import CheckCircleIcon from "@lucide/svelte/icons/circle-check";
+	import Loader2Icon from "@lucide/svelte/icons/loader-2";
 
 	let { data, form } = $props();
 
 	let username = $state("");
 	let password = $state("");
 	let isGuideOpen = $state(false);
+	let isForgotPasswordOpen = $state(false);
+	let forgotEmail = $state("");
+	let isSendingReset = $state(false);
+	let resetSent = $state(false);
 
 	// Carousel state & Embla API binding
 	let api = $state<CarouselAPI>();
@@ -123,6 +130,50 @@
 			});
 		} catch (e: any) {
 			toast.error(e?.message || "Google Authentication unavailable.");
+		}
+	}
+
+	function openForgotPasswordModal() {
+		if (username.trim()) {
+			forgotEmail = username.trim();
+		}
+		resetSent = false;
+		isForgotPasswordOpen = true;
+	}
+
+	async function handleForgotPassword(e?: Event) {
+		if (e) e.preventDefault();
+		if (!forgotEmail.trim()) {
+			toast.error("Please enter your email or username.");
+			return;
+		}
+
+		let targetEmail = forgotEmail.trim();
+		if (!targetEmail.includes("@")) {
+			targetEmail = `${targetEmail}@bisu.edu.ph`;
+		}
+
+		isSendingReset = true;
+		try {
+			const redirectUrl = `${window.location.origin}/auth/callback?next=/auth/reset-password`;
+			const { error } = await data.supabase.auth.resetPasswordForEmail(targetEmail, {
+				redirectTo: redirectUrl
+			});
+
+			if (error) {
+				throw error;
+			}
+
+			resetSent = true;
+			toast.success("Recovery request submitted", {
+				description: `If an account exists for ${targetEmail}, a password reset link has been dispatched.`
+			});
+		} catch (err: any) {
+			toast.error("Failed to send reset link", {
+				description: err?.message || "Please verify the email address or contact your administrator."
+			});
+		} finally {
+			isSendingReset = false;
 		}
 	}
 
@@ -623,9 +674,18 @@
 					</Field.Field>
 
 					<Field.Field>
-						<Field.Label for="password" class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
-							Password
-						</Field.Label>
+						<div class="flex items-center justify-between">
+							<Field.Label for="password" class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+								Password
+							</Field.Label>
+							<button
+								type="button"
+								onclick={openForgotPasswordModal}
+								class="text-xs font-semibold text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer"
+							>
+								Forgot password?
+							</button>
+						</div>
 						<Input
 							type="password"
 							id="password"
@@ -1379,5 +1439,120 @@
 				<span>Close Guide</span>
 			</Button>
 		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<!-- Forgot Password Modal -->
+<Dialog.Root bind:open={isForgotPasswordOpen}>
+	<Dialog.Content class="sm:max-w-md p-0 overflow-hidden rounded-2xl border-border bg-card shadow-2xl">
+		<Dialog.Header class="p-6 pb-4 border-b border-border bg-muted/30">
+			<div>
+				<Dialog.Title class="text-base font-extrabold tracking-tight text-foreground">
+					Reset Your Password
+				</Dialog.Title>
+				<Dialog.Description class="text-xs text-muted-foreground mt-0.5">
+					Send a secure password recovery link to your institutional account.
+				</Dialog.Description>
+			</div>
+		</Dialog.Header>
+
+		{#if !resetSent}
+			<form onsubmit={handleForgotPassword} class="pl-6 pr-6 flex flex-col gap-5">
+				<!-- Context banner explaining Google OAuth reset -->
+				<Alert.Root class="border-primary/20 bg-primary/5 text-primary rounded-xl">
+					<SparklesIcon class="size-4 text-primary" />
+					<Alert.Title class="text-xs font-bold text-foreground">Google Account Recovery</Alert.Title>
+					<Alert.Description class="text-[11px] text-muted-foreground leading-relaxed mt-1">
+						If you normally sign in with Google, you can enter your BISU email here to create a backup password. This lets you log in even when Google services are unreachable.
+					</Alert.Description>
+				</Alert.Root>
+
+				<Field.Field class="flex flex-col gap-2">
+					<Field.Label for="forgot-email" class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+						Institutional Email or Username
+					</Field.Label>
+					<div class="relative">
+						<MailIcon class="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+						<Input
+							id="forgot-email"
+							type="text"
+							placeholder="e.g. staff@bisu.edu.ph or username"
+							bind:value={forgotEmail}
+							disabled={isSendingReset}
+							required
+							class="pl-9 rounded-xl h-10 border-border bg-background shadow-xs text-xs font-medium"
+						/>
+					</div>
+					<p class="text-[11px] text-muted-foreground">
+						Entering a username will automatically append <code class="text-foreground font-semibold">@bisu.edu.ph</code>.
+					</p>
+				</Field.Field>
+
+				<Dialog.Footer class="pt-2 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						onclick={() => (isForgotPasswordOpen = false)}
+						disabled={isSendingReset}
+						class="rounded-xl text-xs font-bold cursor-pointer"
+					>
+						Cancel
+					</Button>
+					<Button
+						type="submit"
+						disabled={isSendingReset || !forgotEmail.trim()}
+						class="rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground"
+					>
+						{#if isSendingReset}
+							<Loader2Icon class="size-3.5 animate-spin" />
+							<span>Sending Link...</span>
+						{:else}
+							<span>Send Reset Link</span>
+						{/if}
+					</Button>
+				</Dialog.Footer>
+			</form>
+		{:else}
+			<div class="pl-6 pr-6 flex flex-col items-center text-center gap-4">
+				<div class="size-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+					<CheckCircleIcon class="size-6" />
+				</div>
+				<div class="flex flex-col gap-1.5">
+					<h3 class="text-sm font-bold text-foreground">Check Your Inbox</h3>
+					<p class="text-xs text-muted-foreground leading-relaxed max-w-sm">
+						If an account is registered with <strong class="text-foreground">{forgotEmail.includes("@") ? forgotEmail : `${forgotEmail}@bisu.edu.ph`}</strong>, we have sent a password reset link. Click the link in the message to set your password.
+					</p>
+				</div>
+
+				<div class="w-full p-3 rounded-xl bg-muted/40 border border-border text-[11px] text-muted-foreground text-left flex flex-col gap-1.5">
+					<p class="font-semibold text-foreground">Didn't receive an email?</p>
+					<ul class="list-disc pl-4 flex flex-col gap-1">
+						<li>Confirm that an account has already been registered or provisioned for this email.</li>
+						<li>Check your Spam, Junk, or Promotions folder.</li>
+						<li>Ensure the username or institutional email was typed correctly.</li>
+					</ul>
+				</div>
+
+				<Dialog.Footer class="w-full pt-2 flex flex-col sm:flex-row gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						onclick={() => {
+							resetSent = false;
+						}}
+						class="w-full sm:w-auto rounded-xl text-xs font-bold cursor-pointer"
+					>
+						Try Another Email
+					</Button>
+					<Button
+						type="button"
+						onclick={() => (isForgotPasswordOpen = false)}
+						class="w-full sm:flex-1 rounded-xl text-xs font-bold cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground"
+					>
+						Done
+					</Button>
+				</Dialog.Footer>
+			</div>
+		{/if}
 	</Dialog.Content>
 </Dialog.Root>

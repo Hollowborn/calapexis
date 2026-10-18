@@ -3,13 +3,23 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 	const code = url.searchParams.get('code');
+	const token_hash = url.searchParams.get('token_hash');
+	const type = url.searchParams.get('type') as any;
 	const next = url.searchParams.get('next');
 
-	if (code) {
-		const { error: exchangeError } = await locals.supabase.auth.exchangeCodeForSession(code);
+	let authError: any = null;
 
-		if (exchangeError) {
-			console.error('[OAuth Callback Error] Code exchange failed:', exchangeError.message);
+	if (code) {
+		const { error } = await locals.supabase.auth.exchangeCodeForSession(code);
+		authError = error;
+	} else if (token_hash && type) {
+		const { error } = await locals.supabase.auth.verifyOtp({ token_hash, type });
+		authError = error;
+	}
+
+	if (code || (token_hash && type)) {
+		if (authError) {
+			console.error('[OAuth/Auth Callback Error] Verification failed:', authError.message);
 		} else {
 			const { user } = await locals.safeGetSession();
 
@@ -72,6 +82,10 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 						});
 					}
 
+					if (next && next.startsWith('/auth/reset-password')) {
+						throw redirect(303, next);
+					}
+
 					const targetPath = profile.role === 'admin'
 						? '/dashboard'
 						: profile.role === 'security'
@@ -80,6 +94,10 @@ export const GET: RequestHandler = async ({ url, locals, cookies }) => {
 
 					throw redirect(303, `${targetPath}?login=google_success`);
 				} else {
+					if (next && next.startsWith('/auth/reset-password')) {
+						throw redirect(303, next);
+					}
+
 					// User exists in auth.users BUT NOT in public.profiles -> Revoke access!
 					console.warn(
 						`[OAuth Security Alert] Google user "${user.email}" authenticated via Auth but missing in public.profiles. Revoking access.`
