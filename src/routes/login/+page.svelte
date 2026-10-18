@@ -1488,7 +1488,7 @@
 					</p>
 				</Field.Field>
 
-				<Dialog.Footer class="pt-2 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+				<Dialog.Footer class="mb-4 pt-2 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
 					<Button
 						type="button"
 						variant="outline"
@@ -1533,7 +1533,7 @@
 					</ul>
 				</div>
 
-				<Dialog.Footer class="w-full pt-2 flex flex-col sm:flex-row gap-2">
+				<Dialog.Footer class="mb-4 w-full pt-2 flex flex-col sm:flex-row gap-2">
 					<Button
 						type="button"
 						variant="outline"
