@@ -416,7 +416,7 @@
 		<form method="POST" action="?/createUser" use:enhance={handleCreateUserEnhance} class="flex flex-col gap-4 py-2">
 			<Field.FieldGroup class="flex flex-col gap-4">
 				<Field.Field>
-					<Field.FieldLabel for="new-email" class="text-xs font-bold uppercase text-muted-foreground tracking-wider">Username (Email)</Field.FieldLabel>
+					<Field.FieldLabel for="new-email" class="text-xs font-bold uppercase text-muted-foreground tracking-wider">Username / Email</Field.FieldLabel>
 					<Input
 						id="new-email"
 						name="email"
@@ -530,7 +530,7 @@
 
 			<Field.FieldGroup class="flex flex-col gap-4">
 				<Field.Field>
-					<Field.FieldLabel for="edit-email" class="text-xs font-bold uppercase text-muted-foreground tracking-wider">Username (Email)</Field.FieldLabel>
+					<Field.FieldLabel for="edit-email" class="text-xs font-bold uppercase text-muted-foreground tracking-wider">Username / Email</Field.FieldLabel>
 					<Input
 						id="edit-email"
 						name="email"
