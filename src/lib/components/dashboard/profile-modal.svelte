@@ -1,7 +1,10 @@
 <script lang="ts">
+	import { onDestroy, untrack } from "svelte";
+	import { invalidateAll } from "$app/navigation";
 	import * as Dialog from "$lib/components/ui/dialog/index.js";
 	import * as Tabs from "$lib/components/ui/tabs/index.js";
 	import * as Avatar from "$lib/components/ui/avatar/index.js";
+	import * as Attachment from "$lib/components/ui/attachment/index.js";
 	import * as Field from "$lib/components/ui/field/index.js";
 	import { Input } from "$lib/components/ui/input/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
@@ -29,6 +32,9 @@
 	import CodeIcon from "@lucide/svelte/icons/code";
 	import ServerIcon from "@lucide/svelte/icons/server";
 	import CpuIcon from "@lucide/svelte/icons/cpu";
+	import UploadIcon from "@lucide/svelte/icons/upload";
+	import Trash2Icon from "@lucide/svelte/icons/trash-2";
+	import XIcon from "@lucide/svelte/icons/x";
 
 	let {
 		open = $bindable(false),
@@ -48,7 +54,16 @@
 	let activeTab = $state("profile");
 	let fullName = $state(user.name || "");
 	let avatarUrl = $state(user.avatar || "");
+	let avatarFile = $state<File | null>(null);
+	let avatarPreview = $state<string | null>(null);
+	let removeAvatar = $state(false);
+	let fileInputRef = $state<HTMLInputElement | null>(null);
 	let isSavingProfile = $state(false);
+	let uploadState = $state<"idle" | "uploading" | "processing" | "error" | "done">("idle");
+
+	const effectiveAvatar = $derived(
+		avatarPreview || (!removeAvatar ? (avatarUrl || user.avatar) : "")
+	);
 
 	// Security / Password Change State
 	let currentPassword = $state("");
@@ -65,11 +80,37 @@
 		hours?: string;
 	} | null>(null);
 
+	let prevOpen = false;
 	$effect(() => {
-		if (open) {
-			fullName = user.name || "";
-			avatarUrl = user.avatar || "";
-			loadWorkspaceDetails();
+		if (open && !prevOpen) {
+			prevOpen = true;
+			untrack(() => {
+				fullName = user.name || "";
+				avatarUrl = user.avatar || "";
+				if (avatarPreview) {
+					URL.revokeObjectURL(avatarPreview);
+				}
+				avatarFile = null;
+				avatarPreview = null;
+				removeAvatar = false;
+				uploadState = avatarUrl || user.avatar ? "done" : "idle";
+				loadWorkspaceDetails();
+			});
+		} else if (!open) {
+			prevOpen = false;
+			untrack(() => {
+				if (avatarPreview) {
+					URL.revokeObjectURL(avatarPreview);
+					avatarPreview = null;
+				}
+				avatarFile = null;
+			});
+		}
+	});
+
+	onDestroy(() => {
+		if (avatarPreview) {
+			URL.revokeObjectURL(avatarPreview);
 		}
 	});
 
@@ -104,31 +145,129 @@
 		}
 	}
 
+	function handleAvatarFileChange(e: Event) {
+		const target = e.target as HTMLInputElement;
+		const file = target.files?.[0];
+		if (!file) return;
+
+		// Validation: Image type check
+		if (!file.type.startsWith("image/")) {
+			toast.error("Please select a valid image file (PNG, JPG, or WebP).");
+			return;
+		}
+
+		// Validation: Max 5MB
+		if (file.size > 5 * 1024 * 1024) {
+			toast.error("Image file size must be less than 5MB.");
+			return;
+		}
+
+		if (avatarPreview) {
+			URL.revokeObjectURL(avatarPreview);
+		}
+
+		avatarFile = file;
+		avatarPreview = URL.createObjectURL(file);
+		removeAvatar = false;
+		uploadState = "idle";
+	}
+
+	function handleRemoveAvatar() {
+		if (avatarPreview) {
+			URL.revokeObjectURL(avatarPreview);
+		}
+		avatarFile = null;
+		avatarPreview = null;
+		removeAvatar = true;
+		uploadState = "idle";
+		if (fileInputRef) {
+			fileInputRef.value = "";
+		}
+	}
+
 	async function handleSaveProfile() {
 		isSavingProfile = true;
+		uploadState = "uploading";
 		const formData = new FormData();
 		formData.append("fullName", fullName);
 		formData.append("avatarUrl", avatarUrl);
+		if (avatarFile) {
+			formData.append("avatarFile", avatarFile);
+		}
+		if (removeAvatar) {
+			formData.append("removeAvatar", "true");
+		}
 
 		const savePromise = (async () => {
-			const res = await fetch('/dashboard?/updateProfile', {
-				method: 'POST',
-				body: formData
-			});
-			const result = await res.json();
-			if (result.type === 'failure' || result.status >= 400) {
-				throw new Error(result.data?.message || 'Failed to update profile.');
-			}
-			if (supabase) {
-				await supabase.auth.updateUser({
-					data: { full_name: fullName, avatar_url: avatarUrl }
+			let newAvatarUrl = avatarUrl;
+			let succeeded = false;
+
+			try {
+				const res = await fetch('/api/profile', {
+					method: 'POST',
+					body: formData
 				});
+				const result = await res.json();
+				if (!res.ok || result.error) {
+					throw new Error(result.error || result.message || 'Failed to update profile via API.');
+				}
+				if (result.avatarUrl !== undefined) {
+					newAvatarUrl = result.avatarUrl;
+				}
+				succeeded = true;
+			} catch (apiErr) {
+				console.warn('API profile route failed, trying action fallback...', apiErr);
+				const res = await fetch('/dashboard?/updateProfile', {
+					method: 'POST',
+					body: formData,
+					headers: {
+						'x-sveltekit-action': 'true'
+					}
+				});
+				const result = await res.json();
+				if (result.type === 'failure' || result.status >= 400) {
+					throw new Error(result.data?.message || 'Failed to update profile.');
+				}
+				if (result.data) {
+					let parsedData: any = null;
+					try {
+						parsedData = typeof result.data === "string" ? JSON.parse(result.data) : result.data;
+					} catch (_) {
+						parsedData = result.data;
+					}
+					if (parsedData?.avatarUrl !== undefined) {
+						newAvatarUrl = parsedData.avatarUrl;
+					}
+				}
+				succeeded = true;
 			}
+
+			if (removeAvatar) {
+				newAvatarUrl = "";
+			}
+
+			avatarUrl = newAvatarUrl;
+			if (avatarPreview) {
+				URL.revokeObjectURL(avatarPreview);
+				avatarPreview = null;
+			}
+			avatarFile = null;
+			removeAvatar = false;
+			uploadState = newAvatarUrl ? "done" : "idle";
+
 			if (user) {
 				user.name = fullName;
-				user.avatar = avatarUrl;
+				user.avatar = newAvatarUrl;
 			}
-			return result;
+
+			if (supabase) {
+				await supabase.auth.updateUser({
+					data: { full_name: fullName, avatar_url: newAvatarUrl }
+				});
+			}
+
+			await invalidateAll();
+			return { success: true };
 		})();
 
 		toast.promise(savePromise, {
@@ -140,7 +279,7 @@
 		try {
 			await savePromise;
 		} catch (e) {
-			// handled in toast
+			uploadState = "error";
 		} finally {
 			isSavingProfile = false;
 		}
@@ -217,7 +356,7 @@
 		<div class="p-5 border-b border-border/60 bg-muted/20 flex items-center justify-between">
 			<div class="flex items-center gap-3">
 				<Avatar.Root class="size-10 rounded-xl border border-primary/20 shadow-xs">
-					<Avatar.Image src={avatarUrl || user.avatar} alt={fullName || user.name} />
+					<Avatar.Image src={effectiveAvatar} alt={fullName || user.name} />
 					<Avatar.Fallback class="rounded-xl bg-primary/10 text-primary font-black text-sm">
 						{(fullName || user.name || "U").substring(0, 2).toUpperCase()}
 					</Avatar.Fallback>
@@ -268,8 +407,8 @@
 			</div>
 
 			<!-- Tab 1: Profile & Workspace Info -->
-			<Tabs.Content value="profile" class="flex-1 overflow-y-auto min-h-[300px] max-h-[420px] p-5 space-y-4 m-0">
-				<form onsubmit={(e) => { e.preventDefault(); handleSaveProfile(); }} class="space-y-4">
+			<Tabs.Content value="profile" class="flex-1 overflow-y-auto min-h-[300px] max-h-[420px] p-5 flex flex-col gap-4 m-0">
+				<form onsubmit={(e) => { e.preventDefault(); handleSaveProfile(); }} class="flex flex-col gap-4">
 					<Field.FieldGroup class="flex flex-col gap-4">
 						<Field.Field>
 							<Field.Label for="fullName" class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
@@ -284,16 +423,68 @@
 							/>
 						</Field.Field>
 
-						<Field.Field>
-							<Field.Label for="avatarUrl" class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
-								Avatar Photo URL (Optional)
+						<!-- Profile Photo using shadcn-svelte Attachment Component -->
+						<Field.Field class="flex flex-col gap-2">
+							<Field.Label class="text-xs font-extrabold uppercase tracking-wider text-muted-foreground">
+								Profile Photo
 							</Field.Label>
-							<Input
-								id="avatarUrl"
-								type="url"
-								bind:value={avatarUrl}
-								placeholder="https://example.com/avatar.jpg"
-								class="rounded-xl h-10 text-xs font-semibold"
+							<Attachment.Root state={uploadState} class="w-full rounded-2xl border-border bg-card shadow-xs">
+								<Attachment.Media variant={effectiveAvatar ? "image" : "icon"} class="size-12 rounded-xl">
+									{#if effectiveAvatar}
+										<img src={effectiveAvatar} alt={fullName || user.name} class="size-full object-cover" />
+									{:else}
+										<UserIcon class="size-5 text-muted-foreground" />
+									{/if}
+								</Attachment.Media>
+								<Attachment.Content class="min-w-0">
+									<Attachment.Title class="text-xs font-bold truncate">
+										{avatarFile ? avatarFile.name : (effectiveAvatar ? (user.name ? `${user.name} Photo` : "Profile Photo") : "No photo chosen")}
+									</Attachment.Title>
+									<Attachment.Description class="text-[11px] text-muted-foreground truncate">
+										{#if uploadState === 'uploading'}
+											Uploading to Supabase Storage...
+										{:else if uploadState === 'error'}
+											Failed to upload. Try again.
+										{:else if avatarFile}
+											{(avatarFile.size / 1024).toFixed(0)} KB &bull; Ready to save
+										{:else if effectiveAvatar}
+											Active account photo
+										{:else}
+											PNG, JPG, or WebP up to 5MB
+										{/if}
+									</Attachment.Description>
+								</Attachment.Content>
+								<Attachment.Actions class="gap-1.5 ml-auto">
+									{#if effectiveAvatar}
+										<Attachment.Action
+											aria-label="Remove profile photo"
+											onclick={handleRemoveAvatar}
+											title="Remove photo"
+											class="text-muted-foreground hover:text-destructive cursor-pointer rounded-lg"
+										>
+											<XIcon class="size-3.5" />
+										</Attachment.Action>
+									{/if}
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onclick={() => fileInputRef?.click()}
+										class="rounded-xl text-xs font-bold gap-1.5 cursor-pointer h-8 px-2.5"
+									>
+										<UploadIcon class="size-3" />
+										<span>{effectiveAvatar ? "Replace" : "Upload"}</span>
+									</Button>
+								</Attachment.Actions>
+							</Attachment.Root>
+
+							<!-- Hidden File Input -->
+							<input
+								type="file"
+								bind:this={fileInputRef}
+								accept="image/png, image/jpeg, image/webp"
+								onchange={handleAvatarFileChange}
+								class="sr-only"
 							/>
 						</Field.Field>
 					</Field.FieldGroup>
