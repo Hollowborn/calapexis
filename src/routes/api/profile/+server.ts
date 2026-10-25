@@ -51,6 +51,21 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				return json({ error: error.message }, { status: 400 });
 			}
 
+			// Also sync avatar_url and full_name to public.profiles table
+			if (authUser?.id) {
+				try {
+					await locals.supabase
+						.from("profiles")
+						.update({
+							avatar_url: avatarUrl || null,
+							full_name: fullName || null
+						})
+						.eq("id", authUser.id);
+				} catch (e: any) {
+					console.warn("Failed to sync avatar to public.profiles:", e);
+				}
+			}
+
 			return json({
 				success: true,
 				message: "Profile updated successfully!",

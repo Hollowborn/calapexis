@@ -135,6 +135,9 @@ export interface Profile {
 	role: 'admin' | 'security' | 'staff';
 	officeId?: string;
 	roomId?: string;
+	isActive?: boolean;
+	avatarUrl?: string;
+	fullName?: string;
 	createdAt?: string;
 }
 
