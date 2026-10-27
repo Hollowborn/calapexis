@@ -12,7 +12,7 @@
 	import { toast } from 'svelte-sonner';
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
-	import { validatePassword } from "$lib/password-rules";
+	import { validatePassword, validateEmailDomain } from "$lib/password-rules";
 	
 	// DataTable imports
 	import * as DataTable from "$lib/components/ui/data-table/index.js";
@@ -49,16 +49,19 @@
 
 	// Accounts Provisioning Dialog modal states
 	let isCreatingUser = $state(false);
+	let newFullName = $state('');
 	let newEmail = $state('');
 	let newPassword = $state('');
 	let newRole = $state<'admin' | 'security' | 'staff'>('staff');
 	let newOfficeId = $state('');
 
 	const passwordValidation = $derived(validatePassword(newPassword));
+	const emailValidation = $derived(validateEmailDomain(newEmail));
 
 	// Edit Account Dialog Modal states
 	let activeEditingUser = $state<Profile | null>(null);
 	let editEmail = $state('');
+	let editFullName = $state('');
 	let editRole = $state<'admin' | 'security' | 'staff'>('staff');
 	let editOfficeId = $state('');
 
@@ -80,6 +83,7 @@
 	function startEditUser(profile: Profile) {
 		activeEditingUser = profile;
 		editEmail = profile.email;
+		editFullName = profile.fullName || '';
 		editRole = profile.role;
 		editOfficeId = profile.officeId || (officesList.length > 0 ? officesList[0].id : '');
 	}
@@ -138,6 +142,7 @@
 					actionProfiles = (result.data as any).profiles;
 				}
 				isCreatingUser = false;
+				newFullName = '';
 				newEmail = '';
 				newPassword = '';
 				newRole = 'staff';
@@ -500,16 +505,46 @@
 		<form method="POST" action="?/createUser" use:enhance={handleCreateUserEnhance} class="flex flex-col gap-4 py-2">
 			<Field.FieldGroup class="flex flex-col gap-4">
 				<Field.Field>
-					<Field.FieldLabel for="new-email" class="text-xs font-bold uppercase text-muted-foreground tracking-wider">Username / Email</Field.FieldLabel>
+					<Field.FieldLabel for="new-fullname" class="text-xs font-bold uppercase text-muted-foreground tracking-wider">Full Name (Optional)</Field.FieldLabel>
+					<Input
+						id="new-fullname"
+						name="fullName"
+						type="text"
+						placeholder="e.g. Juan Dela Cruz"
+						bind:value={newFullName}
+						class="rounded-xl h-10"
+					/>
+				</Field.Field>
+
+				<Field.Field>
+					<div class="flex items-center justify-between">
+						<Field.FieldLabel for="new-email" class="text-xs font-bold uppercase text-muted-foreground tracking-wider">Email Address *</Field.FieldLabel>
+						<span class="text-[10px] text-muted-foreground font-semibold">@gmail.com or @bisu.edu.ph</span>
+					</div>
 					<Input
 						id="new-email"
 						name="email"
 						type="text"
-						placeholder="e.g. registrar_staff or staff@bisu.edu.ph"
+						placeholder="e.g. staff@bisu.edu.ph or user@gmail.com"
 						bind:value={newEmail}
 						required
-						class="rounded-xl h-10"
+						class="rounded-xl h-10 {newEmail && !emailValidation.isValid ? 'border-destructive focus-visible:ring-destructive' : ''}"
 					/>
+					<div class="mt-1 flex items-center gap-1.5 text-[11px]">
+						{#if !newEmail}
+							<span class="text-muted-foreground font-medium">Only accounts ending with @gmail.com or @bisu.edu.ph are valid.</span>
+						{:else if emailValidation.isValid}
+							<span class="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
+								<CheckIcon class="size-3 text-emerald-500" />
+								Valid {emailValidation.domain === 'bisu.edu.ph' ? 'BISU Institutional' : 'Google Mail'} domain
+							</span>
+						{:else}
+							<span class="text-destructive font-bold flex items-center gap-1">
+								<XIcon class="size-3 text-destructive" />
+								{emailValidation.errorMessage}
+							</span>
+						{/if}
+					</div>
 				</Field.Field>
 
 				<Field.Field>
@@ -622,7 +657,7 @@
 				<Button type="button" onclick={() => (isCreatingUser = false)} variant="outline">
 					Cancel
 				</Button>
-				<Button type="submit" disabled={!passwordValidation.isValid} class="cursor-pointer">
+				<Button type="submit" disabled={!emailValidation.isValid || !passwordValidation.isValid} class="cursor-pointer">
 					Create Account
 				</Button>
 			</Dialog.Footer>
@@ -643,14 +678,32 @@
 
 			<Field.FieldGroup class="flex flex-col gap-4">
 				<Field.Field>
-					<Field.FieldLabel for="edit-email" class="text-xs font-bold uppercase text-muted-foreground tracking-wider">Username / Email</Field.FieldLabel>
+					<div class="flex items-center justify-between">
+						<Field.FieldLabel for="edit-email" class="text-xs font-bold uppercase text-muted-foreground tracking-wider">Email Address</Field.FieldLabel>
+						<span class="text-[10px] text-muted-foreground flex items-center gap-1 font-semibold">
+							<LockIcon class="size-3 text-muted-foreground" />
+							Locked
+						</span>
+					</div>
 					<Input
 						id="edit-email"
-						name="email"
 						type="text"
-						placeholder="e.g. registrar_staff"
 						bind:value={editEmail}
-						required
+						disabled
+						readonly
+						class="rounded-xl h-10 bg-muted/60 text-muted-foreground font-mono font-semibold cursor-not-allowed select-all"
+					/>
+					<span class="text-[10px] text-muted-foreground font-medium">Email addresses cannot be modified after creation.</span>
+				</Field.Field>
+
+				<Field.Field>
+					<Field.FieldLabel for="edit-fullname" class="text-xs font-bold uppercase text-muted-foreground tracking-wider">Full Name (Optional)</Field.FieldLabel>
+					<Input
+						id="edit-fullname"
+						name="fullName"
+						type="text"
+						placeholder="e.g. Juan Dela Cruz"
+						bind:value={editFullName}
 						class="rounded-xl h-10"
 					/>
 				</Field.Field>

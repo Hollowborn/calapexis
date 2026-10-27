@@ -810,6 +810,7 @@ export async function addLocalProfile(
   officeId?: string,
   roomId?: string,
   overrideClient?: any,
+  fullName?: string,
 ): Promise<Profile> {
   const formattedEmail = email.includes("@")
     ? email.trim()
@@ -819,7 +820,7 @@ export async function addLocalProfile(
   const validOfficeId = isUuid ? officeId : null;
 
   console.log(
-    `[User Creation] Provisioning user account for "${formattedEmail}" (${role}, officeId: ${validOfficeId})...`,
+    `[User Creation] Provisioning user account for "${formattedEmail}" (${role}, officeId: ${validOfficeId}, name: ${fullName || 'N/A'})...`,
   );
 
   if (isSupabaseConfigured && supabase) {
@@ -831,11 +832,16 @@ export async function addLocalProfile(
         throw new Error("Password is required to create a new user account.");
       }
 
-      // Step 1: Create user in Supabase Auth
+      // Step 1: Create user in Supabase Auth with metadata
       const { data: authData, error: authError } = await client.auth.admin.createUser({
         email: formattedEmail,
         password: password,
-        email_confirm: true
+        email_confirm: true,
+        user_metadata: {
+          role,
+          office_id: validOfficeId,
+          full_name: fullName || null,
+        }
       });
 
       if (authError) {
@@ -854,6 +860,8 @@ export async function addLocalProfile(
         email: formattedEmail,
         role,
         office_id: validOfficeId,
+        full_name: fullName || null,
+        is_active: true,
       };
 
       const { data: profileData, error: profileErr } = await client
@@ -874,6 +882,8 @@ export async function addLocalProfile(
         email: formattedEmail,
         role,
         officeId: validOfficeId || undefined,
+        fullName: fullName || undefined,
+        isActive: true,
         createdAt: new Date().toISOString(),
       };
 
@@ -886,6 +896,8 @@ export async function addLocalProfile(
       email: formattedEmail,
       role,
       office_id: validOfficeId,
+      full_name: fullName || null,
+      is_active: true,
     };
 
     const { data, error } = await client
@@ -915,10 +927,12 @@ export async function addLocalProfile(
   const mockProfile: Profile & { password?: string } = {
     id: "usr-" + Math.floor(1000 + Math.random() * 9000),
     email: formattedEmail,
+    fullName: fullName || undefined,
     role,
     password,
     officeId,
     roomId,
+    isActive: true,
     createdAt: new Date().toISOString(),
   };
 

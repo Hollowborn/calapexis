@@ -11,7 +11,7 @@ import {
 	getLocalBuildings 
 } from "$lib/supabase";
 import { supabaseAdmin } from "$lib/server/supabase";
-import { validatePassword } from "$lib/password-rules";
+import { validatePassword, validateEmailDomain } from "$lib/password-rules";
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const session = locals.session;
@@ -43,10 +43,18 @@ export const actions: Actions = {
 		const password = data.get("password") as string;
 		const role = data.get('role') as 'admin' | 'security' | 'staff';
 		const officeId = (data.get('officeId') as string || '').trim();
+		const fullName = (data.get('fullName') as string || '').trim();
 
 		if (!email || !password || !role) {
 			return fail(400, { message: 'Username/Email, Password, and Role are required.' });
 		}
+
+		// Enforce allowed email domains (@gmail.com and @bisu.edu.ph)
+		const emailCheck = validateEmailDomain(email);
+		if (!emailCheck.isValid) {
+			return fail(400, { message: emailCheck.errorMessage || 'Invalid email address or domain.' });
+		}
+		const normalizedEmail = emailCheck.normalizedEmail;
 
 		const passwordCheck = validatePassword(password);
 		if (!passwordCheck.isValid) {
@@ -55,8 +63,8 @@ export const actions: Actions = {
 
 		// Check if username already exists
 		const profiles = await getLocalProfiles(supabaseAdmin);
-		if (profiles.some(p => p.email.toLowerCase() === email.toLowerCase())) {
-			return fail(400, { message: 'Username is already taken.' });
+		if (profiles.some(p => p.email.toLowerCase() === normalizedEmail.toLowerCase())) {
+			return fail(400, { message: 'An account with this email already exists.' });
 		}
 
 		if (role === 'staff' && !officeId) {
@@ -65,12 +73,13 @@ export const actions: Actions = {
 
 		try {
 			const profile = await addLocalProfile(
-				email, 
+				normalizedEmail, 
 				role, 
 				password, 
 				role === 'staff' ? officeId : undefined,
 				undefined,
-				supabaseAdmin
+				supabaseAdmin,
+				fullName || undefined
 			);
 			const updatedProfiles = await getLocalProfiles(supabaseAdmin);
 			return { success: true, newUserId: profile.id, profiles: updatedProfiles };
@@ -82,12 +91,12 @@ export const actions: Actions = {
 	updateUser: async ({ request }) => {
 		const data = await request.formData();
 		const id = data.get('id') as string;
-		const email = (data.get('email') as string || '').trim();
 		const role = data.get('role') as 'admin' | 'security' | 'staff';
 		const officeId = (data.get('officeId') as string || '').trim();
+		const fullName = (data.get('fullName') as string || '').trim();
 
-		if (!id || !email || !role) {
-			return fail(400, { message: 'Account ID, Username/Email, and Role are required.' });
+		if (!id || !role) {
+			return fail(400, { message: 'Account ID and Role are required.' });
 		}
 
 		// Server-side protection check: Protect administrator accounts
@@ -102,12 +111,13 @@ export const actions: Actions = {
 		}
 
 		try {
+			// Note: email is purposefully omitted from updates to keep email immutable
 			await updateLocalProfile(
 				id, 
 				{
-					email,
 					role,
-					officeId: role === 'staff' ? officeId : undefined
+					officeId: role === 'staff' ? officeId : undefined,
+					fullName: fullName || undefined
 				},
 				supabaseAdmin
 			);
