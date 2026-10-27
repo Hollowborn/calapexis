@@ -57,7 +57,7 @@
 
 	// Map layers & tile state
 	let selectedBaseTile = $state<'osm' | 'satellite'>('osm');
-	let showCampusOverlay = $state(true);
+	let showCampusOverlay = $state(false);
 	let isLayerPopoverOpen = $state(false);
 
 	// Delete dialog state
