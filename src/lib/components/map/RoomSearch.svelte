@@ -17,11 +17,12 @@
 
 	let filteredBuildings = $derived(
 		searchQuery.trim() === ''
-			? buildings
+			? buildings.filter((b) => b.isActive !== false)
 			: buildings.filter(
 					(b) =>
-						b.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-						b.code.toLowerCase().includes(searchQuery.toLowerCase())
+						b.isActive !== false &&
+						(b.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+						b.code.toLowerCase().includes(searchQuery.toLowerCase()))
 			  )
 	);
 
@@ -30,8 +31,9 @@
 			? []
 			: rooms.filter(
 					(r) =>
-						r.roomName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-						r.roomNumber.toLowerCase().includes(searchQuery.toLowerCase())
+						r.isActive !== false &&
+						(r.roomName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+						r.roomNumber.toLowerCase().includes(searchQuery.toLowerCase()))
 			  )
 	);
 
@@ -46,7 +48,7 @@
 		isOpen = false;
 		if (onSelectRoom) onSelectRoom(room);
 
-		const matchingBuilding = buildings.find((b) => b.id === room.buildingId);
+		const matchingBuilding = buildings.find((b) => b.id === room.buildingId && b.isActive !== false);
 		if (matchingBuilding) onSelectBuilding(matchingBuilding);
 	}
 </script>

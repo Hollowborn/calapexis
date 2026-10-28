@@ -55,8 +55,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 			const dbClient = getDbClient();
 			const [officesRes, buildingsRes, roomsRes] = await Promise.all([
 				dbClient.from("offices").select("*").eq("is_active", true),
-				dbClient.from("buildings").select("*"),
-				dbClient.from("rooms").select("*")
+				dbClient.from("buildings").select("*").eq("is_active", true),
+				dbClient.from("rooms").select("*").eq("is_active", true)
 			]);
 
 			if (!officesRes.error && officesRes.data && officesRes.data.length > 0) {
@@ -87,8 +87,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 					lat: b.lat,
 					lng: b.lng,
 					xCoord: b.x_coord,
-					yCoord: b.y_coord
+					yCoord: b.y_coord,
+					isActive: b.is_active ?? true
 				}));
+			}
+
+			// Filter out offices whose parent building is archived / not in active buildings list
+			if (buildings.length > 0) {
+				offices = offices.filter(o => !o.buildingId || buildings.some(b => b.id === o.buildingId));
 			}
 
 			if (!roomsRes.error && roomsRes.data && roomsRes.data.length > 0) {
@@ -99,7 +105,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 					roomName: r.room_name || r.name || "",
 					floor: r.floor || "1st Floor",
 					description: r.description || "",
-					imageUrl: r.image_url || ""
+					imageUrl: r.image_url || "",
+					isActive: r.is_active ?? true
 				}));
 			}
 

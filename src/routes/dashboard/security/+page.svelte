@@ -194,10 +194,11 @@
 	}
 
 	function findNearestBuildingName(lat?: number, lng?: number): string {
-		if (!lat || !lng || !buildingsList.length) return 'Main Gate';
+		const activeBuildings = buildingsList.filter((b: any) => b.isActive !== false);
+		if (!lat || !lng || !activeBuildings.length) return 'Main Gate';
 		let nearestName = 'Main Gate';
 		let minDistance = Infinity;
-		for (const b of buildingsList) {
+		for (const b of activeBuildings) {
 			const bLat = b.lat || b.xCoord || 9.8944;
 			const bLng = b.lng || b.yCoord || 123.8825;
 			const dist = Math.hypot(lat - bLat, lng - bLng);
@@ -362,20 +363,23 @@
 
 		if (!showOfficeNodes) return;
 
-		// Track count of offices per parent building to calculate gentle radial offsets for multiple desks in one building
+		// Track count of offices per parent active building to calculate gentle radial offsets for multiple desks in one building
 		const buildingOfficeCounts: Record<string, number> = {};
 		const buildingOfficeIndices: Record<string, number> = {};
 
 		officesList.forEach((o: any) => {
 			if (o.buildingId && (o.isActive || o.isActive === undefined)) {
-				buildingOfficeCounts[o.buildingId] = (buildingOfficeCounts[o.buildingId] || 0) + 1;
+				const b = buildingsList.find((b: any) => b.id === o.buildingId);
+				if (b && b.isActive !== false) {
+					buildingOfficeCounts[o.buildingId] = (buildingOfficeCounts[o.buildingId] || 0) + 1;
+				}
 			}
 		});
 
 		officesList.forEach((office: any) => {
 			if (office.isActive === false) return;
 			const b = buildingsList.find((b: any) => b.id === office.buildingId);
-			if (!b) return;
+			if (!b || b.isActive === false) return;
 
 			const baseLat = b.lat || b.xCoord || 9.894414;
 			const baseLng = b.lng || b.yCoord || 123.88258;

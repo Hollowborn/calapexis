@@ -6,6 +6,7 @@ import {
 	getLocalOffices,
 	addLocalOffice,
 	updateLocalOffice,
+	toggleLocalOfficeStatus,
 	deleteLocalOffice
 } from "$lib/supabase";
 
@@ -104,14 +105,31 @@ export const actions: Actions = {
 		const id = data.get("id") as string;
 
 		if (!id) {
-			return fail(400, { message: "Office ID is required for deletion." });
+			return fail(400, { message: "Office ID is required for archiving." });
 		}
 
 		try {
 			await deleteLocalOffice(id, locals.supabase);
 			return { success: true };
 		} catch (error: any) {
-			return fail(500, { message: error.message || "Failed to delete office desk." });
+			return fail(500, { message: error.message || "Failed to archive office desk." });
+		}
+	},
+
+	toggleOfficeStatus: async ({ request, locals }) => {
+		const data = await request.formData();
+		const id = data.get("id") as string;
+		const isActive = data.get("isActive") === "true";
+
+		if (!id) {
+			return fail(400, { message: "Office ID is required." });
+		}
+
+		try {
+			await toggleLocalOfficeStatus(id, isActive, locals.supabase);
+			return { success: true };
+		} catch (error: any) {
+			return fail(500, { message: error.message || `Failed to ${isActive ? "restore" : "archive"} office desk.` });
 		}
 	}
 };

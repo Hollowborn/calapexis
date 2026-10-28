@@ -139,6 +139,16 @@ export const actions: Actions = {
           profile = insertResult.data;
         }
 
+        if (profile.is_active === false || (profile as any).isActive === false) {
+          if (locals.supabase) {
+            await locals.supabase.auth.signOut();
+          }
+          return fail(403, {
+            code: "account_disabled",
+            message: "This account has been disabled or archived. Please contact an administrator.",
+          });
+        }
+
         setSessionCookies(cookies, profile.role, profile.room_id || profile.office_id);
         throw redirect(303, getRedirectUrl(profile.role, url));
       }
@@ -149,6 +159,12 @@ export const actions: Actions = {
         (p) => p.email.toLowerCase() === username.toLowerCase(),
       );
       if (mockProfile && mockProfile.password === password) {
+        if (mockProfile.isActive === false) {
+          return fail(403, {
+            code: "account_disabled",
+            message: "This account has been disabled or archived. Please contact an administrator.",
+          });
+        }
         setSessionCookies(cookies, mockProfile.role, mockProfile.roomId);
         throw redirect(303, getRedirectUrl(mockProfile.role, url));
       }
@@ -169,6 +185,13 @@ export const actions: Actions = {
       return fail(400, {
         code: "account_unrecognized",
         message: "Account username unrecognized in system database.",
+      });
+    }
+
+    if (userProfile.isActive === false) {
+      return fail(403, {
+        code: "account_disabled",
+        message: "This account has been disabled or archived. Please contact an administrator.",
       });
     }
 

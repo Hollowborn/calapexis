@@ -4,12 +4,14 @@ import {
 	getLocalProfiles, 
 	addLocalProfile, 
 	updateLocalProfile,
+	toggleLocalProfileStatus,
 	deleteLocalProfile,
 	getLocalOffices,
 	getLocalRooms, 
 	getLocalBuildings 
 } from "$lib/supabase";
 import { supabaseAdmin } from "$lib/server/supabase";
+import { validatePassword, validateEmailDomain } from "$lib/password-rules";
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const session = locals.session;
@@ -41,19 +43,28 @@ export const actions: Actions = {
 		const password = data.get("password") as string;
 		const role = data.get('role') as 'admin' | 'security' | 'staff';
 		const officeId = (data.get('officeId') as string || '').trim();
+		const fullName = (data.get('fullName') as string || '').trim();
 
 		if (!email || !password || !role) {
 			return fail(400, { message: 'Username/Email, Password, and Role are required.' });
 		}
 
-		if (password.length < 6) {
-			return fail(400, { message: 'Password must be at least 6 characters long for Supabase Auth.' });
+		// Enforce allowed email domains (@gmail.com and @bisu.edu.ph)
+		const emailCheck = validateEmailDomain(email);
+		if (!emailCheck.isValid) {
+			return fail(400, { message: emailCheck.errorMessage || 'Invalid email address or domain.' });
+		}
+		const normalizedEmail = emailCheck.normalizedEmail;
+
+		const passwordCheck = validatePassword(password);
+		if (!passwordCheck.isValid) {
+			return fail(400, { message: passwordCheck.errorMessage || 'Invalid password.' });
 		}
 
 		// Check if username already exists
 		const profiles = await getLocalProfiles(supabaseAdmin);
-		if (profiles.some(p => p.email.toLowerCase() === email.toLowerCase())) {
-			return fail(400, { message: 'Username is already taken.' });
+		if (profiles.some(p => p.email.toLowerCase() === normalizedEmail.toLowerCase())) {
+			return fail(400, { message: 'An account with this email already exists.' });
 		}
 
 		if (role === 'staff' && !officeId) {
@@ -62,12 +73,13 @@ export const actions: Actions = {
 
 		try {
 			const profile = await addLocalProfile(
-				email, 
+				normalizedEmail, 
 				role, 
 				password, 
 				role === 'staff' ? officeId : undefined,
 				undefined,
-				supabaseAdmin
+				supabaseAdmin,
+				fullName || undefined
 			);
 			const updatedProfiles = await getLocalProfiles(supabaseAdmin);
 			return { success: true, newUserId: profile.id, profiles: updatedProfiles };
@@ -79,12 +91,12 @@ export const actions: Actions = {
 	updateUser: async ({ request }) => {
 		const data = await request.formData();
 		const id = data.get('id') as string;
-		const email = (data.get('email') as string || '').trim();
 		const role = data.get('role') as 'admin' | 'security' | 'staff';
 		const officeId = (data.get('officeId') as string || '').trim();
+		const fullName = (data.get('fullName') as string || '').trim();
 
-		if (!id || !email || !role) {
-			return fail(400, { message: 'Account ID, Username/Email, and Role are required.' });
+		if (!id || !role) {
+			return fail(400, { message: 'Account ID and Role are required.' });
 		}
 
 		// Server-side protection check: Protect administrator accounts
@@ -99,12 +111,13 @@ export const actions: Actions = {
 		}
 
 		try {
+			// Note: email is purposefully omitted from updates to keep email immutable
 			await updateLocalProfile(
 				id, 
 				{
-					email,
 					role,
-					officeId: role === 'staff' ? officeId : undefined
+					officeId: role === 'staff' ? officeId : undefined,
+					fullName: fullName || undefined
 				},
 				supabaseAdmin
 			);
@@ -115,27 +128,54 @@ export const actions: Actions = {
 		}
 	},
 
-	deleteUser: async ({ request }) => {
+	toggleUserStatus: async ({ request }) => {
 		const data = await request.formData();
 		const id = data.get('id') as string;
+		const isActiveStr = data.get('isActive') as string;
+		const isActive = isActiveStr === 'true' || isActiveStr === '1';
 
 		if (!id) {
-			return fail(400, { message: 'Account ID is required for deletion.' });
+			return fail(400, { message: 'Account ID is required.' });
 		}
 
 		// Server-side protection check: Protect administrator accounts
 		const profiles = await getLocalProfiles(supabaseAdmin);
 		const targetProfile = profiles.find(p => p.id === id);
 		if (targetProfile && targetProfile.role === 'admin') {
-			return fail(403, { message: 'Administrator accounts are protected and cannot be deleted.' });
+			return fail(403, { message: 'Administrator accounts are protected and cannot be archived or modified.' });
 		}
 
 		try {
-			await deleteLocalProfile(id, supabaseAdmin);
+			await toggleLocalProfileStatus(id, isActive, supabaseAdmin);
 			const updatedProfiles = await getLocalProfiles(supabaseAdmin);
-			return { success: true, profiles: updatedProfiles };
+			return { success: true, profiles: updatedProfiles, isActive };
 		} catch (error: any) {
-			return fail(400, { message: error.message || "Failed to delete system user account." });
+			return fail(400, { message: error.message || `Failed to ${isActive ? 'restore' : 'archive'} user account.` });
+		}
+	},
+
+	deleteUser: async ({ request }) => {
+		const data = await request.formData();
+		const id = data.get('id') as string;
+
+		if (!id) {
+			return fail(400, { message: 'Account ID is required.' });
+		}
+
+		// Server-side protection check: Protect administrator accounts
+		const profiles = await getLocalProfiles(supabaseAdmin);
+		const targetProfile = profiles.find(p => p.id === id);
+		if (targetProfile && targetProfile.role === 'admin') {
+			return fail(403, { message: 'Administrator accounts are protected and cannot be archived.' });
+		}
+
+		try {
+			// Soft-archive instead of permanent destruction
+			await toggleLocalProfileStatus(id, false, supabaseAdmin);
+			const updatedProfiles = await getLocalProfiles(supabaseAdmin);
+			return { success: true, profiles: updatedProfiles, isActive: false };
+		} catch (error: any) {
+			return fail(400, { message: error.message || "Failed to archive system user account." });
 		}
 	}
 };

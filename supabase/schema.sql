@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS public.buildings (
     y_coord NUMERIC,
     color TEXT,
     image_url TEXT,
+    is_active BOOLEAN DEFAULT true NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -27,6 +28,7 @@ CREATE TABLE IF NOT EXISTS public.rooms (
     y_coord NUMERIC NOT NULL,
     description TEXT,
     image_url TEXT,
+    is_active BOOLEAN DEFAULT true NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -45,6 +47,11 @@ CREATE TABLE IF NOT EXISTS public.offices (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- Migration helpers for existing public.buildings, public.rooms, public.offices deployments
+ALTER TABLE public.buildings ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true NOT NULL;
+ALTER TABLE public.rooms ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true NOT NULL;
+ALTER TABLE public.offices ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true NOT NULL;
+
 -- 3. Profiles Table (RBAC roles & desk/room binding)
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -52,8 +59,16 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     role TEXT NOT NULL CHECK (role IN ('admin', 'security', 'staff')),
     office_id UUID REFERENCES public.offices(id) ON DELETE SET NULL,
     room_id UUID REFERENCES public.rooms(id) ON DELETE SET NULL,
+    is_active BOOLEAN DEFAULT true NOT NULL,
+    avatar_url TEXT,
+    full_name TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Migration helpers for existing public.profiles deployments
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true NOT NULL;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS full_name TEXT;
 
 -- 4. Registered Visitors Table (Unique Visitor Profiles Directory)
 CREATE TABLE IF NOT EXISTS public.registered_visitors (
@@ -200,9 +215,15 @@ DECLARE
     user_room_id UUID;
     meta_office_id TEXT;
     meta_room_id TEXT;
+    user_avatar TEXT;
+    user_name TEXT;
 BEGIN
     -- Extract role from metadata, fallback to 'staff' if not set
     user_role := COALESCE(new.raw_user_meta_data->>'role', 'staff');
+
+    -- Extract avatar and display name from metadata if provided
+    user_avatar := COALESCE(new.raw_user_meta_data->>'avatar_url', new.raw_user_meta_data->>'picture', NULL);
+    user_name := COALESCE(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', NULL);
     
     -- Extract office_id text
     meta_office_id := new.raw_user_meta_data->>'office_id';
@@ -220,13 +241,15 @@ BEGIN
         user_room_id := NULL;
     END IF;
 
-    INSERT INTO public.profiles (id, email, role, office_id, room_id)
-    VALUES (new.id, new.email, user_role, user_office_id, user_room_id)
+    INSERT INTO public.profiles (id, email, role, office_id, room_id, is_active, avatar_url, full_name)
+    VALUES (new.id, new.email, user_role, user_office_id, user_room_id, true, user_avatar, user_name)
     ON CONFLICT (id) DO UPDATE SET
         email = EXCLUDED.email,
         role = COALESCE(EXCLUDED.role, public.profiles.role),
         office_id = COALESCE(EXCLUDED.office_id, public.profiles.office_id),
         room_id = COALESCE(EXCLUDED.room_id, public.profiles.room_id),
+        avatar_url = COALESCE(EXCLUDED.avatar_url, public.profiles.avatar_url),
+        full_name = COALESCE(EXCLUDED.full_name, public.profiles.full_name),
         updated_at = timezone('utc'::text, now());
     
     RETURN NEW;

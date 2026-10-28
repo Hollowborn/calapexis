@@ -43,7 +43,7 @@
 	let isDrawerExpanded = $state(true);
 	let isRoomCheckedIn = $state(false);
 
-	let selectedBuilding = $derived(buildings.find((b) => b.id === selectedBuildingId));
+	let selectedBuilding = $derived(buildings.find((b) => b.id === selectedBuildingId && (b.isActive ?? true)));
 
 	onMount(async () => {
 		if (typeof window === 'undefined' || !mapElement) return;

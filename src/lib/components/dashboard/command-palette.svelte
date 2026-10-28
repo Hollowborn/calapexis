@@ -72,10 +72,12 @@
 				</Command.Item>
 			{/if}
 
-			<Command.Item onSelect={() => handleSelectRoute("/dashboard/logs")} class="cursor-pointer">
-				<BookOpenIcon class="size-4 mr-2 text-primary shrink-0" />
-				<span>Logbook Master Records</span>
-			</Command.Item>
+			{#if role === "admin"}
+				<Command.Item onSelect={() => handleSelectRoute("/dashboard/logs")} class="cursor-pointer">
+					<BookOpenIcon class="size-4 mr-2 text-primary shrink-0" />
+					<span>Logbook Master Records</span>
+				</Command.Item>
+			{/if}
 
 			{#if role === "admin" || role === "security"}
 				<Command.Item onSelect={() => handleSelectRoute("/dashboard/security")} class="cursor-pointer">
@@ -123,7 +125,11 @@
 					<Command.Item
 						onSelect={() => {
 							open = false;
-							goto(`/dashboard/logs?search=${encodeURIComponent(v.passCode || v.fullName)}`);
+							if (role === "admin") {
+								goto(`/dashboard/logs?search=${encodeURIComponent(v.passCode || v.fullName)}`);
+							} else if (role === "staff") {
+								goto(`/dashboard/staff`);
+							}
 						}}
 						class="cursor-pointer flex items-center justify-between"
 					>

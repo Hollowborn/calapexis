@@ -290,6 +290,7 @@ export const MOCK_PROFILES: (Profile & { password?: string })[] = [
     email: "admin",
     role: "admin",
     password: "admin123",
+    isActive: true,
     createdAt: new Date().toISOString(),
   },
   {
@@ -297,6 +298,7 @@ export const MOCK_PROFILES: (Profile & { password?: string })[] = [
     email: "security",
     role: "security",
     password: "security123",
+    isActive: true,
     createdAt: new Date().toISOString(),
   },
   {
@@ -306,6 +308,7 @@ export const MOCK_PROFILES: (Profile & { password?: string })[] = [
     password: "staff123",
     officeId: "of-101",
     roomId: "rm-101",
+    isActive: true,
     createdAt: new Date().toISOString(),
   },
 ];
@@ -340,6 +343,7 @@ function mapDbBuildingToBuilding(db: any): Building {
     yCoord: db.y_coord ? Number(db.y_coord) : undefined,
     color: db.color || undefined,
     imageUrl: db.image_url || undefined,
+    isActive: db.is_active ?? true,
   };
 }
 
@@ -354,6 +358,7 @@ function mapDbRoomToRoom(db: any): Room {
     yCoord: Number(db.y_coord),
     description: db.description || "",
     imageUrl: db.image_url || undefined,
+    isActive: db.is_active ?? true,
   };
 }
 
@@ -364,6 +369,9 @@ function mapDbProfileToProfile(db: any): Profile {
     role: db.role,
     officeId: db.office_id,
     roomId: db.room_id,
+    isActive: db.is_active ?? true,
+    avatarUrl: db.avatar_url || undefined,
+    fullName: db.full_name || undefined,
     createdAt: db.created_at,
   };
 }
@@ -762,6 +770,33 @@ export async function getLocalProfiles(
       throw new Error(`[Database Error] ${error.message}`);
     }
     const mapped = (data || []).map(mapDbProfileToProfile);
+
+    // If admin client is available, enrich with user_metadata (avatar, name, banned status)
+    if (dbClient?.auth?.admin?.listUsers) {
+      try {
+        const { data: authUsersRes, error: authListErr } = await dbClient.auth.admin.listUsers();
+        if (!authListErr && authUsersRes?.users) {
+          const authMap = new Map<string, any>(authUsersRes.users.map((u: any) => [u.id, u]));
+          for (const p of mapped) {
+            const authUser = authMap.get(p.id);
+            if (authUser) {
+              if (!p.avatarUrl) {
+                p.avatarUrl = authUser.user_metadata?.avatar_url || authUser.user_metadata?.picture;
+              }
+              if (!p.fullName) {
+                p.fullName = authUser.user_metadata?.full_name || authUser.user_metadata?.name;
+              }
+              if (authUser.banned_until && new Date(authUser.banned_until) > new Date()) {
+                p.isActive = false;
+              }
+            }
+          }
+        }
+      } catch (authFetchErr) {
+        console.warn("Could not list auth users to enrich profiles:", authFetchErr);
+      }
+    }
+
     getCalapexisStore().profiles = mapped;
     return mapped;
   }
@@ -777,6 +812,7 @@ export async function addLocalProfile(
   officeId?: string,
   roomId?: string,
   overrideClient?: any,
+  fullName?: string,
 ): Promise<Profile> {
   const formattedEmail = email.includes("@")
     ? email.trim()
@@ -786,7 +822,7 @@ export async function addLocalProfile(
   const validOfficeId = isUuid ? officeId : null;
 
   console.log(
-    `[User Creation] Provisioning user account for "${formattedEmail}" (${role}, officeId: ${validOfficeId})...`,
+    `[User Creation] Provisioning user account for "${formattedEmail}" (${role}, officeId: ${validOfficeId}, name: ${fullName || 'N/A'})...`,
   );
 
   if (isSupabaseConfigured && supabase) {
@@ -798,11 +834,16 @@ export async function addLocalProfile(
         throw new Error("Password is required to create a new user account.");
       }
 
-      // Step 1: Create user in Supabase Auth
+      // Step 1: Create user in Supabase Auth with metadata
       const { data: authData, error: authError } = await client.auth.admin.createUser({
         email: formattedEmail,
         password: password,
-        email_confirm: true
+        email_confirm: true,
+        user_metadata: {
+          role,
+          office_id: validOfficeId,
+          full_name: fullName || null,
+        }
       });
 
       if (authError) {
@@ -821,6 +862,8 @@ export async function addLocalProfile(
         email: formattedEmail,
         role,
         office_id: validOfficeId,
+        full_name: fullName || null,
+        is_active: true,
       };
 
       const { data: profileData, error: profileErr } = await client
@@ -841,6 +884,8 @@ export async function addLocalProfile(
         email: formattedEmail,
         role,
         officeId: validOfficeId || undefined,
+        fullName: fullName || undefined,
+        isActive: true,
         createdAt: new Date().toISOString(),
       };
 
@@ -853,6 +898,8 @@ export async function addLocalProfile(
       email: formattedEmail,
       role,
       office_id: validOfficeId,
+      full_name: fullName || null,
+      is_active: true,
     };
 
     const { data, error } = await client
@@ -882,10 +929,12 @@ export async function addLocalProfile(
   const mockProfile: Profile & { password?: string } = {
     id: "usr-" + Math.floor(1000 + Math.random() * 9000),
     email: formattedEmail,
+    fullName: fullName || undefined,
     role,
     password,
     officeId,
     roomId,
+    isActive: true,
     createdAt: new Date().toISOString(),
   };
 
@@ -906,6 +955,9 @@ export async function updateLocalProfile(
     if (updates.officeId !== undefined)
       dbRow.office_id = updates.officeId || null;
     if (updates.roomId !== undefined) dbRow.room_id = updates.roomId || null;
+    if (updates.isActive !== undefined) dbRow.is_active = updates.isActive;
+    if (updates.avatarUrl !== undefined) dbRow.avatar_url = updates.avatarUrl || null;
+    if (updates.fullName !== undefined) dbRow.full_name = updates.fullName || null;
 
     // 1. If admin client is available, update auth.users
     if (dbClient?.auth?.admin) {
@@ -916,7 +968,12 @@ export async function updateLocalProfile(
         role: updates.role,
         office_id: updates.officeId || null,
         room_id: updates.roomId || null,
+        avatar_url: updates.avatarUrl,
+        full_name: updates.fullName,
       };
+      if (updates.isActive !== undefined) {
+        authAdminUpdates.ban_duration = updates.isActive ? "none" : "876000h";
+      }
       await dbClient.auth.admin
         .updateUserById(id, authAdminUpdates)
         .catch((err: any) => {
@@ -947,6 +1004,61 @@ export async function updateLocalProfile(
         target = {
           ...p,
           ...updates,
+        };
+        return target;
+      }
+      return p;
+    },
+  );
+  return target;
+}
+
+export async function toggleLocalProfileStatus(
+  id: string,
+  isActive: boolean,
+  overrideAdminClient?: any,
+): Promise<Profile | null> {
+  if (isSupabaseConfigured && supabase) {
+    const dbClient = overrideAdminClient || getDbClient();
+
+    // 1. If admin client is available, ban or unban in auth.users
+    if (dbClient?.auth?.admin) {
+      try {
+        await dbClient.auth.admin.updateUserById(id, {
+          ban_duration: isActive ? "none" : "876000h",
+        });
+      } catch (err: any) {
+        console.warn("Supabase auth.admin ban toggle warning:", err);
+      }
+    }
+
+    // 2. Update public.profiles table
+    const { data, error } = await dbClient
+      .from("profiles")
+      .update({ is_active: isActive })
+      .eq("id", id)
+      .select();
+
+    if (!error && data && data.length > 0) {
+      const updated = mapDbProfileToProfile(data[0]);
+      getCalapexisStore().profiles = getCalapexisStore().profiles.map(
+        (p: Profile) => (p.id === id ? { ...p, isActive } : p),
+      );
+      return updated;
+    }
+    if (error) {
+      console.error("Supabase toggle profile status error:", error.message);
+      throw new Error(error.message || "Failed to update profile status in database.");
+    }
+  }
+
+  let target: Profile | null = null;
+  getCalapexisStore().profiles = getCalapexisStore().profiles.map(
+    (p: Profile) => {
+      if (p.id === id) {
+        target = {
+          ...p,
+          isActive,
         };
         return target;
       }
@@ -1093,6 +1205,7 @@ export async function addLocalBuilding(
   const newBuilding: Building = {
     ...building,
     id: "bld-" + Math.floor(1000 + Math.random() * 9000),
+    isActive: building.isActive ?? true,
   };
 
   if (isSupabaseConfigured && client) {
@@ -1107,6 +1220,7 @@ export async function addLocalBuilding(
       y_coord: building.yCoord || null,
       color: building.color || null,
       image_url: building.imageUrl || null,
+      is_active: building.isActive ?? true,
     };
 
     const { data, error } = await client
@@ -1153,6 +1267,8 @@ export async function updateLocalBuilding(
     if (updates.color !== undefined) dbRow.color = updates.color || null;
     if (updates.imageUrl !== undefined)
       dbRow.image_url = updates.imageUrl || null;
+    if (updates.isActive !== undefined)
+      dbRow.is_active = updates.isActive;
 
     const { data, error } = await client
       .from("buildings")
@@ -1185,7 +1301,23 @@ export async function updateLocalBuilding(
   return target;
 }
 
+export async function toggleLocalBuildingStatus(
+  id: string,
+  isActive: boolean,
+  overrideClient?: any
+): Promise<Building | null> {
+  return updateLocalBuilding(id, { isActive }, overrideClient);
+}
+
 export async function deleteLocalBuilding(id: string, overrideClient?: any): Promise<boolean> {
+  // Soft-archive building by default to preserve linked rooms, edges, and logs
+  try {
+    const updated = await updateLocalBuilding(id, { isActive: false }, overrideClient);
+    return !!updated;
+  } catch (e) {
+    console.warn("Failed to soft-delete building, attempting fallback:", e);
+  }
+
   const client = getDbClient(overrideClient);
   if (isSupabaseConfigured && client) {
     const { error } = await client
@@ -1229,6 +1361,7 @@ export async function addLocalRoom(room: Omit<Room, "id">, overrideClient?: any)
   const newRoom: Room = {
     ...room,
     id: "rm-" + Math.floor(1000 + Math.random() * 9000),
+    isActive: room.isActive ?? true,
   };
 
   if (isSupabaseConfigured && client) {
@@ -1241,6 +1374,7 @@ export async function addLocalRoom(room: Omit<Room, "id">, overrideClient?: any)
       y_coord: room.yCoord || 0,
       description: room.description || null,
       image_url: room.imageUrl || null,
+      is_active: room.isActive ?? true,
     };
 
     const { data, error } = await client
@@ -1282,6 +1416,8 @@ export async function updateLocalRoom(
       dbRow.description = updates.description || null;
     if (updates.imageUrl !== undefined)
       dbRow.image_url = updates.imageUrl || null;
+    if (updates.isActive !== undefined)
+      dbRow.is_active = updates.isActive;
 
     const { data, error } = await client
       .from("rooms")
@@ -1312,7 +1448,23 @@ export async function updateLocalRoom(
   return target;
 }
 
+export async function toggleLocalRoomStatus(
+  id: string,
+  isActive: boolean,
+  overrideClient?: any
+): Promise<Room | null> {
+  return updateLocalRoom(id, { isActive }, overrideClient);
+}
+
 export async function deleteLocalRoom(id: string, overrideClient?: any): Promise<boolean> {
+  // Soft-archive room by default to preserve historical visitor check-ins
+  try {
+    const updated = await updateLocalRoom(id, { isActive: false }, overrideClient);
+    return !!updated;
+  } catch (e) {
+    console.warn("Failed to soft-delete room, attempting fallback:", e);
+  }
+
   const client = getDbClient(overrideClient);
   if (isSupabaseConfigured && client) {
     const { error } = await client.from("rooms").delete().eq("id", id);
@@ -1530,7 +1682,23 @@ export async function updateLocalOffice(
   return target;
 }
 
+export async function toggleLocalOfficeStatus(
+  id: string,
+  isActive: boolean,
+  overrideClient?: any
+): Promise<Office | null> {
+  return updateLocalOffice(id, { isActive }, overrideClient);
+}
+
 export async function deleteLocalOffice(id: string, overrideClient?: any): Promise<boolean> {
+  // Soft-archive office by default to preserve linked visitor logs and staff desks
+  try {
+    const updated = await updateLocalOffice(id, { isActive: false }, overrideClient);
+    return !!updated;
+  } catch (e) {
+    console.warn("Failed to soft-delete office, attempting fallback:", e);
+  }
+
   const client = getDbClient(overrideClient);
   if (isSupabaseConfigured && client) {
     const { error } = await client.from("offices").delete().eq("id", id);

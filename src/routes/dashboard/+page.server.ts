@@ -1,4 +1,6 @@
 import { redirect, fail } from "@sveltejs/kit";
+import { env } from "$env/dynamic/private";
+import { uploadLocalImage } from "$lib/supabase";
 import type { PageServerLoad, Actions } from "./$types";
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -43,10 +45,30 @@ export const actions: Actions = {
 
 		const formData = await request.formData();
 		const fullName = (formData.get("fullName") as string || "").trim();
-		const avatarUrl = (formData.get("avatarUrl") as string || "").trim();
+		let avatarUrl = (formData.get("avatarUrl") as string || "").trim();
+		const removeAvatar = formData.get("removeAvatar") === "true";
+		const avatarFile = formData.get("avatarFile") as File | null;
 
 		if (!fullName) {
 			return fail(400, { message: "Full Name cannot be empty." });
+		}
+
+		const { user: authUser } = await locals.safeGetSession();
+		const userId = authUser?.id || "user";
+
+		if (avatarFile && avatarFile.size > 0) {
+			try {
+				const buffer = await avatarFile.arrayBuffer();
+				const fileExt = avatarFile.name.split('.').pop() || "png";
+				const fileName = `avatars/${userId}_${Date.now()}.${fileExt}`;
+				const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY || "";
+				avatarUrl = await uploadLocalImage(buffer, fileName, avatarFile.type || "image/png", serviceRoleKey);
+			} catch (uploadErr: any) {
+				console.error("Failed to upload avatar to Supabase Storage:", uploadErr);
+				return fail(500, { message: `Avatar upload failed: ${uploadErr?.message || "Storage error"}` });
+			}
+		} else if (removeAvatar) {
+			avatarUrl = "";
 		}
 
 		try {
@@ -62,10 +84,10 @@ export const actions: Actions = {
 					return fail(400, { message: error.message });
 				}
 
-				return { success: true, message: "Profile updated successfully!", user: updated.user };
+				return { success: true, message: "Profile updated successfully!", user: updated.user, avatarUrl };
 			}
 
-			return { success: true, message: "Profile details updated locally." };
+			return { success: true, message: "Profile details updated locally.", avatarUrl };
 		} catch (err: any) {
 			return fail(500, { message: err?.message || "An error occurred while updating profile." });
 		}

@@ -6,9 +6,11 @@ import {
 	getLocalRooms, 
 	addLocalBuilding, 
 	updateLocalBuilding,
+	toggleLocalBuildingStatus,
 	deleteLocalBuilding, 
 	addLocalRoom, 
 	updateLocalRoom,
+	toggleLocalRoomStatus,
 	deleteLocalRoom,
 	uploadLocalImage
 } from "$lib/supabase";
@@ -160,7 +162,24 @@ export const actions: Actions = {
 			await deleteLocalBuilding(id, locals.supabase);
 			return { success: true };
 		} catch (error: any) {
-			return fail(500, { message: error.message || "Failed to delete building." });
+			return fail(500, { message: error.message || "Failed to archive building." });
+		}
+	},
+
+	toggleBuildingStatus: async ({ request, locals }) => {
+		const data = await request.formData();
+		const id = data.get("id") as string;
+		const isActive = data.get("isActive") === "true";
+
+		if (!id) {
+			return fail(400, { message: "Building ID is required." });
+		}
+
+		try {
+			await toggleLocalBuildingStatus(id, isActive, locals.supabase);
+			return { success: true };
+		} catch (error: any) {
+			return fail(500, { message: error.message || `Failed to ${isActive ? "restore" : "archive"} building.` });
 		}
 	},
 
@@ -226,7 +245,24 @@ export const actions: Actions = {
 			await deleteLocalRoom(id, locals.supabase);
 			return { success: true };
 		} catch (error: any) {
-			return fail(500, { message: error.message || "Failed to delete room." });
+			return fail(500, { message: error.message || "Failed to archive room." });
+		}
+	},
+
+	toggleRoomStatus: async ({ request, locals }) => {
+		const data = await request.formData();
+		const id = data.get("id") as string;
+		const isActive = data.get("isActive") === "true";
+
+		if (!id) {
+			return fail(400, { message: "Room ID is required." });
+		}
+
+		try {
+			await toggleLocalRoomStatus(id, isActive, locals.supabase);
+			return { success: true };
+		} catch (error: any) {
+			return fail(500, { message: error.message || `Failed to ${isActive ? "restore" : "archive"} room.` });
 		}
 	},
 
