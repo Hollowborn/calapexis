@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { ComponentProps } from "svelte";
+	import { getContext, type ComponentProps } from "svelte";
+	import type { Visitor } from "$lib/types";
 	import LayoutDashboardIcon from "@lucide/svelte/icons/layout-dashboard";
 	import BookOpenIcon from "@lucide/svelte/icons/book-open";
 	import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
@@ -119,6 +120,29 @@
 		role: role,
 		officeId: officeId,
 	});
+
+	// Realtime Live Visitor Count Telemetry (Option A)
+	const dashboardContext = getContext<any>("dashboard-state");
+	let visitors = $derived<Visitor[]>(dashboardContext?.visitors || []);
+
+	let activeCount = $derived.by(() => {
+		if (role === "staff") {
+			return visitors.filter((v: any) =>
+				v.status === "checked_in" && (!officeId || v.officeId === officeId || v.officeName === officeId)
+			).length;
+		}
+		// Admin and Security: campus-wide active visitors
+		return visitors.filter((v: any) =>
+			v.status === "checked_in" || v.status === "preliminary"
+		).length;
+	});
+
+	let monitorLabel = $derived(role === "staff" ? "Desk" : "Campus");
+	let tooltipLabel = $derived(
+		role === "staff"
+			? `${activeCount} active ${activeCount === 1 ? 'visitor' : 'visitors'} at your desk`
+			: `${activeCount} active ${activeCount === 1 ? 'visitor' : 'visitors'} on campus`
+	);
 </script>
 
 <Sidebar.Root
@@ -275,10 +299,16 @@
 					<Sidebar.MenuItem>
 						<Sidebar.MenuButton
 							tooltipContentProps={{ hidden: false }}
-							class="rounded-xl px-2.5 py-2 text-xs font-semibold text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-all"
+							class="rounded-xl px-2.5 py-2 text-xs font-semibold text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-all relative group"
 						>
 							{#snippet tooltipContent()}
-								Visitor Kiosk
+								<div class="flex flex-col gap-0.5 text-left py-0.5">
+									<span class="font-bold text-foreground">Visitor Kiosk Portal</span>
+									<span class="text-[10px] text-muted-foreground flex items-center gap-1 font-medium">
+										<span class="size-1.5 rounded-full {activeCount > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/40'}"></span>
+										<span>{tooltipLabel}</span>
+									</span>
+								</div>
 							{/snippet}
 							{#snippet child({ props })}
 								<a
@@ -286,13 +316,34 @@
 									target="_blank"
 									rel="noreferrer"
 									{...props}
+									class="flex items-center gap-2 w-full"
 								>
-									<ExternalLinkIcon
-										class="size-4 shrink-0 text-muted-foreground"
-									/>
-									<span class="truncate group-data-[collapsible=icon]:hidden"
+									<div class="relative flex items-center justify-center shrink-0">
+										<ExternalLinkIcon
+											class="size-4 text-muted-foreground"
+										/>
+										{#if activeCount > 0}
+											<span class="absolute -top-1 -right-1 size-2 rounded-full bg-emerald-500 animate-pulse hidden group-data-[collapsible=icon]:block"></span>
+										{/if}
+									</div>
+									<span class="truncate group-data-[collapsible=icon]:hidden font-semibold"
 										>Visitor Kiosk Portal</span
 									>
+
+									<!-- Live Telemetry Monitor Badge -->
+									<div class="ms-auto flex items-center gap-1.5 group-data-[collapsible=icon]:hidden shrink-0">
+										{#if activeCount > 0}
+											<span class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-extrabold text-[10px] font-mono shadow-2xs">
+												<span class="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+												<span>{activeCount} {monitorLabel}</span>
+											</span>
+										{:else}
+											<span class="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-muted border border-border/60 text-muted-foreground text-[10px] font-mono font-bold">
+												<span class="size-1.5 rounded-full bg-muted-foreground/40"></span>
+												<span>0</span>
+											</span>
+										{/if}
+									</div>
 								</a>
 							{/snippet}
 						</Sidebar.MenuButton>
