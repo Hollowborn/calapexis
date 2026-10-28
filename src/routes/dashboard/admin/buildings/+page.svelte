@@ -468,7 +468,7 @@
 
 		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 			{#each filteredBuildings as building (building.id)}
-				<Card.Root class="rounded-2xl border transition-all flex flex-col group overflow-hidden shadow-xs hover:shadow-md {(building.isActive ?? true) ? 'border-border/80 bg-card hover:border-primary/40' : 'border-amber-500/40 border-dashed bg-amber-500/[0.04] opacity-90'}">
+				<Card.Root class="pt-0 rounded-2xl border transition-all flex flex-col group overflow-hidden shadow-xs hover:shadow-md {(building.isActive ?? true) ? 'border-border/80 bg-card hover:border-primary/40' : 'border-amber-500/40 border-dashed bg-amber-500/[0.04] opacity-90'}">
 					<!-- Hero Image Cover Header -->
 					<div class="relative w-full h-44 overflow-hidden bg-muted/40 shrink-0">
 						{#if building.imageUrl}
