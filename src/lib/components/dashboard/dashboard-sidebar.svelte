@@ -48,7 +48,7 @@
 			title: "Logbook Master",
 			url: "/dashboard/logs",
 			icon: BookOpenIcon,
-			roles: ["admin", "security", "staff"],
+			roles: ["admin"],
 		},
 		{
 			id: "security-desk",
