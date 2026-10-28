@@ -343,6 +343,7 @@ function mapDbBuildingToBuilding(db: any): Building {
     yCoord: db.y_coord ? Number(db.y_coord) : undefined,
     color: db.color || undefined,
     imageUrl: db.image_url || undefined,
+    isActive: db.is_active ?? true,
   };
 }
 
@@ -357,6 +358,7 @@ function mapDbRoomToRoom(db: any): Room {
     yCoord: Number(db.y_coord),
     description: db.description || "",
     imageUrl: db.image_url || undefined,
+    isActive: db.is_active ?? true,
   };
 }
 
@@ -1203,6 +1205,7 @@ export async function addLocalBuilding(
   const newBuilding: Building = {
     ...building,
     id: "bld-" + Math.floor(1000 + Math.random() * 9000),
+    isActive: building.isActive ?? true,
   };
 
   if (isSupabaseConfigured && client) {
@@ -1217,6 +1220,7 @@ export async function addLocalBuilding(
       y_coord: building.yCoord || null,
       color: building.color || null,
       image_url: building.imageUrl || null,
+      is_active: building.isActive ?? true,
     };
 
     const { data, error } = await client
@@ -1263,6 +1267,8 @@ export async function updateLocalBuilding(
     if (updates.color !== undefined) dbRow.color = updates.color || null;
     if (updates.imageUrl !== undefined)
       dbRow.image_url = updates.imageUrl || null;
+    if (updates.isActive !== undefined)
+      dbRow.is_active = updates.isActive;
 
     const { data, error } = await client
       .from("buildings")
@@ -1295,7 +1301,23 @@ export async function updateLocalBuilding(
   return target;
 }
 
+export async function toggleLocalBuildingStatus(
+  id: string,
+  isActive: boolean,
+  overrideClient?: any
+): Promise<Building | null> {
+  return updateLocalBuilding(id, { isActive }, overrideClient);
+}
+
 export async function deleteLocalBuilding(id: string, overrideClient?: any): Promise<boolean> {
+  // Soft-archive building by default to preserve linked rooms, edges, and logs
+  try {
+    const updated = await updateLocalBuilding(id, { isActive: false }, overrideClient);
+    return !!updated;
+  } catch (e) {
+    console.warn("Failed to soft-delete building, attempting fallback:", e);
+  }
+
   const client = getDbClient(overrideClient);
   if (isSupabaseConfigured && client) {
     const { error } = await client
@@ -1339,6 +1361,7 @@ export async function addLocalRoom(room: Omit<Room, "id">, overrideClient?: any)
   const newRoom: Room = {
     ...room,
     id: "rm-" + Math.floor(1000 + Math.random() * 9000),
+    isActive: room.isActive ?? true,
   };
 
   if (isSupabaseConfigured && client) {
@@ -1351,6 +1374,7 @@ export async function addLocalRoom(room: Omit<Room, "id">, overrideClient?: any)
       y_coord: room.yCoord || 0,
       description: room.description || null,
       image_url: room.imageUrl || null,
+      is_active: room.isActive ?? true,
     };
 
     const { data, error } = await client
@@ -1392,6 +1416,8 @@ export async function updateLocalRoom(
       dbRow.description = updates.description || null;
     if (updates.imageUrl !== undefined)
       dbRow.image_url = updates.imageUrl || null;
+    if (updates.isActive !== undefined)
+      dbRow.is_active = updates.isActive;
 
     const { data, error } = await client
       .from("rooms")
@@ -1422,7 +1448,23 @@ export async function updateLocalRoom(
   return target;
 }
 
+export async function toggleLocalRoomStatus(
+  id: string,
+  isActive: boolean,
+  overrideClient?: any
+): Promise<Room | null> {
+  return updateLocalRoom(id, { isActive }, overrideClient);
+}
+
 export async function deleteLocalRoom(id: string, overrideClient?: any): Promise<boolean> {
+  // Soft-archive room by default to preserve historical visitor check-ins
+  try {
+    const updated = await updateLocalRoom(id, { isActive: false }, overrideClient);
+    return !!updated;
+  } catch (e) {
+    console.warn("Failed to soft-delete room, attempting fallback:", e);
+  }
+
   const client = getDbClient(overrideClient);
   if (isSupabaseConfigured && client) {
     const { error } = await client.from("rooms").delete().eq("id", id);
@@ -1640,7 +1682,23 @@ export async function updateLocalOffice(
   return target;
 }
 
+export async function toggleLocalOfficeStatus(
+  id: string,
+  isActive: boolean,
+  overrideClient?: any
+): Promise<Office | null> {
+  return updateLocalOffice(id, { isActive }, overrideClient);
+}
+
 export async function deleteLocalOffice(id: string, overrideClient?: any): Promise<boolean> {
+  // Soft-archive office by default to preserve linked visitor logs and staff desks
+  try {
+    const updated = await updateLocalOffice(id, { isActive: false }, overrideClient);
+    return !!updated;
+  } catch (e) {
+    console.warn("Failed to soft-delete office, attempting fallback:", e);
+  }
+
   const client = getDbClient(overrideClient);
   if (isSupabaseConfigured && client) {
     const { error } = await client.from("offices").delete().eq("id", id);

@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS public.buildings (
     y_coord NUMERIC,
     color TEXT,
     image_url TEXT,
+    is_active BOOLEAN DEFAULT true NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -27,6 +28,7 @@ CREATE TABLE IF NOT EXISTS public.rooms (
     y_coord NUMERIC NOT NULL,
     description TEXT,
     image_url TEXT,
+    is_active BOOLEAN DEFAULT true NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -44,6 +46,11 @@ CREATE TABLE IF NOT EXISTS public.offices (
     is_active BOOLEAN DEFAULT true NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Migration helpers for existing public.buildings, public.rooms, public.offices deployments
+ALTER TABLE public.buildings ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true NOT NULL;
+ALTER TABLE public.rooms ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true NOT NULL;
+ALTER TABLE public.offices ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true NOT NULL;
 
 -- 3. Profiles Table (RBAC roles & desk/room binding)
 CREATE TABLE IF NOT EXISTS public.profiles (

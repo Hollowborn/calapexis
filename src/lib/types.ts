@@ -12,6 +12,7 @@ export interface Building {
 	imageUrl?: string;
 	lat?: number;
 	lng?: number;
+	isActive?: boolean;
 }
 
 export interface Room {
@@ -24,6 +25,7 @@ export interface Room {
 	yCoord: number;
 	description?: string;
 	imageUrl?: string;
+	isActive?: boolean;
 }
 
 export interface Office {
