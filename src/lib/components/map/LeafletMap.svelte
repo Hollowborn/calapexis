@@ -58,8 +58,9 @@
 
 		mapInstance = map;
 
-		// Add markers for buildings
+		// Add markers for active buildings
 		buildings.forEach((building) => {
+			if (building.isActive === false) return;
 			if (building.xCoord && building.yCoord) {
 				// Leaflet CRS Simple uses [y, x]
 				const latLng: [number, number] = [building.yCoord, building.xCoord];
@@ -126,7 +127,7 @@
 
 		if (!selectedBuildingId) return;
 
-		const targetBuilding = buildings.find((b) => b.id === selectedBuildingId);
+		const targetBuilding = buildings.find((b) => b.id === selectedBuildingId && b.isActive !== false);
 		if (!targetBuilding || !targetBuilding.xCoord || !targetBuilding.yCoord) return;
 
 		// Waypoint path coordinates from Main Entrance -> Central Quad -> Target Building
