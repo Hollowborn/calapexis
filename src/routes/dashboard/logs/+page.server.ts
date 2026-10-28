@@ -1,8 +1,15 @@
+import { redirect } from "@sveltejs/kit";
 import type { PageServerLoad } from "./$types";
 import { getDbClient, isSupabaseConfigured, supabase, mapDbVisitorToVisitor } from "$lib/supabase";
 
 export const load: PageServerLoad = async ({ url, locals }) => {
 	const session = locals.session;
+
+	// Restrict Logbook Master strictly to Admin users
+	if (!session || session.role !== "admin") {
+		throw redirect(303, session?.role === "staff" ? "/dashboard/staff" : "/dashboard?error=unauthorized_role");
+	}
+
 	const selectedDate = url.searchParams.get("date") || null;
 	let serverLogs: any[] | null = null;
 
@@ -16,10 +23,6 @@ export const load: PageServerLoad = async ({ url, locals }) => {
 				.select("*")
 				.gte("check_in_time", startDateIso)
 				.lte("check_in_time", endDateIso);
-
-			if (session?.role === "staff" && session?.officeId) {
-				query = query.eq("office_id", session.officeId);
-			}
 
 			const { data, error } = await query.order("check_in_time", { ascending: false });
 

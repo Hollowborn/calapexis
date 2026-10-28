@@ -8,6 +8,8 @@
 	import { toast } from 'svelte-sonner';
 	import { checkoutLocalVisitor } from '$lib/supabase';
 	import StaffCheckInModal from '$lib/components/staff/StaffCheckInModal.svelte';
+	import OfficeQrModal from '$lib/components/office/OfficeQrModal.svelte';
+	import LogbookTable from '$lib/components/logbook/LogbookTable.svelte';
 
 	// Lucide Icons
 	import UserCheckIcon from "@lucide/svelte/icons/user-check";
@@ -22,6 +24,8 @@
 	import FileTextIcon from "@lucide/svelte/icons/file-text";
 	import ArrowUpRightIcon from "@lucide/svelte/icons/arrow-up-right";
 	import SparklesIcon from "@lucide/svelte/icons/sparkles";
+	import QrCodeIcon from "@lucide/svelte/icons/qr-code";
+	import LayoutGridIcon from "@lucide/svelte/icons/layout-grid";
 
 	let { data } = $props();
 
@@ -36,6 +40,10 @@
 	// Assisted Check-In Modal state
 	let isAssistModalOpen = $state(false);
 	let selectedPrefillVisitor = $state<any | null>(null);
+
+	// QR Sign Modal state & View Switcher (Option A)
+	let isQrModalOpen = $state(false);
+	let activeStaffView = $state<'console' | 'logbook'>('console');
 
 	// Search queries for both panels
 	let searchPreviousVisitorQuery = $state('');
@@ -163,10 +171,42 @@
 
 		<!-- Action Buttons & Badges -->
 		<div class="flex items-center gap-2.5 shrink-0 flex-wrap justify-end">
+			<!-- View Switcher Tabs (Option A) -->
+			<div class="flex items-center bg-muted/60 p-1 rounded-xl border border-border/60">
+				<Button
+					variant={activeStaffView === 'console' ? 'default' : 'ghost'}
+					size="sm"
+					onclick={() => (activeStaffView = 'console')}
+					class="h-7 px-3 text-xs font-bold rounded-lg gap-1.5 cursor-pointer {activeStaffView === 'console' ? 'bg-background text-foreground shadow-2xs hover:bg-background' : 'text-muted-foreground hover:text-foreground'}"
+				>
+					<LayoutGridIcon class="size-3.5 pointer-events-none" />
+					<span>Live Console</span>
+				</Button>
+				<Button
+					variant={activeStaffView === 'logbook' ? 'default' : 'ghost'}
+					size="sm"
+					onclick={() => (activeStaffView = 'logbook')}
+					class="h-7 px-3 text-xs font-bold rounded-lg gap-1.5 cursor-pointer {activeStaffView === 'logbook' ? 'bg-background text-foreground shadow-2xs hover:bg-background' : 'text-muted-foreground hover:text-foreground'}"
+				>
+					<FileTextIcon class="size-3.5 pointer-events-none" />
+					<span>Desk Logbook & Reports</span>
+				</Button>
+			</div>
+
 			<Badge class="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs py-1.5 px-3 rounded-xl border-emerald-500/30 gap-1.5">
 				<span class="size-2 rounded-full bg-emerald-500 animate-pulse"></span>
-				<span>{activePassesCount} Active Passes</span>
+				<span>{activePassesCount} Active Visitors</span>
 			</Badge>
+
+			<!-- Desk QR Code Sign Button -->
+			<Button
+				variant="outline"
+				onclick={() => (isQrModalOpen = true)}
+				class="text-xs font-bold rounded-xl h-9 px-3 gap-1.5 border-border hover:bg-muted cursor-pointer"
+			>
+				<QrCodeIcon class="size-3.5 text-primary pointer-events-none" />
+				<span>Desk QR Sign</span>
+			</Button>
 
 			<Button
 				onclick={handleOpenNewWalkIn}
@@ -175,21 +215,12 @@
 				<UserPlusIcon class="size-4 pointer-events-none" />
 				<span>+ New Walk-In Visitor</span>
 			</Button>
-
-			<Button
-				href="/dashboard/logs"
-				variant="outline"
-				class="text-xs font-bold rounded-xl h-9 px-3 gap-1.5 border-border hover:bg-muted cursor-pointer"
-			>
-				<FileTextIcon class="size-3.5 text-muted-foreground pointer-events-none" />
-				<span>Office Logs</span>
-				<ArrowUpRightIcon class="size-3 text-muted-foreground pointer-events-none" />
-			</Button>
 		</div>
 	</div>
 
-	<!-- 2. MAIN 2-COLUMN SINGLE-SCREEN CONSOLE -->
-	<div class="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0 overflow-hidden">
+	{#if activeStaffView === 'console'}
+		<!-- 2. MAIN 2-COLUMN SINGLE-SCREEN CONSOLE -->
+		<div class="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0 overflow-hidden">
 		<!-- LEFT PANEL: Assisted Walk-In Entry & Previous Visitors Directory (5 Cols) -->
 		<Card.Root class="lg:col-span-5 flex flex-col rounded-2xl border-border/80 bg-card shadow-xs overflow-hidden min-h-0">
 			<!-- Panel Header -->
@@ -366,7 +397,27 @@
 			</Card.Content>
 		</Card.Root>
 	</div>
+{:else}
+	<!-- 3. DESK LOGBOOK & REPORTS TAB (Option A) -->
+	<div class="flex-1 min-h-0 overflow-y-auto bg-card rounded-2xl border border-border/80 p-4 md:p-6 shadow-xs">
+		<LogbookTable
+			visitors={officeVisitors}
+			role={data.role || 'staff'}
+			officeId={data.assignedOfficeId}
+			officeName={activeOffice?.name}
+			title={`${activeOffice?.name || 'Office'} Visitor Logbook`}
+			subtitle="Campus visitor records, desk activity log, and compliance reports"
+			showPageHeader={false}
+		/>
+	</div>
+{/if}
 </div>
+
+<!-- OFFICE DESK QR CODE SIGN MODAL -->
+<OfficeQrModal
+	office={activeOffice}
+	bind:open={isQrModalOpen}
+/>
 
 <!-- ASSISTED VISITOR CHECK-IN DIALOG MODAL -->
 <StaffCheckInModal
