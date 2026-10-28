@@ -688,6 +688,9 @@
 										<span class="truncate flex items-center gap-1.5">
 											<span class="size-2 rounded-full inline-block shrink-0" style="background-color: {b.color || '#3b82f6'};"></span>
 											<span>{b.name} ({b.code})</span>
+											{#if b.isActive === false}
+												<span class="text-[9px] font-bold text-amber-500 uppercase tracking-wide ml-1">(Archived)</span>
+											{/if}
 										</span>
 										{#if selectedFromNode === b.id || selectedFromNode === b.code}
 											<CheckIcon class="size-3.5 text-primary shrink-0 ml-1" />
@@ -744,6 +747,9 @@
 										<span class="truncate flex items-center gap-1.5">
 											<span class="size-2 rounded-full inline-block shrink-0" style="background-color: {b.color || '#3b82f6'};"></span>
 											<span>{b.name} ({b.code})</span>
+											{#if b.isActive === false}
+												<span class="text-[9px] font-bold text-amber-500 uppercase tracking-wide ml-1">(Archived)</span>
+											{/if}
 										</span>
 										{#if selectedToNode === b.id || selectedToNode === b.code}
 											<CheckIcon class="size-3.5 text-primary shrink-0 ml-1" />

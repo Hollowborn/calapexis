@@ -14,6 +14,8 @@
 	import PlusIcon from "@lucide/svelte/icons/plus";
 	import PencilIcon from "@lucide/svelte/icons/pencil";
 	import Trash2Icon from "@lucide/svelte/icons/trash-2";
+	import ArchiveIcon from "@lucide/svelte/icons/archive";
+	import RotateCcwIcon from "@lucide/svelte/icons/rotate-ccw";
 	import SchoolIcon from "@lucide/svelte/icons/school";
 	import UserIcon from "@lucide/svelte/icons/user";
 	import MailIcon from "@lucide/svelte/icons/mail";
@@ -35,13 +37,17 @@
 	let isCreatingOffice = $state(false);
 	let activeQrOffice = $state<Office | null>(null);
 	let activeEditingOffice = $state<Office | null>(null);
-	let deletingOfficeTarget = $state<Office | null>(null);
+	let archiveOfficeTarget = $state<Office | null>(null);
+	let restoreOfficeTarget = $state<Office | null>(null);
 
-	// Search Query State
+	// Filter & Search States
 	let officeSearchQuery = $state("");
+	let selectedStatusFilter = $state<"all" | "active" | "archived">("all");
 
 	let filteredOffices = $derived(
 		offices.filter((o) => {
+			if (selectedStatusFilter === "active" && !o.isActive) return false;
+			if (selectedStatusFilter === "archived" && o.isActive) return false;
 			if (!officeSearchQuery.trim()) return true;
 			const q = officeSearchQuery.toLowerCase().trim();
 			return (
@@ -145,29 +151,30 @@
 		};
 	};
 
-	const handleDeleteOfficeEnhance: SubmitFunction = () => {
-		let resolveDelete: (v?: any) => void = () => {};
-		let rejectDelete: (e: any) => void = () => {};
+	const handleToggleOfficeEnhance: SubmitFunction = () => {
+		let resolveToggle: (v?: any) => void = () => {};
+		let rejectToggle: (e: any) => void = () => {};
 		const promise = new Promise((resolve, reject) => {
-			resolveDelete = resolve;
-			rejectDelete = reject;
+			resolveToggle = resolve;
+			rejectToggle = reject;
 		});
 
 		toast.promise(promise, {
-			loading: "Deleting office desk...",
-			success: "Check-in office desk deleted!",
-			error: (err: any) => err.message || "Failed to delete office desk."
+			loading: "Updating office desk status...",
+			success: "Check-in office status updated!",
+			error: (err: any) => err.message || "Failed to update office desk status."
 		});
 
 		return async ({ result, update }) => {
 			if (result.type === "success") {
-				resolveDelete();
-				deletingOfficeTarget = null;
+				resolveToggle();
+				archiveOfficeTarget = null;
+				restoreOfficeTarget = null;
 				await update();
 			} else if (result.type === "failure") {
-				rejectDelete(new Error((result.data as any)?.message || "Failed to delete office desk."));
+				rejectToggle(new Error((result.data as any)?.message || "Failed to update office desk status."));
 			} else {
-				rejectDelete(new Error("Unexpected error."));
+				rejectToggle(new Error("Unexpected error."));
 			}
 		};
 	};
@@ -196,31 +203,71 @@
 		<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
 			<div>
 				<h2 class="text-xs font-black text-foreground uppercase tracking-wider">Registered Reception Desks ({filteredOffices.length})</h2>
-				<span class="text-xs text-muted-foreground font-semibold">{filteredOffices.length} of {offices.length} active check-in destinations displayed.</span>
+				<span class="text-xs text-muted-foreground font-semibold">{filteredOffices.length} of {offices.length} desks displayed ({offices.filter(o => o.isActive).length} active, {offices.filter(o => !o.isActive).length} archived).</span>
 			</div>
 
-			<div class="relative w-full sm:w-64">
-				<SearchIcon class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-				<Input 
-					type="text" 
-					placeholder="Search offices, rooms, codes..." 
-					bind:value={officeSearchQuery} 
-					class="pl-9 h-9 text-xs rounded-xl"
-				/>
+			<div class="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+				<!-- Status Filter Select -->
+				<div class="w-full sm:w-36">
+					<Select.Root
+						type="single"
+						value={selectedStatusFilter}
+						onValueChange={(val) => {
+							if (val) selectedStatusFilter = val as "all" | "active" | "archived";
+						}}
+					>
+						<Select.Trigger class="h-9 rounded-xl text-xs font-semibold cursor-pointer border-border">
+							<span class="truncate">
+								{selectedStatusFilter === "all" ? "All Status" : (selectedStatusFilter === "active" ? "Active" : "Archived")}
+							</span>
+						</Select.Trigger>
+						<Select.Content class="rounded-xl border border-border bg-card z-[2700]">
+							<Select.Group>
+								<Select.Item value="all" label="All Status">All Status ({offices.length})</Select.Item>
+								<Select.Item value="active" label="Active">Active ({offices.filter(o => o.isActive).length})</Select.Item>
+								<Select.Item value="archived" label="Archived">Archived ({offices.filter(o => !o.isActive).length})</Select.Item>
+							</Select.Group>
+						</Select.Content>
+					</Select.Root>
+				</div>
+
+				<div class="relative w-full sm:w-64">
+					<SearchIcon class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+					<Input 
+						type="text" 
+						placeholder="Search offices, rooms, codes..." 
+						bind:value={officeSearchQuery} 
+						class="pl-9 h-9 text-xs rounded-xl"
+					/>
+				</div>
 			</div>
 		</div>
 
 		<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 			{#each filteredOffices as office (office.id)}
-				<Card.Root class="border-border shadow-xs hover:shadow-md rounded-2xl bg-card overflow-hidden transition-all flex flex-col group">
-					<Card.Header class="pb-3 border-b border-border/50 bg-muted/20">
+				{@const parentBuilding = buildings.find(b => b.id === office.buildingId)}
+				<Card.Root class="rounded-2xl border transition-all flex flex-col group overflow-hidden shadow-xs hover:shadow-md {office.isActive ? 'border-border/80 bg-card hover:border-primary/40' : 'border-amber-500/40 border-dashed bg-amber-500/[0.04] opacity-90'}">
+					<Card.Header class="pb-3 border-b {office.isActive ? 'border-border/50' : 'border-amber-500/20'}">
 						<div class="flex items-center justify-between gap-2">
-							<Badge class="bg-primary/15 text-primary font-mono font-black text-xs px-2.5 py-0.5 rounded-xl border border-primary/25">
-								{office.code}
-							</Badge>
-							<Badge variant={office.isActive ? "default" : "secondary"} class="text-[10px] font-extrabold uppercase">
-								{office.isActive ? "ACTIVE DESK" : "INACTIVE"}
-							</Badge>
+							<div class="flex items-center gap-2">
+								<Badge variant="outline" class="font-mono font-black text-xs px-2.5 py-0.5 rounded-xl {office.isActive ? 'border-primary/30 text-primary bg-primary/10' : 'border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10'}">
+									{office.code}
+								</Badge>
+								{#if parentBuilding?.color}
+									<span class="size-2.5 rounded-full border border-black/10 dark:border-white/20 shrink-0" style="background-color: {parentBuilding.color};" title="{parentBuilding.name}"></span>
+								{/if}
+							</div>
+							{#if office.isActive}
+								<Badge variant="outline" class="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] font-extrabold uppercase gap-1.5 px-2.5 py-0.5 rounded-xl">
+									<span class="size-1.5 rounded-full bg-emerald-500 inline-block"></span>
+									<span>Active Desk</span>
+								</Badge>
+							{:else}
+								<Badge variant="outline" class="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] font-extrabold uppercase gap-1.5 px-2.5 py-0.5 rounded-xl">
+									<span class="size-1.5 rounded-full bg-amber-500 inline-block"></span>
+									<span>Archived</span>
+								</Badge>
+							{/if}
 						</div>
 						<Card.Title class="text-base font-black text-foreground pt-1.5 leading-tight">{office.name}</Card.Title>
 						<Card.Description class="text-xs leading-relaxed text-muted-foreground font-semibold line-clamp-2">
@@ -231,53 +278,60 @@
 					<Card.Content class="p-5 flex-grow flex flex-col gap-4 text-xs font-semibold">
 						<div class="grid grid-cols-1 gap-2.5 text-[11px] text-muted-foreground">
 							<div class="flex items-center gap-2">
-								<MonitorCheck class="size-3.5 text-primary shrink-0 pointer-events-none" />
-								<span class="truncate"><strong class="text-foreground">Building:</strong> {office.buildingName || 'Main Building'}</span>
+								<MonitorCheck class="size-3.5 {office.isActive ? 'text-primary' : 'text-amber-600/70 dark:text-amber-400/70'} shrink-0 pointer-events-none" />
+								<span class="truncate"><strong class="text-foreground">Building:</strong> {office.buildingName || parentBuilding?.name || 'Main Building'}</span>
 							</div>
 
 							{#if office.roomNumber}
 								<div class="flex items-center gap-2">
-									<SchoolIcon class="size-3.5 text-primary shrink-0 pointer-events-none" />
+									<SchoolIcon class="size-3.5 {office.isActive ? 'text-primary' : 'text-amber-600/70 dark:text-amber-400/70'} shrink-0 pointer-events-none" />
 									<span class="truncate"><strong class="text-foreground">Assigned Room:</strong> {office.roomNumber}</span>
 								</div>
 							{/if}
 
 							<div class="flex items-center gap-2">
-								<UserIcon class="size-3.5 text-primary shrink-0 pointer-events-none" />
+								<UserIcon class="size-3.5 {office.isActive ? 'text-primary' : 'text-amber-600/70 dark:text-amber-400/70'} shrink-0 pointer-events-none" />
 								<span class="truncate"><strong class="text-foreground">Officer in Charge:</strong> {office.headPerson || 'Staff Desk'}</span>
 							</div>
 
 							{#if office.contactEmail}
 								<div class="flex items-center gap-2">
-									<MailIcon class="size-3.5 text-primary shrink-0 pointer-events-none" />
+									<MailIcon class="size-3.5 {office.isActive ? 'text-primary' : 'text-amber-600/70 dark:text-amber-400/70'} shrink-0 pointer-events-none" />
 									<span class="truncate"><strong class="text-foreground">Email:</strong> {office.contactEmail}</span>
 								</div>
 							{/if}
 
 							{#if office.operatingHours}
 								<div class="flex items-center gap-2">
-									<ClockIcon class="size-3.5 text-primary shrink-0 pointer-events-none" />
+									<ClockIcon class="size-3.5 {office.isActive ? 'text-primary' : 'text-amber-600/70 dark:text-amber-400/70'} shrink-0 pointer-events-none" />
 									<span class="truncate"><strong class="text-foreground">Hours:</strong> {office.operatingHours}</span>
 								</div>
 							{/if}
 						</div>
 					</Card.Content>
 
-					<Card.Footer class="p-3 border-t border-border/60 bg-muted/20 flex items-center justify-end gap-2">
-						<Button onclick={() => (activeQrOffice = office)} variant="outline" size="sm" class="text-xs font-bold gap-1.5 rounded-xl h-8 cursor-pointer border-border/80">
+					<Card.Footer class="p-3 border-t {office.isActive ? 'border-border/50' : 'border-amber-500/20'} flex items-center justify-end gap-2">
+						<Button onclick={() => (activeQrOffice = office)} variant="outline" size="sm" class="text-xs font-bold gap-1.5 rounded-xl h-8 cursor-pointer border-border hover:bg-muted/50">
 							<QrCodeIcon class="size-3.5 pointer-events-none" />
 							<span>Office QR</span>
 						</Button>
 
-						<Button onclick={() => startEditOffice(office)} variant="outline" size="sm" class="text-xs font-bold gap-1.5 rounded-xl h-8 cursor-pointer border-border/80">
+						<Button onclick={() => startEditOffice(office)} variant="outline" size="sm" class="text-xs font-bold gap-1.5 rounded-xl h-8 cursor-pointer border-border hover:bg-muted/50">
 							<PencilIcon class="size-3.5 pointer-events-none" />
 							<span>Edit Desk</span>
 						</Button>
 
-						<Button onclick={() => (deletingOfficeTarget = office)} variant="destructive" size="sm" class="text-xs font-bold gap-1.5 rounded-xl h-8 cursor-pointer">
-							<Trash2Icon class="size-3.5 pointer-events-none" />
-							<span>Delete</span>
-						</Button>
+						{#if office.isActive}
+							<Button onclick={() => (archiveOfficeTarget = office)} variant="outline" size="sm" class="text-xs font-bold gap-1.5 rounded-xl h-8 cursor-pointer border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10">
+								<ArchiveIcon class="size-3.5 pointer-events-none" />
+								<span>Archive</span>
+							</Button>
+						{:else}
+							<Button onclick={() => (restoreOfficeTarget = office)} variant="outline" size="sm" class="text-xs font-bold gap-1.5 rounded-xl h-8 cursor-pointer border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10">
+								<RotateCcwIcon class="size-3.5 pointer-events-none" />
+								<span>Restore</span>
+							</Button>
+						{/if}
 					</Card.Footer>
 				</Card.Root>
 			{:else}
@@ -546,28 +600,60 @@
 	</Dialog.Portal>
 </Dialog.Root>
 
-<!-- Delete Office Confirmation Dialog -->
-<Dialog.Root open={!!deletingOfficeTarget} onOpenChange={(open) => { if (!open) deletingOfficeTarget = null; }}>
+<!-- Archive Office Confirmation Dialog -->
+<Dialog.Root open={!!archiveOfficeTarget} onOpenChange={(open) => { if (!open) archiveOfficeTarget = null; }}>
 	<Dialog.Content class="sm:max-w-md rounded-2xl p-6">
-		<Dialog.Header class="space-y-2">
-			<div class="flex items-center gap-2 text-destructive">
-				<AlertTriangleIcon class="size-5 pointer-events-none" />
-				<Dialog.Title class="text-base font-black">Delete Check-In Office Desk?</Dialog.Title>
+		<Dialog.Header class="flex flex-col gap-2">
+			<div class="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+				<ArchiveIcon class="size-5 pointer-events-none" />
+				<Dialog.Title class="text-base font-black">Archive Check-In Desk?</Dialog.Title>
 			</div>
-			<Dialog.Description class="text-xs leading-relaxed font-medium">
-				Are you sure you want to delete <strong class="text-foreground">{deletingOfficeTarget?.name} ({deletingOfficeTarget?.code})</strong>?
-				This will remove it from the active visitor check-in destination options.
+			<Dialog.Description class="text-xs leading-relaxed font-medium text-muted-foreground">
+				Are you sure you want to archive desk <strong class="text-foreground">{archiveOfficeTarget?.name} ({archiveOfficeTarget?.code})</strong>?
+				This office will be hidden from visitor check-in selections, but all historical visitor logs and staff assignments remain safely preserved. You can restore it at any time.
 			</Dialog.Description>
 		</Dialog.Header>
 
-		<Dialog.Footer class="pt-4 flex items-center justify-end gap-2">
-			<Button variant="outline" onclick={() => (deletingOfficeTarget = null)} class="text-xs font-bold rounded-xl h-9">
+		<Dialog.Footer class="pt-4 flex items-center justify-end gap-2 border-t border-border mt-2">
+			<Button variant="outline" onclick={() => (archiveOfficeTarget = null)} class="text-xs font-bold rounded-xl h-9">
 				Cancel
 			</Button>
-			<form method="POST" action="?/deleteOffice" use:enhance={handleDeleteOfficeEnhance}>
-				<input type="hidden" name="id" value={deletingOfficeTarget?.id} />
-				<Button type="submit" variant="destructive" class="text-xs font-bold rounded-xl h-9 cursor-pointer">
-					Confirm Delete
+			<form method="POST" action="?/toggleOfficeStatus" use:enhance={handleToggleOfficeEnhance}>
+				<input type="hidden" name="id" value={archiveOfficeTarget?.id} />
+				<input type="hidden" name="isActive" value="false" />
+				<Button type="submit" variant="destructive" class="text-xs font-bold rounded-xl h-9 cursor-pointer gap-1.5">
+					<ArchiveIcon class="size-3.5" />
+					<span>Confirm Archive</span>
+				</Button>
+			</form>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<!-- Restore Office Confirmation Dialog -->
+<Dialog.Root open={!!restoreOfficeTarget} onOpenChange={(open) => { if (!open) restoreOfficeTarget = null; }}>
+	<Dialog.Content class="sm:max-w-md rounded-2xl p-6">
+		<Dialog.Header class="flex flex-col gap-2">
+			<div class="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+				<RotateCcwIcon class="size-5 pointer-events-none" />
+				<Dialog.Title class="text-base font-black">Restore Check-In Desk?</Dialog.Title>
+			</div>
+			<Dialog.Description class="text-xs leading-relaxed font-medium text-muted-foreground">
+				Reactivate and restore desk <strong class="text-foreground">{restoreOfficeTarget?.name} ({restoreOfficeTarget?.code})</strong>?
+				This office desk will immediately become active again and available for visitor check-in.
+			</Dialog.Description>
+		</Dialog.Header>
+
+		<Dialog.Footer class="pt-4 flex items-center justify-end gap-2 border-t border-border mt-2">
+			<Button variant="outline" onclick={() => (restoreOfficeTarget = null)} class="text-xs font-bold rounded-xl h-9">
+				Cancel
+			</Button>
+			<form method="POST" action="?/toggleOfficeStatus" use:enhance={handleToggleOfficeEnhance}>
+				<input type="hidden" name="id" value={restoreOfficeTarget?.id} />
+				<input type="hidden" name="isActive" value="true" />
+				<Button type="submit" class="text-xs font-bold rounded-xl h-9 cursor-pointer gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white">
+					<RotateCcwIcon class="size-3.5" />
+					<span>Confirm Restore</span>
 				</Button>
 			</form>
 		</Dialog.Footer>

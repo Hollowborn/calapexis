@@ -597,22 +597,25 @@
 
 		const matchingBuildings = buildingsList.filter(
 			(b) =>
-				b.name.toLowerCase().includes(q) ||
-				b.code.toLowerCase().includes(q),
+				(b.isActive !== false) &&
+				(b.name.toLowerCase().includes(q) ||
+				b.code.toLowerCase().includes(q)),
 		);
 
 		const matchingOffices = officesList.filter(
 			(o) =>
-				o.name.toLowerCase().includes(q) ||
+				(o.isActive !== false) &&
+				(o.name.toLowerCase().includes(q) ||
 				o.code.toLowerCase().includes(q) ||
-				(o.description && o.description.toLowerCase().includes(q)),
+				(o.description && o.description.toLowerCase().includes(q))),
 		);
 
 		const matchingRooms = roomsList.filter(
 			(r) =>
-				r.roomName.toLowerCase().includes(q) ||
+				(r.isActive !== false) &&
+				(r.roomName.toLowerCase().includes(q) ||
 				r.roomNumber.toLowerCase().includes(q) ||
-				(r.description && r.description.toLowerCase().includes(q)),
+				(r.description && r.description.toLowerCase().includes(q))),
 		);
 
 		return {
