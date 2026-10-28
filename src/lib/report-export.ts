@@ -18,6 +18,7 @@ export interface DocxExportOptions {
   templateUrl?: string;
   filename?: string;
   columns?: DocxColumnsConfig;
+  orientation?: "landscape" | "portrait";
 }
 
 export interface PrintableVisitorRecord {
@@ -574,52 +575,33 @@ export async function exportAuditLogsToPdf(
   const scope = options.scopeLabel || "ALL RECORDS";
   const dateRange = options.dateRange || formatDate(now.toISOString());
   const generatedBy = options.generatedBy || "Security Desk Officer";
+  const orientation = options.orientation || "landscape";
 
-  const columnDefs = [
-    {
-      key: "fullName",
-      label: "Visitor Name",
-      align: "left",
-      isBold: true,
-      width: "26%",
-    },
-    {
-      key: "officeName",
-      label: "Office / Desk",
-      align: "left",
-      isBold: false,
-      width: "24%",
-    },
-    {
-      key: "purpose",
-      label: "Purpose of Visit",
-      align: "left",
-      isBold: false,
-      width: "26%",
-    },
-    {
-      key: "checkInTime",
-      label: "Time In",
-      align: "center",
-      isBold: false,
-      width: "12%",
-      mono: true,
-    },
-    {
-      key: "checkOutTime",
-      label: "Time Out",
-      align: "center",
-      isBold: false,
-      width: "12%",
-      mono: true,
-    },
-  ];
+  const columnBaseWeights: Record<string, { label: string; align: string; isBold: boolean; mono?: boolean; weight: number }> = {
+    fullName: { label: "Visitor Name", align: "left", isBold: true, weight: 26 },
+    officeName: { label: "Office / Desk", align: "left", isBold: false, weight: 22 },
+    purpose: { label: "Purpose of Visit", align: "left", isBold: false, weight: 34 },
+    checkInTime: { label: "Time In", align: "center", isBold: false, mono: true, weight: 9 },
+    checkOutTime: { label: "Time Out", align: "center", isBold: false, mono: true, weight: 9 },
+  };
 
-  const activeCols = columnDefs.filter((col) =>
-    options.columns
-      ? options.columns[col.key as keyof DocxColumnsConfig] !== false
-      : true,
+  const activeKeys = Object.keys(columnBaseWeights).filter((key) =>
+    options.columns ? options.columns[key as keyof DocxColumnsConfig] !== false : true
   );
+  const totalWeight = activeKeys.reduce((sum, key) => sum + columnBaseWeights[key].weight, 0) || 1;
+
+  const activeCols = activeKeys.map((key) => {
+    const col = columnBaseWeights[key];
+    const widthPct = Math.round((col.weight / totalWeight) * 100);
+    return {
+      key,
+      label: col.label,
+      align: col.align,
+      isBold: col.isBold,
+      mono: col.mono,
+      width: `${widthPct}%`
+    };
+  });
   const colCount = Math.max(1, activeCols.length);
 
   let tableHeaderHtml = activeCols
@@ -662,17 +644,20 @@ export async function exportAuditLogsToPdf(
           const weightStyle = col.isBold
             ? "font-weight: 700; color: #09090b;"
             : "color: #18181b;";
-          cells += `<td style="border: 1px solid #d4d4d8; padding: 6px 9px; text-align: ${col.align}; ${fontStyle} ${weightStyle}">${val}</td>`;
+          cells += `<td style="border: 1px solid #d4d4d8; padding: 6px 9px; text-align: ${col.align}; word-wrap: break-word; overflow-wrap: break-word; hyphens: auto; ${fontStyle} ${weightStyle}">${val}</td>`;
         }
         tableBodyHtml += `<tr style="background-color: ${bg}; border-bottom: 1px solid #e4e4e7; page-break-inside: avoid;">${cells}</tr>`;
       }
     }
   }
 
-  // Try loading /header.png image asset
+  // Try loading /bisu_header_banner.png image asset (with fallback to /header.png)
   let headerImgBase64 = "";
   try {
-    const res = await fetch("/header.png");
+    let res = await fetch("/bisu_header_banner.png");
+    if (!res.ok) {
+      res = await fetch("/header.png");
+    }
     if (res.ok) {
       const blob = await res.blob();
       headerImgBase64 = await new Promise<string>((resolve) => {
@@ -682,7 +667,7 @@ export async function exportAuditLogsToPdf(
       });
     }
   } catch (e) {
-    console.warn("Could not load /header.png:", e);
+    console.warn("Could not load /bisu_header_banner.png:", e);
   }
 
   const logoLeft = logoImages[0] || "";
@@ -690,10 +675,8 @@ export async function exportAuditLogsToPdf(
 
   const letterheadHtml = headerImgBase64
     ? `
-      <div class="letterhead" style="margin-bottom: 12px; padding-bottom: 4px; border-bottom: 2px solid #000000; overflow: hidden; page-break-inside: avoid;">
-        <div style="width: 100%; max-height: 125px; overflow: hidden; display: flex; align-items: flex-start;">
-          <img src="${headerImgBase64}" style="width: 100%; display: block; object-fit: cover; object-position: top;" alt="Official Letterhead" />
-        </div>
+      <div class="letterhead" style="margin-bottom: 12px; padding-bottom: 4px; border-bottom: 2px solid #000000; text-align: center; page-break-inside: avoid;">
+        <img src="${headerImgBase64}" style="width: 100%; max-height: 85px; object-fit: contain; object-position: center; display: block; margin: 0 auto 4px;" alt="Official Letterhead" />
       </div>
     `
     : `
@@ -709,18 +692,12 @@ export async function exportAuditLogsToPdf(
       </div>
     `;
 
-  const footerDocCodeHtml = headerImgBase64
-    ? `
-      <div style="width: 100%; max-height: 25px; overflow: hidden; display: flex; align-items: flex-end;">
-        <img src="${headerImgBase64}" style="width: 100%; display: block; object-fit: cover; object-position: bottom;" alt="Document Tracking Code" />
-      </div>
-    `
-    : `
-      <div style="display: flex; justify-content: space-between; font-size: 8.5px; color: #71717a; width: 100%;">
-        <span>F-ADF-ADM-011 | Rev. 2 | 07/01/24 | Page 1 of 1</span>
-        <span>BISU Calape Campus Visitor Logbook</span>
-      </div>
-    `;
+  const footerDocCodeHtml = `
+    <div style="display: flex; justify-content: space-between; font-size: 8.5px; color: #71717a; width: 100%; font-weight: 600;">
+      <span>F-ADF-ADM-011 | Rev. 2 | 07/01/24 | Page 1 of 1</span>
+      <span>BISU Calape Campus Visitor Logbook</span>
+    </div>
+  `;
 
   const reportHtml = `
     ${letterheadHtml}
@@ -730,7 +707,7 @@ export async function exportAuditLogsToPdf(
       <div>Total Log Entries: <strong style="color: #000;">${formattedVisitors.length}</strong> • Generated: ${generatedAtStr}</div>
     </div>
 
-    <table style="width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 10.5px;">
+    <table style="width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: 6px; font-size: 10.5px;">
       <thead>
         <tr>${tableHeaderHtml}</tr>
       </thead>
@@ -748,7 +725,7 @@ export async function exportAuditLogsToPdf(
     options.filename ||
     `Visitor_Audit_Report_${now.toISOString().slice(0, 10)}.pdf`;
 
-  return await exportHtmlToPdf(reportHtml, outFilename);
+  return await exportHtmlToPdf(reportHtml, outFilename, orientation);
 }
 
 /**
@@ -758,6 +735,7 @@ export async function exportAuditLogsToPdf(
 export async function exportHtmlToPdf(
   htmlContent: string,
   filename?: string,
+  orientation: "landscape" | "portrait" = "landscape",
 ): Promise<{ success: boolean; filename: string }> {
   const html2pdfModule = await import("html2pdf.js");
   const html2pdf = html2pdfModule.default || html2pdfModule;
@@ -771,8 +749,9 @@ export async function exportHtmlToPdf(
   iframe.style.position = "fixed";
   iframe.style.left = "-9999px";
   iframe.style.top = "0";
-  iframe.style.width = "794px"; // Standard A4 width at 96 DPI
-  iframe.style.height = "1123px";
+  const isLandscape = orientation === "landscape";
+  iframe.style.width = isLandscape ? "1123px" : "794px"; // Standard A4 at 96 DPI
+  iframe.style.height = isLandscape ? "794px" : "1123px";
   iframe.style.border = "none";
   document.body.appendChild(iframe);
 
@@ -828,6 +807,7 @@ export async function exportHtmlToPdf(
 		}
 		table {
 			width: 100%;
+			table-layout: fixed;
 			border-collapse: collapse;
 			margin-top: 8px;
 			font-size: 10.5px;
@@ -847,11 +827,15 @@ export async function exportHtmlToPdf(
 			text-transform: uppercase;
 			color: #000000;
 			text-align: left;
+			word-wrap: break-word;
+			overflow-wrap: break-word;
 		}
 		td {
 			border: 1px solid #d4d4d8;
 			padding: 6px 9px;
 			color: #18181b;
+			word-wrap: break-word;
+			overflow-wrap: break-word;
 		}
 		.footer {
 			margin-top: 24px;
@@ -928,6 +912,7 @@ export async function exportHtmlToPdf(
           }
           table {
             width: 100%;
+            table-layout: fixed;
             border-collapse: collapse;
             margin-top: 8px;
             font-size: 10.5px;
@@ -947,11 +932,15 @@ export async function exportHtmlToPdf(
             text-transform: uppercase;
             color: #000000;
             text-align: left;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
           }
           td {
             border: 1px solid #d4d4d8;
             padding: 6px 9px;
             color: #18181b;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
           }
           .footer {
             margin-top: 24px;
@@ -971,7 +960,7 @@ export async function exportHtmlToPdf(
     jsPDF: {
       unit: "mm" as const,
       format: "a4" as const,
-      orientation: "portrait" as const,
+      orientation: orientation as "landscape" | "portrait",
     },
     pagebreak: { mode: ["avoid-all", "css", "legacy"] },
   };
