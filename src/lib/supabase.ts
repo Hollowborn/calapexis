@@ -331,6 +331,19 @@ export function getCalapexisStore() {
 // --- DB-to-Frontend Converter Mappers ---
 
 function mapDbBuildingToBuilding(db: any): Building {
+  let parsedFootprint: [number, number][] | undefined = undefined;
+  if (db.footprint) {
+    if (typeof db.footprint === 'string') {
+      try {
+        parsedFootprint = JSON.parse(db.footprint);
+      } catch (e) {
+        console.error('Failed to parse building footprint JSON:', e);
+      }
+    } else if (Array.isArray(db.footprint)) {
+      parsedFootprint = db.footprint;
+    }
+  }
+
   return {
     id: db.id,
     name: db.name,
@@ -344,6 +357,8 @@ function mapDbBuildingToBuilding(db: any): Building {
     color: db.color || undefined,
     imageUrl: db.image_url || undefined,
     isActive: db.is_active ?? true,
+    footprint: parsedFootprint,
+    elevation: db.elevation !== undefined && db.elevation !== null ? Number(db.elevation) : 0,
   };
 }
 
@@ -1221,6 +1236,8 @@ export async function addLocalBuilding(
       color: building.color || null,
       image_url: building.imageUrl || null,
       is_active: building.isActive ?? true,
+      footprint: building.footprint || null,
+      elevation: building.elevation ?? 0,
     };
 
     const { data, error } = await client
@@ -1269,6 +1286,8 @@ export async function updateLocalBuilding(
       dbRow.image_url = updates.imageUrl || null;
     if (updates.isActive !== undefined)
       dbRow.is_active = updates.isActive;
+    if (updates.footprint !== undefined) dbRow.footprint = updates.footprint || null;
+    if (updates.elevation !== undefined) dbRow.elevation = updates.elevation ?? 0;
 
     const { data, error } = await client
       .from("buildings")

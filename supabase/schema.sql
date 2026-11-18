@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS public.buildings (
     y_coord NUMERIC,
     color TEXT,
     image_url TEXT,
+    footprint JSONB,
+    elevation NUMERIC DEFAULT 0,
     is_active BOOLEAN DEFAULT true NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -49,6 +51,8 @@ CREATE TABLE IF NOT EXISTS public.offices (
 
 -- Migration helpers for existing public.buildings, public.rooms, public.offices deployments
 ALTER TABLE public.buildings ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true NOT NULL;
+ALTER TABLE public.buildings ADD COLUMN IF NOT EXISTS footprint JSONB;
+ALTER TABLE public.buildings ADD COLUMN IF NOT EXISTS elevation NUMERIC DEFAULT 0;
 ALTER TABLE public.rooms ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true NOT NULL;
 ALTER TABLE public.offices ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true NOT NULL;
 

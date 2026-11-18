@@ -13,6 +13,8 @@ export interface Building {
 	lat?: number;
 	lng?: number;
 	isActive?: boolean;
+	footprint?: [number, number][];
+	elevation?: number;
 }
 
 export interface Room {
