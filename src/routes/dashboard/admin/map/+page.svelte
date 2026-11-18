@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, onMount } from "svelte";
+	import { onDestroy } from "svelte";
 	import { page } from "$app/state";
 	import { enhance } from "$app/forms";
 	import type { SubmitFunction } from "@sveltejs/kit";
@@ -307,7 +307,7 @@
 		toast.info("Cleared all outline points.");
 	}
 
-	// ── Enhance Save Action (matches Map Edges pattern) ───────────────────────
+	// ── Enhance Save Action ────────────────────────────────────────────────────
 	const handleSaveEnhance: SubmitFunction = () => {
 		isSaving = true;
 		let resolveSave: (v?: any) => void = () => {};
@@ -347,7 +347,6 @@
 </svelte:head>
 
 <div class="flex flex-1 flex-col min-h-0 overflow-hidden">
-
 	<!-- Studio Header Bar -->
 	<div class="shrink-0 px-6 py-3 border-b border-border/60 bg-muted/20 flex items-center justify-between gap-4">
 		<div class="flex items-center gap-3">
@@ -377,8 +376,7 @@
 
 	<!-- Main Split Workspace -->
 	<div class="flex flex-1 min-h-0 overflow-hidden">
-
-		<!-- ─── LEFT PANE: Leaflet Map Canvas ─── -->
+		<!-- LEFT PANE: Leaflet Map Canvas -->
 		<div class="relative flex-1 min-w-0 bg-muted/20 overflow-hidden">
 			<div bind:this={mapContainer} class="absolute inset-0"></div>
 
@@ -427,7 +425,7 @@
 				</Button>
 			</div>
 
-			<!-- Instruction Pill (Bottom Left) -->
+			<!-- Instruction Pill -->
 			<div class="absolute bottom-8 left-4 z-[500] pointer-events-none max-w-sm">
 				<div class="px-3.5 py-2 rounded-xl bg-card/90 backdrop-blur-md border border-border/80 text-xs text-muted-foreground font-medium shadow-md flex items-center gap-2">
 					<span class="size-2 rounded-full bg-primary animate-pulse shrink-0"></span>
@@ -442,20 +440,16 @@
 			</div>
 		</div>
 
-		<!-- ─── RIGHT PANE: Parameter Panel ─── -->
+		<!-- RIGHT PANE: Parameter Panel -->
 		<div class="w-[380px] shrink-0 border-l border-border/70 bg-card flex flex-col overflow-hidden">
-
-			<!-- Panel Header -->
 			<div class="shrink-0 px-5 pt-5 pb-3 border-b border-border/50">
 				<span class="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
 					Building Configuration
 				</span>
 			</div>
 
-			<!-- Scrollable Parameters Body -->
 			<div class="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-5 text-xs font-semibold">
-
-				<!-- 1. Building Selector -->
+				<!-- 1. Building Selector with Portal -->
 				<div class="flex flex-col gap-1.5">
 					<label for="select-building-trigger" class="text-[10px] font-extrabold text-muted-foreground uppercase tracking-wider">
 						Target Building
@@ -480,19 +474,21 @@
 								</span>
 							</span>
 						</Select.Trigger>
-						<Select.Content class="rounded-xl border border-border bg-card z-[600] max-h-72">
-							<Select.Group>
-								{#each buildings as b (b.id)}
-									<Select.Item value={b.id} label={`${b.name} (${b.code})`}>
-										<div class="flex items-center gap-2">
-											<span class="size-2.5 rounded-full shrink-0" style="background-color: {b.color || '#3b82f6'};"></span>
-											<span class="font-bold">{b.name}</span>
-											<span class="text-muted-foreground font-mono text-[10px]">({b.code})</span>
-										</div>
-									</Select.Item>
-								{/each}
-							</Select.Group>
-						</Select.Content>
+						<Select.Portal>
+							<Select.Content class="rounded-xl border border-border bg-card z-[2600] max-h-72 shadow-2xl">
+								<Select.Group>
+									{#each buildings as b (b.id)}
+										<Select.Item value={b.id} label={`${b.name} (${b.code})`}>
+											<div class="flex items-center gap-2">
+												<span class="size-2.5 rounded-full shrink-0" style="background-color: {b.color || '#3b82f6'};"></span>
+												<span class="font-bold">{b.name}</span>
+												<span class="text-muted-foreground font-mono text-[10px]">({b.code})</span>
+											</div>
+										</Select.Item>
+									{/each}
+								</Select.Group>
+							</Select.Content>
+						</Select.Portal>
 					</Select.Root>
 				</div>
 
@@ -558,7 +554,7 @@
 					{/if}
 				</div>
 
-				<!-- 3. Floors & Height (max 4 floors) -->
+				<!-- 3. Floors & Height -->
 				<div class="p-4 rounded-2xl bg-muted/20 border border-border/70 flex flex-col gap-3">
 					<div class="flex items-center justify-between">
 						<span class="text-[10px] font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
@@ -667,39 +663,51 @@
 				</div>
 			</div>
 
-			<!-- Sticky Bottom Action Bar -->
+			<!-- Sticky Bottom Action Bar with use:enhance Form -->
 			<div class="shrink-0 p-4 border-t border-border/70 bg-card flex items-center justify-between gap-3">
 				<a
 					href="/dashboard/admin/buildings"
 					class="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground border border-border hover:border-border/80 hover:bg-muted/50 transition-all px-4 h-10 rounded-xl"
 				>
 					<ArrowLeftIcon class="size-3.5 pointer-events-none" />
-					<span>Back to Buildings</span>
+					<span>Back</span>
 				</a>
-			<form method="POST" action="?/saveBuildingFootprint" use:enhance={handleSaveEnhance} class="contents">
-				<input type="hidden" name="id" value={activeBuilding?.id || ""} />
-				<input type="hidden" name="footprint" value={currentFootprint.length >= 3 ? JSON.stringify(currentFootprint) : ""} />
-				<input type="hidden" name="floors" value={String(Math.min(4, Math.max(1, currentFloors)))} />
-				<input type="hidden" name="elevation" value={String(Number(currentElevation) || 0)} />
-				<input type="hidden" name="color" value={currentColor} />
-				<input type="hidden" name="xCoord" value={String(currentFootprint.length >= 3 ? calculatePolygonCentroid(currentFootprint)[0] : (activeBuilding?.xCoord ?? 9.894414))} />
-				<input type="hidden" name="yCoord" value={String(currentFootprint.length >= 3 ? calculatePolygonCentroid(currentFootprint)[1] : (activeBuilding?.yCoord ?? 123.88258))} />
 
-				<Button
-					type="submit"
-					disabled={isSaving || !activeBuilding}
-					class="text-xs font-black rounded-xl h-10 px-5 gap-2 cursor-pointer shadow-md shadow-primary/20 flex-1"
-				>
-					{#if isSaving}
-						<span class="size-3.5 rounded-full border-2 border-white border-t-transparent animate-spin shrink-0"></span>
-						<span>Saving...</span>
-					{:else}
-						<SaveIcon class="size-4 pointer-events-none" />
-						<span>Save Changes</span>
-					{/if}
-				</Button>
-			</form>
+				<form method="POST" action="?/saveBuildingFootprint" use:enhance={handleSaveEnhance} class="flex flex-1 contents">
+					<input type="hidden" name="id" value={activeBuilding?.id || ""} />
+					<input type="hidden" name="footprint" value={currentFootprint.length >= 3 ? JSON.stringify(currentFootprint) : ""} />
+					<input type="hidden" name="floors" value={String(Math.min(4, Math.max(1, currentFloors)))} />
+					<input type="hidden" name="elevation" value={String(Number(currentElevation) || 0)} />
+					<input type="hidden" name="color" value={currentColor} />
+					<input type="hidden" name="xCoord" value={String(currentFootprint.length >= 3 ? calculatePolygonCentroid(currentFootprint)[0] : (activeBuilding?.xCoord ?? 9.894414))} />
+					<input type="hidden" name="yCoord" value={String(currentFootprint.length >= 3 ? calculatePolygonCentroid(currentFootprint)[1] : (activeBuilding?.yCoord ?? 123.88258))} />
+
+					<Button
+						type="submit"
+						disabled={isSaving || !activeBuilding}
+						class="text-xs font-black rounded-xl h-10 px-5 gap-2 cursor-pointer shadow-md shadow-primary/20 w-full"
+					>
+						{#if isSaving}
+							<span class="size-3.5 rounded-full border-2 border-white border-t-transparent animate-spin shrink-0"></span>
+							<span>Saving...</span>
+						{:else}
+							<SaveIcon class="size-4 pointer-events-none" />
+							<span>Save Changes</span>
+						{/if}
+					</Button>
+				</form>
 			</div>
 		</div>
 	</div>
 </div>
+
+<style>
+	:global(.custom-building-pin) {
+		background: transparent !important;
+		border: none !important;
+	}
+	:global(.waypoint-pin) {
+		background: transparent !important;
+		border: none !important;
+	}
+</style>
