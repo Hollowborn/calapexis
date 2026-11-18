@@ -104,7 +104,8 @@
 		"/dashboard/admin/users": "System User Accounts",
 		"/dashboard/admin/offices": "Check-In Offices & Desks",
 		"/dashboard/admin/buildings": "Buildings & Rooms Layout",
-		"/dashboard/admin/edges": "Map Edges & Paths Layout"
+		"/dashboard/admin/edges": "Map Edges & Paths Layout",
+		"/dashboard/admin/map": "Campus Map Studio"
 	};
 
 	let pageLabel = $derived(routeLabels[$page.url.pathname] || "Overview");

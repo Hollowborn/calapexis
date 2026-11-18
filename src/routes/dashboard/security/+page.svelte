@@ -38,6 +38,7 @@
 	import PlusIcon from "@lucide/svelte/icons/plus";
 	import MinusIcon from "@lucide/svelte/icons/minus";
 	import LayersIcon from "@lucide/svelte/icons/layers";
+	import { BuildingExtrusionManager, calculatePolygonCentroid } from "$lib/components/map/building-extrusion";
 
 	let { data } = $props();
 
@@ -62,6 +63,7 @@
 	let osmLayerInstance: any = null;
 	let satelliteLayerInstance: any = null;
 	let campusOverlayInstance: any = null;
+	let buildingExtrusionManager: BuildingExtrusionManager | null = null;
 
 	// Rejection Dialog state
 	let isRejecting = $state(false);
@@ -263,6 +265,12 @@
 
 		leafMap = map;
 
+		buildingExtrusionManager = new BuildingExtrusionManager(map, L, {
+			interactive: false,
+			showLabels: true
+		});
+		buildingExtrusionManager.renderBuildings(buildingsList);
+
 		plotVisitorNodesOnMap();
 		plotOfficeNodesOnMap();
 
@@ -288,6 +296,7 @@
 				.subscribe();
 
 			onDestroy(() => {
+		if (buildingExtrusionManager) buildingExtrusionManager.destroy();
 				dbClient.removeChannel(channel);
 				if (typeof window !== 'undefined') {
 					delete (window as any).handleSecurityMapCheckout;
@@ -381,8 +390,13 @@
 			const b = buildingsList.find((b: any) => b.id === office.buildingId);
 			if (!b || b.isActive === false) return;
 
-			const baseLat = b.lat || b.xCoord || 9.894414;
-			const baseLng = b.lng || b.yCoord || 123.88258;
+			let baseLat = b.lat || b.xCoord || 9.894414;
+			let baseLng = b.lng || b.yCoord || 123.88258;
+			if (b.footprint && b.footprint.length >= 3) {
+				const centroid = calculatePolygonCentroid(b.footprint);
+				baseLat = centroid[0];
+				baseLng = centroid[1];
+			}
 			const color = b.color || '#3b82f6';
 
 			const totalInBuilding = buildingOfficeCounts[office.buildingId] || 1;

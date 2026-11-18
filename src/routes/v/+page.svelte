@@ -31,6 +31,7 @@
 	import BrandLogo from "$lib/components/brand-logo.svelte";
 	import { AnimatedThemeToggler } from "$lib/components/magic/animated-theme-toggler";
 	import LazyImage from "$lib/components/LazyImage.svelte";
+	import { BuildingExtrusionManager, calculatePolygonCentroid } from "$lib/components/map/building-extrusion";
 
 	// Lucide Icons
 	import SearchIcon from "@lucide/svelte/icons/search";
@@ -127,6 +128,8 @@
 	// Layer Control & Map state
 	let activeTileLayer = $state<"osm" | "esri">("osm");
 	let showCampusOverlay = $state(true);
+	let showVectorBuildings = $state(true);
+	let buildingExtrusionManager: BuildingExtrusionManager | null = null;
 	let isLayersPopoverOpen = $state(false);
 
 	// Floating Search & Filter state
@@ -821,6 +824,18 @@
 
 		leafMap = map;
 
+		buildingExtrusionManager = new BuildingExtrusionManager(map, L, {
+			interactive: true,
+			showLabels: true,
+			onBuildingClick: (b) => {
+				selectedBuildingForModal = b;
+				isBuildingImageLoading = true;
+				isBuildingModalOpen = true;
+				const coords = getBuildingLatLng(b);
+				leafMap.setView(coords, 20, { animate: true });
+			}
+		});
+
 		// 4. Plot Interactive Building Nodes on Map
 		plotBuildingNodesOnMap();
 
@@ -891,6 +906,7 @@
 	});
 
 	onDestroy(() => {
+		if (buildingExtrusionManager) buildingExtrusionManager.destroy();
 		if (autoCheckoutTimer) {
 			clearTimeout(autoCheckoutTimer);
 			autoCheckoutTimer = null;
@@ -1017,10 +1033,19 @@
 		if (!leafMap || !leafletInstance) return;
 		const L = leafletInstance;
 
+		if (showVectorBuildings && buildingExtrusionManager) {
+			buildingExtrusionManager.renderBuildings(buildingsList);
+		} else if (buildingExtrusionManager) {
+			buildingExtrusionManager.clear();
+		}
+
 		buildingMarkers.forEach((m) => leafMap.removeLayer(m));
 		buildingMarkers = [];
 
 		buildingsList.forEach((b: any) => {
+			if (showVectorBuildings && b.footprint && b.footprint.length >= 3) {
+				return; // Rendered via 2.5D Vector Extrusion
+			}
 			const coords = getBuildingLatLng(b);
 			const color = b.color || "#3b82f6";
 
@@ -2816,6 +2841,15 @@
 						</div>
 
 						<Separator class="my-0.5" />
+
+						<!-- 2.5D Vector Buildings Switch -->
+						<div class="flex items-center justify-between">
+							<div class="flex flex-col">
+								<span class="text-xs font-bold text-foreground">2.5D Vector Buildings</span>
+								<span class="text-[10px] text-muted-foreground">Dynamic vector structures</span>
+							</div>
+							<Switch bind:checked={showVectorBuildings} onCheckedChange={() => plotBuildingNodesOnMap()} />
+						</div>
 
 						<!-- 3D Campus Overlay Switch -->
 						<div class="flex items-center justify-between">

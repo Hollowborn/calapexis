@@ -40,12 +40,19 @@ export const actions: Actions = {
 		const name = (data.get("name") as string || "").trim();
 		const code = (data.get("code") as string || "").trim().toUpperCase();
 		const floorsVal = data.get("floors");
-		const floors = floorsVal ? Number(floorsVal) : 1;
+		const floors = floorsVal ? Math.min(4, Math.max(1, Number(floorsVal))) : 1;
 		const description = (data.get("description") as string || "").trim();
 		const headPerson = (data.get("headPerson") as string || "").trim();
 		const contactEmail = (data.get("contactEmail") as string || "").trim();
 		const color = (data.get("color") as string || "").trim();
 		const imageUrl = (data.get("imageUrl") as string || "").trim();
+		const elevationVal = data.get("elevation");
+		const elevation = elevationVal ? Number(elevationVal) : 0;
+		const footprintRaw = data.get("footprint") as string;
+		let footprint: [number, number][] | undefined = undefined;
+		if (footprintRaw) {
+			try { footprint = JSON.parse(footprintRaw); } catch (e) {}
+		}
 
 		const xCoordVal = data.get("xCoord");
 		const yCoordVal = data.get("yCoord");
@@ -82,7 +89,9 @@ export const actions: Actions = {
 				xCoord,
 				yCoord,
 				color: color || undefined,
-				imageUrl: finalImageUrl || undefined
+				imageUrl: finalImageUrl || undefined,
+				footprint,
+				elevation
 			}, locals.supabase);
 			return { success: true };
 		} catch (error: any) {
@@ -96,12 +105,19 @@ export const actions: Actions = {
 		const name = (data.get("name") as string || "").trim();
 		const code = (data.get("code") as string || "").trim().toUpperCase();
 		const floorsVal = data.get("floors");
-		const floors = floorsVal ? Number(floorsVal) : 1;
+		const floors = floorsVal ? Math.min(4, Math.max(1, Number(floorsVal))) : 1;
 		const description = (data.get("description") as string || "").trim();
 		const headPerson = (data.get("headPerson") as string || "").trim();
 		const contactEmail = (data.get("contactEmail") as string || "").trim();
 		const color = (data.get("color") as string || "").trim();
 		const imageUrl = (data.get("imageUrl") as string || "").trim();
+		const elevationVal = data.get("elevation");
+		const elevation = elevationVal !== null && elevationVal !== undefined ? Number(elevationVal) : undefined;
+		const footprintRaw = data.get("footprint") as string;
+		let footprint: [number, number][] | undefined = undefined;
+		if (footprintRaw) {
+			try { footprint = JSON.parse(footprintRaw); } catch (e) {}
+		}
 
 		const xCoordVal = data.get("xCoord");
 		const yCoordVal = data.get("yCoord");
@@ -142,11 +158,57 @@ export const actions: Actions = {
 				xCoord,
 				yCoord,
 				color: color || undefined,
-				imageUrl: finalImageUrl || undefined
+				imageUrl: finalImageUrl || undefined,
+				footprint,
+				elevation
 			}, locals.supabase);
 			return { success: true };
 		} catch (error: any) {
 			return fail(500, { message: error.message || "Failed to update building." });
+		}
+	},
+
+	saveBuildingFootprint: async ({ request, locals }) => {
+		const data = await request.formData();
+		const id = data.get("id") as string;
+		const footprintRaw = data.get("footprint") as string;
+		const elevationVal = data.get("elevation");
+		const elevation = elevationVal !== null && elevationVal !== undefined ? Number(elevationVal) : 0;
+		const color = (data.get("color") as string || "").trim();
+		const floorsVal = data.get("floors");
+		const floors = floorsVal ? Math.min(4, Math.max(1, Number(floorsVal))) : undefined;
+		const xCoordVal = data.get("xCoord");
+		const yCoordVal = data.get("yCoord");
+		const xCoord = xCoordVal ? Number(xCoordVal) : undefined;
+		const yCoord = yCoordVal ? Number(yCoordVal) : undefined;
+
+		if (!id) {
+			return fail(400, { message: "Building ID is required." });
+		}
+
+		let parsedFootprint: [number, number][] | undefined = undefined;
+		if (footprintRaw) {
+			try {
+				parsedFootprint = JSON.parse(footprintRaw);
+			} catch (e) {
+				return fail(400, { message: "Invalid footprint JSON data." });
+			}
+		}
+
+		const updates: any = {
+			footprint: parsedFootprint || null,
+			elevation
+		};
+		if (color) updates.color = color;
+		if (floors !== undefined && floors > 0) updates.floors = floors;
+		if (xCoord !== undefined) updates.xCoord = xCoord;
+		if (yCoord !== undefined) updates.yCoord = yCoord;
+
+		try {
+			await updateLocalBuilding(id, updates, locals.supabase);
+			return { success: true };
+		} catch (error: any) {
+			return fail(500, { message: error.message || "Failed to update building footprint." });
 		}
 	},
 

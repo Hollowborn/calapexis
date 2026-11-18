@@ -28,6 +28,7 @@
 	import MapPinIcon from "@lucide/svelte/icons/map-pin";
 	import AlertTriangleIcon from "@lucide/svelte/icons/alert-triangle";
 	import SearchIcon from "@lucide/svelte/icons/search";
+	import BoxIcon from "@lucide/svelte/icons/box";
 
 	import { supabase, isSupabaseConfigured } from '$lib/supabase';
 
@@ -413,10 +414,19 @@
 		</div>
 		
 		
+			<div class="flex items-center gap-2">
+			<a
+				href="/dashboard/admin/map"
+				class="inline-flex items-center gap-1.5 text-xs font-extrabold rounded-xl h-10 border border-primary/30 text-primary hover:bg-primary/10 cursor-pointer shadow-xs px-4 transition-colors"
+			>
+				<BoxIcon class="size-4 pointer-events-none" />
+				<span>2.5D Vector Map Studio</span>
+			</a>
 			<Button onclick={() => (isCreatingBuilding = true)} class="text-xs font-extrabold gap-1.5 rounded-xl h-10 shadow-md shadow-primary/10 cursor-pointer">
 				<PlusIcon class="size-4 pointer-events-none" />
 				<span>Add Building / Landmark</span>
 			</Button>
+		</div>
 	
 
 	</div>
@@ -556,15 +566,24 @@
 					</Card.Content>
 
 					<!-- Footer Actions Grid -->
-					<Card.Footer class="p-3 border-t {(building.isActive ?? true) ? 'border-border/50' : 'border-amber-500/20'} grid grid-cols-3 gap-2">
-						<Button onclick={() => (activeManageRoomsBuilding = building)} variant="outline" size="sm" class="text-xs font-bold gap-1.5 rounded-xl h-8 cursor-pointer border-border hover:bg-muted/50">
-							<SchoolIcon class="size-3.5 pointer-events-none" />
-							<span>Classrooms</span>
+					<Card.Footer class="p-3 border-t {(building.isActive ?? true) ? 'border-border/50' : 'border-amber-500/20'} grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+						<Button onclick={() => (activeManageRoomsBuilding = building)} variant="outline" size="sm" class="text-[11px] font-bold gap-1 rounded-xl h-8 cursor-pointer border-border hover:bg-muted/50 px-2" title="Classrooms & Laboratories">
+							<SchoolIcon class="size-3.5 pointer-events-none shrink-0" />
+							<span class="truncate">Rooms</span>
 						</Button>
 
-						<Button onclick={() => startEditBuilding(building)} variant="outline" size="sm" class="text-xs font-bold gap-1.5 rounded-xl h-8 cursor-pointer border-border hover:bg-muted/50">
-							<PencilIcon class="size-3.5 pointer-events-none" />
-							<span>Edit</span>
+						<a
+							href="/dashboard/admin/map?building={building.id}"
+							class="inline-flex items-center gap-1 text-[11px] font-bold rounded-xl h-8 border border-primary/30 text-primary hover:bg-primary/10 px-2 transition-colors"
+							title="Edit 2.5D Vector Footprint & Height"
+						>
+							<BoxIcon class="size-3.5 pointer-events-none shrink-0" />
+							<span class="truncate">3D Vector</span>
+						</a>
+
+						<Button onclick={() => startEditBuilding(building)} variant="outline" size="sm" class="text-[11px] font-bold gap-1 rounded-xl h-8 cursor-pointer border-border hover:bg-muted/50 px-2">
+							<PencilIcon class="size-3.5 pointer-events-none shrink-0" />
+							<span class="truncate">Edit</span>
 						</Button>
 
 						{#if (building.isActive ?? true)}
@@ -638,7 +657,7 @@
 					<div class="grid grid-cols-2 gap-2">
 						<div class="flex flex-col gap-1.5">
 							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Total Floors *</label>
-							<Input name="floors" type="number" min="1" placeholder="e.g. 4" required class="h-9 rounded-lg text-xs" />
+							<Input name="floors" type="number" min="1" max="4" placeholder="e.g. 4 (Max 4)" required class="h-9 rounded-lg text-xs" />
 						</div>
 					</div>
 					
@@ -687,7 +706,24 @@
 				
 				<!-- Section 3: Map Coordinates -->
 				<div class="space-y-3">
-					<div class="text-[10px] font-black uppercase tracking-wider text-primary border-b border-border/60 pb-1">3. Map Coordinates & Pin (Optional)</div>
+					<div class="flex items-center justify-between border-b border-border/60 pb-1">
+						<div class="text-[10px] font-black uppercase tracking-wider text-primary">3. Map Coordinates & 2.5D Footprint</div>
+						<Button 
+							type="button" 
+							variant="outline" 
+							size="sm" 
+							onclick={() => { 
+								if (activeEditingBuilding) { 
+									studioSelectedBuildingId = activeEditingBuilding.id; 
+									isVectorStudioOpen = true; 
+								} 
+							}} 
+							class="text-[10px] font-bold h-6 px-2 rounded-lg gap-1 border-primary/30 text-primary hover:bg-primary/10 cursor-pointer"
+						>
+							<BoxIcon class="size-3 pointer-events-none" />
+							<span>Vector Studio</span>
+						</Button>
+					</div>
 					<div class="grid grid-cols-3 gap-2">
 						<div class="flex flex-col gap-1.5">
 							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide font-sans">Pin Color</label>
@@ -822,7 +858,7 @@
 					<div class="grid grid-cols-2 gap-2">
 						<div class="flex flex-col gap-1.5">
 							<label class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide">Total Floors *</label>
-							<Input name="floors" type="number" min="1" placeholder="e.g. 4" required bind:value={editFloors} class="h-9 rounded-lg text-xs" />
+							<Input name="floors" type="number" min="1" max="4" placeholder="e.g. 4 (Max 4)" required bind:value={editFloors} class="h-9 rounded-lg text-xs" />
 						</div>
 					</div>
 					
@@ -1377,3 +1413,5 @@
 		</form>
 	</Dialog.Content>
 </Dialog.Root>
+
+

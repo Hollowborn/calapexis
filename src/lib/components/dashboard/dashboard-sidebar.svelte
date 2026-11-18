@@ -9,6 +9,7 @@
 	import Building2Icon from "@lucide/svelte/icons/building-2";
 	import LayersIcon from "@lucide/svelte/icons/layers";
 	import RouteIcon from "@lucide/svelte/icons/route";
+	import Map3dIcon from "@lucide/svelte/icons/map";
 	import ExternalLinkIcon from "@lucide/svelte/icons/external-link";
 
 	import NavUser from "./nav-user.svelte";
@@ -95,6 +96,13 @@
 			title: "Map Edges & Paths",
 			url: "/dashboard/admin/edges",
 			icon: RouteIcon,
+			roles: ["admin"],
+		},
+		{
+			id: "campus-map-studio",
+			title: "Campus Map Studio",
+			url: "/dashboard/admin/map",
+			icon: Map3dIcon,
 			roles: ["admin"],
 		},
 	];
