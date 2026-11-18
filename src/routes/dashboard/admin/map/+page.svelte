@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { onDestroy } from "svelte";
+	import { onDestroy, onMount } from "svelte";
 	import { page } from "$app/state";
-	import { beforeNavigate } from "$app/navigation";
+	import { enhance } from "$app/forms";
+	import type { SubmitFunction } from "@sveltejs/kit";
 	import * as Select from "$lib/components/ui/select/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
 	import { Input } from "$lib/components/ui/input/index.js";
@@ -32,25 +33,18 @@
 	let { data } = $props();
 	let buildings: Building[] = $derived(data.buildings || []);
 
-	// ── Reactive UI state (read by the template) ───────────────────────────────
-	let selectedBuildingId = $state<string | null>(null);
+	// ── Reactive UI state ──────────────────────────────────────────────────────
+	let selectedBuildingId = $state<string>(buildings[0]?.id || "");
 	let currentFootprint = $state<[number, number][]>([]);
 	let currentFloors = $state(1);
 	let currentElevation = $state(0);
 	let currentColor = $state("#3b82f6");
 	let currentBaseLayer = $state<"satellite" | "osm">("satellite");
 	let isSaving = $state(false);
-
-	// Single boolean flag Svelte can track safely.
-	// The actual Leaflet instances below are plain `let` — NOT $state.
-	// Wrapping complex Leaflet objects in $state causes Svelte 5 to proxy
-	// every internal mutation, which re-fires the building-sync $effect and
-	// resets currentColor / currentFootprint / currentFloors back to the
-	// database values on every map render frame.
 	let isMapReady = $state(false);
 
-	// ── Leaflet instances — plain let, NOT $state ──────────────────────────────
-	let mapContainer = $state<HTMLDivElement | null>(null); // OK as $state for bind:this only
+	// ── Leaflet instances ──────────────────────────────────────────────────────
+	let mapContainer = $state<HTMLDivElement | null>(null);
 	let leafMap: any = null;
 	let L: any = null;
 	let extrusionManager: BuildingExtrusionManager | null = null;
@@ -76,21 +70,21 @@
 		{ label: "Slate Gray", value: "#64748b" },
 	];
 
-	// ── Auto-select from URL query param (runs once) ───────────────────────────
+	// ── Auto-select from URL query param ───────────────────────────────────────
 	let didAutoSelect = $state(false);
 	$effect(() => {
 		if (!didAutoSelect && buildings.length > 0) {
 			const urlId = page.url.searchParams.get("building");
-			selectedBuildingId =
-				urlId && buildings.find((b) => b.id === urlId) ? urlId : buildings[0].id;
+			if (urlId && buildings.find((b) => b.id === urlId)) {
+				selectedBuildingId = urlId;
+			} else if (buildings[0]) {
+				selectedBuildingId = buildings[0].id;
+			}
 			didAutoSelect = true;
 		}
 	});
 
 	// ── Sync editing fields when active building changes ───────────────────────
-	// CRITICAL: Only tracks `activeBuilding` and `isMapReady` — both are simple
-	// $state/$derived values. Leaflet objects are NOT tracked here, so internal
-	// Leaflet mutations never trigger this effect.
 	$effect(() => {
 		if (!activeBuilding) return;
 
@@ -101,32 +95,24 @@
 		currentElevation = activeBuilding.elevation ?? 0;
 		currentColor = activeBuilding.color || "#3b82f6";
 
-		// Map may not be ready yet on first render; will be called again once ready.
 		if (isMapReady) {
 			updateMapDisplay();
 			panToActiveBuilding();
 		}
 	});
 
-	// ── Init Leaflet when the map container mounts ─────────────────────────────
+	// ── Init Leaflet ───────────────────────────────────────────────────────────
 	$effect(() => {
 		if (mapContainer && !isMapReady) {
 			initMap();
 		}
 	});
 
-	// ── Cleanup before SvelteKit client-side navigation ───────────────────────
-	// This runs BEFORE the page component is destroyed, preventing navigation
-	// hangs caused by Leaflet's ongoing tile requests and event listeners.
-	beforeNavigate(() => {
-		cleanupMap();
-	});
-
 	function cleanupMap() {
-		vertexMarkers.forEach((m) => { try { leafMap?.removeLayer(m); } catch { /* noop */ } });
+		vertexMarkers.forEach((m) => { try { leafMap?.removeLayer(m); } catch {} });
 		vertexMarkers = [];
 		if (centroidMarker) {
-			try { leafMap?.removeLayer(centroidMarker); } catch { /* noop */ }
+			try { leafMap?.removeLayer(centroidMarker); } catch {}
 			centroidMarker = null;
 		}
 		if (extrusionManager) {
@@ -142,7 +128,6 @@
 
 	onDestroy(cleanupMap);
 
-	// ── Map initialization ─────────────────────────────────────────────────────
 	async function initMap() {
 		if (!mapContainer) return;
 
@@ -181,14 +166,11 @@
 
 		satelliteLayer.addTo(leafMap);
 
-		// selectedBuildingId: null — no amber highlight in studio mode.
-		// Vertex handles and the centroid pin serve as the selection indicator.
 		extrusionManager = new BuildingExtrusionManager(leafMap, L, {
 			interactive: false,
 			selectedBuildingId: null,
 		});
 
-		// Add footprint vertices on map click
 		leafMap.on("click", (e: any) => {
 			if (!activeBuilding) return;
 			currentFootprint = [...currentFootprint, [e.latlng.lat, e.latlng.lng] as [number, number]];
@@ -197,11 +179,10 @@
 
 		setTimeout(() => {
 			if (leafMap) leafMap.invalidateSize();
-			isMapReady = true; // Triggers the sync $effect to call updateMapDisplay
+			isMapReady = true;
 		}, 150);
 	}
 
-	// ── Layer toggle ───────────────────────────────────────────────────────────
 	function switchBaseLayer(layer: "satellite" | "osm") {
 		if (!leafMap || currentBaseLayer === layer) return;
 		currentBaseLayer = layer;
@@ -229,11 +210,9 @@
 		leafMap.setView(target, 19, { animate: true });
 	}
 
-	// ── Map rendering ──────────────────────────────────────────────────────────
 	function updateMapDisplay() {
 		if (!leafMap || !L || !extrusionManager) return;
 
-		// Live preview: active building uses current unsaved edits
 		const previewBuildings: Building[] = buildings.map((b) =>
 			b.id === activeBuilding?.id
 				? {
@@ -246,19 +225,16 @@
 				: b
 		);
 
-		// Never highlight in studio mode — the vertex handles serve that role
 		extrusionManager.updateOptions({ selectedBuildingId: null });
 		extrusionManager.renderBuildings(previewBuildings);
 
-		// Remove stale vertex markers
-		vertexMarkers.forEach((m) => { try { leafMap.removeLayer(m); } catch { /* noop */ } });
+		vertexMarkers.forEach((m) => { try { leafMap.removeLayer(m); } catch {} });
 		vertexMarkers = [];
 		if (centroidMarker) {
-			try { leafMap.removeLayer(centroidMarker); } catch { /* noop */ }
+			try { leafMap.removeLayer(centroidMarker); } catch {}
 			centroidMarker = null;
 		}
 
-		// Render draggable numbered vertex handles
 		currentFootprint.forEach(([lat, lng], idx) => {
 			const marker = L.marker([lat, lng], {
 				draggable: true,
@@ -288,7 +264,6 @@
 			vertexMarkers.push(marker);
 		});
 
-		// Centroid pin label (only when shape is complete)
 		if (currentFootprint.length >= 3) {
 			const centroid = calculatePolygonCentroid(currentFootprint);
 			centroidMarker = L.marker(centroid, {
@@ -304,7 +279,6 @@
 		}
 	}
 
-	// ── Footprint utilities ────────────────────────────────────────────────────
 	function generateDefaultBoxFootprint() {
 		if (!activeBuilding) return;
 		const centerLat = activeBuilding.xCoord ?? 9.894414;
@@ -333,49 +307,34 @@
 		toast.info("Cleared all outline points.");
 	}
 
-	// ── Save ───────────────────────────────────────────────────────────────────
-	async function handleSave() {
-		if (!activeBuilding) return;
+	// ── Enhance Save Action (matches Map Edges pattern) ───────────────────────
+	const handleSaveEnhance: SubmitFunction = () => {
 		isSaving = true;
+		let resolveSave: (v?: any) => void = () => {};
+		let rejectSave: (e: any) => void = () => {};
+		const savePromise = new Promise((resolve, reject) => {
+			resolveSave = resolve;
+			rejectSave = reject;
+		});
 
-		const centroid =
-			currentFootprint.length >= 3
-				? calculatePolygonCentroid(currentFootprint)
-				: [activeBuilding.xCoord ?? 9.894414, activeBuilding.yCoord ?? 123.88258];
+		toast.promise(savePromise, {
+			loading: `Saving map outline for ${activeBuilding?.name || "building"}...`,
+			success: `Saved map outline for ${activeBuilding?.name || "building"} successfully!`,
+			error: (err: any) => err.message || "Failed to save building outline."
+		});
 
-		const formData = new FormData();
-		formData.set("id", activeBuilding.id);
-		formData.set("footprint", currentFootprint.length >= 3 ? JSON.stringify(currentFootprint) : "");
-		formData.set("floors", String(Math.min(4, Math.max(1, currentFloors))));
-		formData.set("elevation", String(Number(currentElevation) || 0));
-		formData.set("color", currentColor);
-		formData.set("xCoord", String(centroid[0]));
-		formData.set("yCoord", String(centroid[1]));
-
-		try {
-			const res = await fetch("?/saveBuildingFootprint", {
-				method: "POST",
-				body: formData,
-			});
-
-			if (res.ok) {
-				toast.success(`Saved map outline for ${activeBuilding.name}`);
-			} else {
-				let errMsg = "Failed to save building outline.";
-				try {
-					const err = await res.json();
-					// SvelteKit wraps fail() data under .data
-					errMsg = err?.data?.message || err?.message || errMsg;
-				} catch { /* response may not be JSON */ }
-				toast.error(errMsg);
-			}
-		} catch (e: unknown) {
-			console.error("Save building geometry error:", e);
-			toast.error("Network error — could not save building outline.");
-		} finally {
+		return async ({ result, update }: { result: any; update: any }) => {
 			isSaving = false;
-		}
-	}
+			if (result.type === "success") {
+				resolveSave();
+				await update();
+			} else if (result.type === "failure") {
+				rejectSave(new Error((result.data as any)?.message || "Failed to save building outline."));
+			} else {
+				rejectSave(new Error("Unexpected error occurred."));
+			}
+		};
+	};
 </script>
 
 <svelte:head>
@@ -717,10 +676,17 @@
 					<ArrowLeftIcon class="size-3.5 pointer-events-none" />
 					<span>Back to Buildings</span>
 				</a>
+			<form method="POST" action="?/saveBuildingFootprint" use:enhance={handleSaveEnhance} class="contents">
+				<input type="hidden" name="id" value={activeBuilding?.id || ""} />
+				<input type="hidden" name="footprint" value={currentFootprint.length >= 3 ? JSON.stringify(currentFootprint) : ""} />
+				<input type="hidden" name="floors" value={String(Math.min(4, Math.max(1, currentFloors)))} />
+				<input type="hidden" name="elevation" value={String(Number(currentElevation) || 0)} />
+				<input type="hidden" name="color" value={currentColor} />
+				<input type="hidden" name="xCoord" value={String(currentFootprint.length >= 3 ? calculatePolygonCentroid(currentFootprint)[0] : (activeBuilding?.xCoord ?? 9.894414))} />
+				<input type="hidden" name="yCoord" value={String(currentFootprint.length >= 3 ? calculatePolygonCentroid(currentFootprint)[1] : (activeBuilding?.yCoord ?? 123.88258))} />
 
 				<Button
-					type="button"
-					onclick={handleSave}
+					type="submit"
 					disabled={isSaving || !activeBuilding}
 					class="text-xs font-black rounded-xl h-10 px-5 gap-2 cursor-pointer shadow-md shadow-primary/20 flex-1"
 				>
@@ -732,6 +698,7 @@
 						<span>Save Changes</span>
 					{/if}
 				</Button>
+			</form>
 			</div>
 		</div>
 	</div>
