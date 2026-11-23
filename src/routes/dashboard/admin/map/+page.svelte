@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy } from "svelte";
+	import { onDestroy, untrack } from "svelte";
 	import { page } from "$app/state";
 	import { enhance } from "$app/forms";
 	import type { SubmitFunction } from "@sveltejs/kit";
@@ -69,6 +69,11 @@
 		{ label: "Rose Pink", value: "#ec4899" },
 		{ label: "Slate Gray", value: "#64748b" },
 	];
+	const campusBoundsCoords = [
+		[9.893421456778755, 123.8815211010603],
+		[9.895647770829878, 123.88369296680753]
+	];
+
 
 	// ── Auto-select from URL query param ───────────────────────────────────────
 	let didAutoSelect = $state(false);
@@ -96,8 +101,10 @@
 		currentColor = activeBuilding.color || "#3b82f6";
 
 		if (isMapReady) {
-			updateMapDisplay();
-			panToActiveBuilding();
+			untrack(() => {
+				updateMapDisplay();
+				panToActiveBuilding();
+			});
 		}
 	});
 
@@ -143,13 +150,14 @@
 		}
 
 		L = leafletModule;
-
+		const bounds = L.latLngBounds(campusBoundsCoords[0], campusBoundsCoords[1]);
 		leafMap = L.map(mapContainer, {
 			center: [9.894414, 123.88258] as [number, number],
 			zoom: 18.5,
 			minZoom: 16,
 			maxZoom: 22,
 			zoomControl: false,
+			maxBounds: bounds,
 		});
 
 		L.control.zoom({ position: "bottomright" }).addTo(leafMap);
@@ -308,7 +316,18 @@
 	}
 
 	// ── Enhance Save Action ────────────────────────────────────────────────────
-	const handleSaveEnhance: SubmitFunction = () => {
+	const handleSaveEnhance: SubmitFunction = ({ cancel }) => {
+		if (!activeBuilding) {
+			toast.error("No building selected to save.");
+			cancel();
+			return;
+		}
+		if (currentFootprint.length < 3) {
+			toast.error("At least 3 outline points are required to save.");
+			cancel();
+			return;
+		}
+
 		isSaving = true;
 		let resolveSave: (v?: any) => void = () => {};
 		let rejectSave: (e: any) => void = () => {};
@@ -377,7 +396,7 @@
 	<!-- Main Split Workspace -->
 	<div class="flex flex-1 min-h-0 overflow-hidden">
 		<!-- LEFT PANE: Leaflet Map Canvas -->
-		<div class="relative flex-1 min-w-0 bg-muted/20 overflow-hidden">
+		<div class="relative isolate flex-1 min-w-0 bg-muted/20 overflow-hidden">
 			<div bind:this={mapContainer} class="absolute inset-0"></div>
 
 			<!-- Floating Toolbar -->
