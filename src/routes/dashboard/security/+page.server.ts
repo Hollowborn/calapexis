@@ -4,7 +4,9 @@ import {
 	getDbClient,
 	isSupabaseConfigured,
 	supabase,
-	mapDbVisitorToVisitor
+	mapDbVisitorToVisitor,
+	getLocalBuildings,
+	getLocalRestrictedAreas,
 } from "$lib/supabase";
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -18,6 +20,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	let visitors: any[] = [];
 	let offices: any[] = [];
 	let buildings: any[] = [];
+	let restrictedAreas: Awaited<ReturnType<typeof getLocalRestrictedAreas>> = [];
 
 	if (isSupabaseConfigured && supabase) {
 		try {
@@ -26,15 +29,21 @@ export const load: PageServerLoad = async ({ locals }) => {
 			startOfToday.setHours(0, 0, 0, 0);
 			const todayStartIso = startOfToday.toISOString();
 
-			const [visitorsRes, officesRes, buildingsRes] = await Promise.all([
+			const [visitorsRes, officesRes, loadedBuildings, loadedRestrictedAreas] = await Promise.all([
 				dbClient
 					.from("visitors")
 					.select("*")
 					.or(`status.eq.checked_in,status.eq.preliminary,check_in_time.gte.${todayStartIso}`)
 					.order("check_in_time", { ascending: false }),
 				dbClient.from("offices").select("*").eq("is_active", true),
-				dbClient.from("buildings").select("*")
+				getLocalBuildings(dbClient).catch((error: unknown) => {
+					console.error("Failed to load Security Desk buildings:", error);
+					return [];
+				}),
+				getLocalRestrictedAreas(dbClient),
 			]);
+			restrictedAreas = loadedRestrictedAreas;
+			buildings = loadedBuildings;
 
 			if (!visitorsRes.error && visitorsRes.data) {
 				visitors = visitorsRes.data.map(mapDbVisitorToVisitor);
@@ -55,21 +64,6 @@ export const load: PageServerLoad = async ({ locals }) => {
 				}));
 			}
 
-			if (!buildingsRes.error && buildingsRes.data && buildingsRes.data.length > 0) {
-				buildings = buildingsRes.data.map((b: any) => ({
-					id: b.id,
-					name: b.name,
-					code: b.code,
-					floors: b.floors,
-					description: b.description || "",
-					headPerson: b.head_person || "",
-					contactEmail: b.contact_email || "",
-					imageUrl: b.image_url || "",
-					color: b.color || "#3b82f6",
-					lat: b.lat || b.x_coord,
-					lng: b.lng || b.y_coord
-				}));
-			}
 		} catch (e) {
 			console.warn("Security load error:", e);
 		}
@@ -78,7 +72,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 	return {
 		visitors,
 		offices,
-		buildings
+		buildings,
+		restrictedAreas,
 	};
 };
 

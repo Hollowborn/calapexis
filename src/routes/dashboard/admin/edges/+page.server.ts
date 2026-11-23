@@ -3,6 +3,7 @@ import type { PageServerLoad, Actions } from "./$types";
 import {
 	getLocalBuildings,
 	getLocalMapEdges,
+	getLocalRestrictedAreas,
 	addLocalMapEdge,
 	updateLocalMapEdge,
 	deleteLocalMapEdge
@@ -16,14 +17,16 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw redirect(303, "/dashboard?error=unauthorized_role");
 	}
 
-	const [buildings, mapEdges] = await Promise.all([
+	const [buildings, mapEdges, restrictedAreas] = await Promise.all([
 		getLocalBuildings(locals.supabase),
-		getLocalMapEdges(locals.supabase)
+		getLocalMapEdges(locals.supabase),
+		getLocalRestrictedAreas(locals.supabase),
 	]);
 
 	return {
 		buildings,
-		mapEdges
+		mapEdges,
+		restrictedAreas,
 	};
 };
 

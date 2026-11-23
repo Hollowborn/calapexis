@@ -27,11 +27,17 @@
 	import { toast } from "svelte-sonner";
 	import * as Alert from "$lib/components/ui/alert/index.js";
 	import { checkoutLocalVisitor, signInWithGoogle, isSupabaseConfigured, supabase, getDbClient } from "$lib/supabase";
-	import type { Visitor, Office, Building, Room } from "$lib/types";
+	import type { Visitor, Office, Building, Room, MapEdge, RestrictedArea } from "$lib/types";
 	import BrandLogo from "$lib/components/brand-logo.svelte";
 	import { AnimatedThemeToggler } from "$lib/components/magic/animated-theme-toggler";
 	import LazyImage from "$lib/components/LazyImage.svelte";
 	import { BuildingExtrusionManager, calculatePolygonCentroid } from "$lib/components/map/building-extrusion";
+	import {
+		createRestrictedAreaLayer,
+		filterAccessibleMapEdges,
+		pathIntersectsRestrictedArea,
+		pointInRestrictedArea,
+	} from "$lib/components/map/restricted-areas";
 
 	// Lucide Icons
 	import SearchIcon from "@lucide/svelte/icons/search";
@@ -88,10 +94,10 @@
 	let buildingMarkers: any[] = [];
 	let osmLayerInstance: any = null;
 	let satelliteLayerInstance: any = null;
-	let campusOverlayInstance: any = null;
 
 	// Dynamic Graph Pathfinding & Device Orientation state
-	let mapEdgesList = $derived(data.mapEdges || []);
+	let mapEdgesList = $derived<MapEdge[]>(data.mapEdges || []);
+	let restrictedAreasList = $derived<RestrictedArea[]>(data.restrictedAreas || []);
 	let activeRouteMode = $state<"primary" | "alternative">("primary");
 	let primaryPathPoints = $state<[number, number][]>([]);
 	let alternativePathPoints = $state<[number, number][]>([]);
@@ -99,6 +105,7 @@
 	let alternativeDistanceMeters = $state<number>(0);
 	let deviceHeading = $state<number>(0);
 	let isCompassActive = $state<boolean>(false);
+	let lastNoAccessibleRouteTarget: string | null = null;
 
 	let activeRouteDistance = $derived(
 		activeRouteMode === "primary"
@@ -127,7 +134,6 @@
 
 	// Layer Control & Map state
 	let activeTileLayer = $state<"osm" | "esri">("osm");
-	let showCampusOverlay = $state(true);
 	let showVectorBuildings = $state(true);
 	let buildingExtrusionManager: BuildingExtrusionManager | null = null;
 	let isLayersPopoverOpen = $state(false);
@@ -184,7 +190,6 @@
 				o.buildingName?.toLowerCase().includes(q)
 		);
 	});
-
 	let filteredCommonPurposes = $derived.by(() => {
 		if (!purposeSearchInput.trim()) return COMMON_VISIT_PURPOSES;
 		const q = purposeSearchInput.toLowerCase().trim();
@@ -798,17 +803,7 @@
 			},
 		);
 
-		campusOverlayInstance = L.imageOverlay(
-			"/campusMap-adjusted.png",
-			L.latLngBounds(bounds),
-			{
-				opacity: 1.0,
-				interactive: false,
-				zIndex: 300,
-			},
-		).addTo(map);
-
-		// Create dedicated high-priority route pane for polylines above image overlays
+		// Create dedicated high-priority route pane for polylines.
 		if (!map.getPane("routePane")) {
 			const routePane = map.createPane("routePane");
 			routePane.style.zIndex = "650";
@@ -835,6 +830,7 @@
 				leafMap.setView(coords, 20, { animate: true });
 			}
 		});
+		createRestrictedAreaLayer(L, map, restrictedAreasList);
 
 		// 4. Plot Interactive Building Nodes on Map
 		plotBuildingNodesOnMap();
@@ -925,7 +921,7 @@
 		}
 	});
 
-	// Dynamic Tile Layer & Campus Overlay Effect
+	// Dynamic Tile Layer Effect
 	$effect(() => {
 		if (!leafMap || !leafletInstance) return;
 
@@ -951,15 +947,6 @@
 			}
 		}
 
-		if (campusOverlayInstance) {
-			if (showCampusOverlay) {
-				if (!leafMap.hasLayer(campusOverlayInstance))
-					campusOverlayInstance.addTo(leafMap);
-			} else {
-				if (leafMap.hasLayer(campusOverlayInstance))
-					leafMap.removeLayer(campusOverlayInstance);
-			}
-		}
 	});
 
 	function handleWindowResize() {
@@ -1488,9 +1475,8 @@
 		startLat: number,
 		startLng: number,
 		targetOfficeId: string,
-	) {
-		if (!leafMap || !leafletInstance) return;
-		const L = leafletInstance;
+	): boolean {
+		if (!leafMap || !leafletInstance) return false;
 
 		const selectedOff = officesList.find(
 			(o: any) => o.id === targetOfficeId || o.code === targetOfficeId,
@@ -1498,9 +1484,25 @@
 		const targetBuilding = buildingsList.find(
 			(b: any) => b.id === (selectedOff?.buildingId || targetOfficeId),
 		);
-		if (!targetBuilding) return;
+		if (!targetBuilding) return false;
 
-		const processedEdges = calculateEdgeWeights(mapEdgesList);
+		const targetCoords = getBuildingLatLng(targetBuilding);
+		const endpointIsRestricted = restrictedAreasList.some(
+			(area) =>
+				pointInRestrictedArea([startLat, startLng], area.polygon) ||
+				pointInRestrictedArea(targetCoords, area.polygon),
+		);
+		if (endpointIsRestricted) {
+			clearUnavailableRoute(
+				targetOfficeId,
+				`Your location or ${targetBuilding.name} is inside a restricted area.`,
+			);
+			return false;
+		}
+
+		const processedEdges = calculateEdgeWeights(
+			filterAccessibleMapEdges(mapEdgesList, restrictedAreasList),
+		);
 		const adjList = buildAdjacencyList(processedEdges);
 
 		// Find closest start building node to current coordinates
@@ -1564,6 +1566,18 @@
 				fullPathLatLngs.unshift([startLat, startLng]);
 			}
 
+			if (
+				restrictedAreasList.some((area) =>
+					pathIntersectsRestrictedArea(fullPathLatLngs, area.polygon),
+				)
+			) {
+				clearUnavailableRoute(
+					targetOfficeId,
+					"Every available route intersects a restricted area.",
+				);
+				return false;
+			}
+
 			primaryPathPoints = fullPathLatLngs;
 			primaryDistanceMeters = result.distance;
 			stepDirections = steps;
@@ -1575,9 +1589,25 @@
 				result.distance,
 				selectedOff?.name || targetBuilding.name,
 			);
+			lastNoAccessibleRouteTarget = null;
 		} else {
 			// Direct fallback vector if graph nodes are unconnected
-			const targetCoords = getBuildingLatLng(targetBuilding);
+			const directPath: [number, number][] = [
+				[startLat, startLng],
+				targetCoords,
+			];
+			if (
+				restrictedAreasList.some((area) =>
+					pathIntersectsRestrictedArea(directPath, area.polygon),
+				)
+			) {
+				clearUnavailableRoute(
+					targetOfficeId,
+					"Every available route intersects a restricted area.",
+				);
+				return false;
+			}
+
 			const directDist = Math.round(
 				haversineDistance(
 					startLat,
@@ -1602,9 +1632,25 @@
 				directDist,
 				selectedOff?.name || targetBuilding.name,
 			);
+			lastNoAccessibleRouteTarget = null;
 		}
 
 		renderCalculatedRoutesOnMap();
+		return true;
+	}
+
+	function clearUnavailableRoute(targetId: string, reason: string) {
+		primaryPathPoints = [];
+		alternativePathPoints = [];
+		primaryDistanceMeters = 0;
+		alternativeDistanceMeters = 0;
+		stepDirections = [];
+		renderCalculatedRoutesOnMap();
+
+		if (lastNoAccessibleRouteTarget !== targetId) {
+			toast.error("No accessible route", { description: reason });
+			lastNoAccessibleRouteTarget = targetId;
+		}
 	}
 
 	function checkArrivalGeofence(
@@ -1720,8 +1766,9 @@
 		const startLat = userGps?.lat || mainGateCoords.lat;
 		const startLng = userGps?.lng || mainGateCoords.lng;
 
-		calculatePathfindingRoutes(startLat, startLng, building.id);
-		toast.success(`Navigating to ${building.name} (${building.code})`);
+		if (calculatePathfindingRoutes(startLat, startLng, building.id)) {
+			toast.success(`Navigating to ${building.name} (${building.code})`);
+		}
 	}
 
 	function renderCalculatedRoutesOnMap() {
@@ -2851,18 +2898,6 @@
 							<Switch bind:checked={showVectorBuildings} onCheckedChange={() => plotBuildingNodesOnMap()} />
 						</div>
 
-						<!-- 3D Campus Overlay Switch -->
-						<div class="flex items-center justify-between">
-							<div class="flex flex-col">
-								<span class="text-xs font-bold text-foreground"
-									>3D Campus Map</span
-								>
-								<span class="text-[10px] text-muted-foreground"
-									>Adjusted Campus Overlay</span
-								>
-							</div>
-							<Switch bind:checked={showCampusOverlay} />
-						</div>
 					</Popover.Content>
 				</Popover.Root>
 

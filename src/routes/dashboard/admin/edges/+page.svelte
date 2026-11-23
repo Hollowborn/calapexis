@@ -1,12 +1,13 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
-	import type { Building, MapEdge } from '$lib/types';
+	import type { Building, MapEdge, RestrictedArea } from '$lib/types';
+	import { BuildingExtrusionManager } from '$lib/components/map/building-extrusion';
+	import { createRestrictedAreaLayer } from '$lib/components/map/restricted-areas';
 	import * as Tabs from "$lib/components/ui/tabs/index.js";
 	import * as Popover from "$lib/components/ui/popover/index.js";
 	import * as Command from "$lib/components/ui/command/index.js";
-	import { Switch } from "$lib/components/ui/switch/index.js";
 	import * as Card from "$lib/components/ui/card/index.js";
 	import * as Table from "$lib/components/ui/table/index.js";
 	import { Badge } from "$lib/components/ui/badge/index.js";
@@ -35,6 +36,7 @@
 	let actionEdges = $state<MapEdge[] | null>(null);
 	let buildingsList = $derived<Building[]>(data.buildings || []);
 	let edgesList = $derived<MapEdge[]>(actionEdges || data.mapEdges || []);
+	let restrictedAreas = $derived<RestrictedArea[]>(data.restrictedAreas || []);
 
 	// Navigation & Tab state
 	let activeTab = $state<'map' | 'edges'>('map');
@@ -57,7 +59,6 @@
 
 	// Map layers & tile state
 	let selectedBaseTile = $state<'osm' | 'satellite'>('osm');
-	let showCampusOverlay = $state(false);
 	let isLayerPopoverOpen = $state(false);
 
 	// Delete dialog state
@@ -70,10 +71,10 @@
 	let activePolyline = $state<any>(null);
 	let osmLayerInstance = $state<any>(null);
 	let satelliteLayerInstance = $state<any>(null);
-	let campusOverlayInstance = $state<any>(null);
 	let existingEdgePolylines: any[] = [];
 	let waypointMarkers: any[] = [];
 	let buildingMarkers: any[] = [];
+	let buildingExtrusionManager: BuildingExtrusionManager | null = null;
 
 	// Campus map bounds
 	const campusBoundsCoords = [
@@ -249,6 +250,10 @@
 			minZoom: 18,
 			maxZoom: 22
 		}).setView([9.894414742474977, 123.88258093049176], 19);
+		if (!map.getPane('edgeRoutePane')) {
+			const routePane = map.createPane('edgeRoutePane');
+			routePane.style.zIndex = '650';
+		}
 
 		const osmTile = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 			attribution: '&copy; OpenStreetMap',
@@ -262,27 +267,30 @@
 			maxZoom: 22
 		});
 
-		const overlay = L.imageOverlay("/campusMap-adjusted.png", bounds, {
-			opacity: 0.95,
-			interactive: false
-		});
-
 		osmLayerInstance = osmTile;
 		satelliteLayerInstance = satTile;
-		campusOverlayInstance = overlay;
 
 		if (selectedBaseTile === 'osm') osmTile.addTo(map);
 		else satTile.addTo(map);
 
-		if (showCampusOverlay) overlay.addTo(map);
-
 		map.on('click', handleMapClick);
 		leafMap = map;
 
+		buildingExtrusionManager = new BuildingExtrusionManager(map, L, {
+			interactive: false,
+			showLabels: false
+		});
+		buildingExtrusionManager.renderBuildings(buildingsList);
+		createRestrictedAreaLayer(L, map, restrictedAreas);
 		plotBuildingNodes();
 		plotExistingEdges();
 
 		setTimeout(() => map.invalidateSize(), 300);
+	});
+
+	onDestroy(() => {
+		buildingExtrusionManager?.destroy();
+		leafMap?.remove();
 	});
 
 	// Dynamic Tile & Overlay Layer Watcher
@@ -305,13 +313,6 @@
 			}
 		}
 
-		if (campusOverlayInstance) {
-			if (showCampusOverlay) {
-				if (!leafMap.hasLayer(campusOverlayInstance)) campusOverlayInstance.addTo(leafMap);
-			} else {
-				if (leafMap.hasLayer(campusOverlayInstance)) leafMap.removeLayer(campusOverlayInstance);
-			}
-		}
 	});
 
 	// Re-calc Leaflet dimensions when switching tabs to 'map'
@@ -378,6 +379,7 @@
 			const toName = getBuildingName(edge.toNode);
 
 			const polyline = L.polyline(edge.path, {
+				pane: 'edgeRoutePane',
 				color: '#3b82f6',
 				weight: 6,
 				opacity: 0.75,
@@ -415,6 +417,7 @@
 		if (waypoints.length < 2) return;
 
 		activePolyline = L.polyline(waypoints, {
+			pane: 'edgeRoutePane',
 			color: '#10b981',
 			weight: 6,
 			opacity: 0.9
@@ -575,7 +578,7 @@
 					</Button>
 				</div>
 
-				<!-- Map Layers & Campus Overlay Popover -->
+				<!-- Map Layers Popover -->
 				<Popover.Root bind:open={isLayerPopoverOpen}>
 					<Popover.Trigger>
 						<Button variant="default" size="icon" class="size-9 rounded-2xl border-border bg-card/90 backdrop-blur-xl shadow-xl text-foreground cursor-pointer" title="Map Layers">
@@ -609,14 +612,6 @@
 
 						<Separator class="bg-border/60" />
 
-						<!-- Campus Overlay Switch -->
-						<div class="flex items-center justify-between">
-							<div>
-								<span class="text-xs font-extrabold text-foreground block">Campus Overlay</span>
-								<span class="text-[10px] text-muted-foreground font-semibold">3D structure map layer</span>
-							</div>
-							<Switch bind:checked={showCampusOverlay} />
-						</div>
 					</Popover.Content>
 				</Popover.Root>
 			</div>

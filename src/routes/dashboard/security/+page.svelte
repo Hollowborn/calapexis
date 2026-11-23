@@ -16,6 +16,8 @@
 	import { Switch } from '$lib/components/ui/switch/index.js';
 	import { toast } from 'svelte-sonner';
 	import { verifyVisitor, checkoutLocalVisitor, isSupabaseConfigured, supabase, getDbClient } from '$lib/supabase';
+	import type { RestrictedArea } from '$lib/types';
+	import { createRestrictedAreaLayer } from '$lib/components/map/restricted-areas';
 	
 	// Lucide Icons
 	import ShieldCheckIcon from "@lucide/svelte/icons/shield-check";
@@ -49,6 +51,7 @@
 
 	let officesList = $derived(data?.offices || []);
 	let buildingsList = $derived(data?.buildings || []);
+	let restrictedAreas = $derived<RestrictedArea[]>(data?.restrictedAreas || []);
 
 	// Display mode states
 	let activeTab = $state<'map' | 'visitors'>('map');
@@ -56,13 +59,11 @@
 
 	// Map Layer & Tile states
 	let selectedBaseTile = $state<'osm' | 'satellite'>('osm');
-	let showCampusOverlay = $state(true);
 	let showOfficeNodes = $state(true);
 	let isLayerPopoverOpen = $state(false);
 
 	let osmLayerInstance: any = null;
 	let satelliteLayerInstance: any = null;
-	let campusOverlayInstance: any = null;
 	let buildingExtrusionManager: BuildingExtrusionManager | null = null;
 
 	// Rejection Dialog state
@@ -249,19 +250,11 @@
 			maxZoom: 22
 		});
 
-		const overlay = L.imageOverlay("/campusMap-adjusted.png", bounds, {
-			opacity: 0.95,
-			interactive: false
-		});
-
 		osmLayerInstance = osmTile;
 		satelliteLayerInstance = satTile;
-		campusOverlayInstance = overlay;
 
 		if (selectedBaseTile === 'osm') osmTile.addTo(map);
 		else satTile.addTo(map);
-
-		if (showCampusOverlay) overlay.addTo(map);
 
 		leafMap = map;
 
@@ -270,6 +263,7 @@
 			showLabels: true
 		});
 		buildingExtrusionManager.renderBuildings(buildingsList);
+		createRestrictedAreaLayer(L, map, restrictedAreas);
 
 		plotVisitorNodesOnMap();
 		plotOfficeNodesOnMap();
@@ -331,13 +325,6 @@
 			}
 		}
 
-		if (campusOverlayInstance) {
-			if (showCampusOverlay) {
-				if (!leafMap.hasLayer(campusOverlayInstance)) campusOverlayInstance.addTo(leafMap);
-			} else {
-				if (leafMap.hasLayer(campusOverlayInstance)) leafMap.removeLayer(campusOverlayInstance);
-			}
-		}
 	});
 
 	// Re-calc Leaflet dimensions when switching back to Live Map tab
@@ -857,17 +844,6 @@
 										Satellite
 									</button>
 								</div>
-							</div>
-
-							<Separator class="bg-border/60" />
-
-							<!-- 3D Campus Overlay Switch -->
-							<div class="flex items-center justify-between">
-								<div>
-									<span class="text-xs font-extrabold text-foreground block">Campus Overlay</span>
-									<span class="text-[10px] text-muted-foreground font-semibold">3D structure layer</span>
-								</div>
-								<Switch bind:checked={showCampusOverlay} />
 							</div>
 
 							<Separator class="bg-border/60" />

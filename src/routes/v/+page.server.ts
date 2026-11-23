@@ -4,7 +4,8 @@ import {
 	isSupabaseConfigured,
 	supabase,
 	mapDbVisitorToVisitor,
-	getLocalMapEdges
+	getLocalMapEdges,
+	getLocalRestrictedAreas,
 } from "$lib/supabase";
 import type { Actions, PageServerLoad } from "./$types";
 import type { Visitor } from "$lib/types";
@@ -182,12 +183,19 @@ export const load: PageServerLoad = async ({ locals }) => {
 	} catch (e) {
 		console.warn("Failed to load mapEdges on /v:", e);
 	}
+	let restrictedAreas: Awaited<ReturnType<typeof getLocalRestrictedAreas>> = [];
+	try {
+		restrictedAreas = await getLocalRestrictedAreas(locals.supabase);
+	} catch (e) {
+		console.warn("Failed to load restricted areas on /v:", e);
+	}
 
 	return {
 		offices,
 		buildings,
 		rooms,
 		mapEdges,
+		restrictedAreas,
 		googleVisitorData
 	};
 };
