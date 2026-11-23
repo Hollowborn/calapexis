@@ -153,6 +153,14 @@ export interface MapEdge {
 	createdAt?: string;
 }
 
+export interface RestrictedArea {
+	id: string;
+	name: string;
+	description?: string;
+	polygon: [number, number][];
+	createdAt?: string;
+}
+
 export type NotificationType = 'pass_registered' | 'desk_arrival' | 'checkout' | 'system';
 
 export interface AppNotification {

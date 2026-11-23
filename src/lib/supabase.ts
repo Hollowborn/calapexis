@@ -8,6 +8,7 @@ import type {
   VerificationStatus,
   Profile,
   MapEdge,
+  RestrictedArea,
 } from "./types";
 
 import {
@@ -1833,5 +1834,84 @@ export async function deleteLocalMapEdge(id: string, overrideClient?: any): Prom
     }
     return true;
   }
+  return true;
+}
+
+export function mapDbRestrictedAreaToRestrictedArea(row: any): RestrictedArea {
+  return {
+    id: row.id,
+    name: row.name || "",
+    description: row.description || "",
+    polygon: Array.isArray(row.polygon) ? row.polygon : [],
+    createdAt: row.created_at,
+  };
+}
+
+export async function getLocalRestrictedAreas(
+  overrideClient?: any,
+): Promise<RestrictedArea[]> {
+  const client = getDbClient(overrideClient);
+  if (!isSupabaseConfigured || !client) return [];
+
+  const { data, error } = await client
+    .from("restricted_areas")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) {
+    console.error("[Supabase Error] Failed to fetch restricted_areas:", error);
+    throw new Error(`[Database Error] ${error.message}`);
+  }
+
+  return (data || []).map(mapDbRestrictedAreaToRestrictedArea);
+}
+
+export async function addLocalRestrictedArea(
+  area: Omit<RestrictedArea, "id" | "createdAt">,
+  overrideClient?: any,
+): Promise<RestrictedArea> {
+  const client = getDbClient(overrideClient);
+  if (!isSupabaseConfigured || !client) {
+    throw new Error("A configured Supabase database is required to save restricted areas.");
+  }
+
+  const { data, error } = await client
+    .from("restricted_areas")
+    .insert({
+      name: area.name,
+      description: area.description || null,
+      polygon: area.polygon,
+    })
+    .select("*")
+    .single();
+  if (error) {
+    console.error("[Supabase Error] Failed to create restricted area:", error);
+    throw new Error(error.message || "Database failed to create restricted area.");
+  }
+  if (!data) throw new Error("Database did not return the created restricted area.");
+
+  return mapDbRestrictedAreaToRestrictedArea(data);
+}
+
+export async function deleteLocalRestrictedArea(
+  id: string,
+  overrideClient?: any,
+): Promise<boolean> {
+  const client = getDbClient(overrideClient);
+  if (!isSupabaseConfigured || !client) {
+    throw new Error("A configured Supabase database is required to delete restricted areas.");
+  }
+
+  const { data, error } = await client
+    .from("restricted_areas")
+    .delete()
+    .eq("id", id)
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    console.error("[Supabase Error] Failed to delete restricted area:", error);
+    throw new Error(error.message || "Database failed to delete restricted area.");
+  }
+  if (!data) throw new Error("Restricted area was not found or could not be deleted.");
+
   return true;
 }

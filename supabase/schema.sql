@@ -150,6 +150,20 @@ CREATE TABLE IF NOT EXISTS public.map_edges (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- 6. Restricted Campus Areas (closed regions such as construction zones)
+CREATE TABLE IF NOT EXISTS public.restricted_areas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL,
+    description TEXT,
+    polygon JSONB NOT NULL CHECK (
+        CASE
+            WHEN jsonb_typeof(polygon) = 'array' THEN jsonb_array_length(polygon) >= 3
+            ELSE false
+        END
+    ),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.buildings ENABLE ROW LEVEL SECURITY;
@@ -157,6 +171,8 @@ ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.registered_visitors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.visitor_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.map_edges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.restricted_areas ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.restricted_areas FROM anon, authenticated;
 
 -- Security Definer Role Resolver (Bypasses RLS to avoid infinite recursion)
 CREATE OR REPLACE FUNCTION public.get_user_role(user_id UUID)
@@ -209,6 +225,20 @@ CREATE POLICY "Public map_edges read access" ON public.map_edges FOR SELECT TO p
 CREATE POLICY "Admin write access to map_edges" ON public.map_edges FOR ALL TO authenticated USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
 );
+
+-- Restricted Areas Policies
+DROP POLICY IF EXISTS "Public restricted areas read access" ON public.restricted_areas;
+CREATE POLICY "Public restricted areas read access" ON public.restricted_areas
+    FOR SELECT TO public USING (true);
+
+DROP POLICY IF EXISTS "Admin write access to restricted_areas" ON public.restricted_areas;
+CREATE POLICY "Admin write access to restricted_areas" ON public.restricted_areas
+    FOR ALL TO authenticated
+    USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'))
+    WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'));
+
+GRANT SELECT ON public.restricted_areas TO anon, authenticated;
+GRANT INSERT, DELETE ON public.restricted_areas TO authenticated;
 
 -- Auto-profile creation trigger
 CREATE OR REPLACE FUNCTION public.handle_new_user()
