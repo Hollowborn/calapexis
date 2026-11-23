@@ -4,27 +4,28 @@
 	import { enhance } from "$app/forms";
 	import type { SubmitFunction } from "@sveltejs/kit";
 	import * as Select from "$lib/components/ui/select/index.js";
+	import * as Accordion from "$lib/components/ui/accordion/index.js";
+	import * as Field from "$lib/components/ui/field/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
 	import { Input } from "$lib/components/ui/input/index.js";
 	import { Badge } from "$lib/components/ui/badge/index.js";
-	import type { Building } from "$lib/types";
+	import type { Building, RestrictedArea } from "$lib/types";
 	import {
 		BuildingExtrusionManager,
 		calculatePolygonCentroid,
 	} from "$lib/components/map/building-extrusion";
+	import { createRestrictedAreaLayer } from "$lib/components/map/restricted-areas";
 	import { toast } from "svelte-sonner";
 
 	// Icons
 	import BoxIcon from "@lucide/svelte/icons/box";
 	import LayersIcon from "@lucide/svelte/icons/layers";
-	import PaletteIcon from "@lucide/svelte/icons/palette";
 	import MapPinIcon from "@lucide/svelte/icons/map-pin";
 	import XIcon from "@lucide/svelte/icons/x";
 	import RotateCcwIcon from "@lucide/svelte/icons/rotate-ccw";
 	import SaveIcon from "@lucide/svelte/icons/save";
 	import SatelliteIcon from "@lucide/svelte/icons/satellite";
 	import MapIcon from "@lucide/svelte/icons/map";
-	import CheckIcon from "@lucide/svelte/icons/check";
 	import Wand2Icon from "@lucide/svelte/icons/wand-2";
 	import FocusIcon from "@lucide/svelte/icons/focus";
 	import ArrowLeftIcon from "@lucide/svelte/icons/arrow-left";
@@ -32,13 +33,17 @@
 
 	let { data } = $props();
 	let buildings: Building[] = $derived(data.buildings || []);
+	let restrictedAreas: RestrictedArea[] = $derived(data.restrictedAreas || []);
 
 	// ── Reactive UI state ──────────────────────────────────────────────────────
 	let selectedBuildingId = $state<string>(buildings[0]?.id || "");
 	let currentFootprint = $state<[number, number][]>([]);
 	let currentFloors = $state(1);
 	let currentElevation = $state(0);
-	let currentColor = $state("#3b82f6");
+	let currentRestrictedAreaName = $state("");
+	let currentRestrictedAreaDescription = $state("");
+	let currentRestrictedAreaPolygon = $state<[number, number][]>([]);
+	let isAddingRestrictedArea = $state(false);
 	let currentBaseLayer = $state<"satellite" | "osm">("satellite");
 	let isSaving = $state(false);
 	let isMapReady = $state(false);
@@ -52,23 +57,14 @@
 	let satelliteLayer: any = null;
 	let vertexMarkers: any[] = [];
 	let centroidMarker: any = null;
+	let restrictedAreaLayer: any = null;
+	let restrictedAreaDraftLayer: any = null;
 
 	// ── Derived ────────────────────────────────────────────────────────────────
 	let activeBuilding = $derived(
 		buildings.find((b) => b.id === selectedBuildingId) || buildings[0] || null
 	);
 
-	// ── Color Presets ──────────────────────────────────────────────────────────
-	const COLOR_PRESETS = [
-		{ label: "Royal Blue", value: "#3b82f6" },
-		{ label: "Emerald Green", value: "#10b981" },
-		{ label: "Crimson Red", value: "#ef4444" },
-		{ label: "Amber Orange", value: "#f59e0b" },
-		{ label: "Purple Violet", value: "#8b5cf6" },
-		{ label: "Cyan Teal", value: "#06b6d4" },
-		{ label: "Rose Pink", value: "#ec4899" },
-		{ label: "Slate Gray", value: "#64748b" },
-	];
 	const campusBoundsCoords = [
 		[9.893421456778755, 123.8815211010603],
 		[9.895647770829878, 123.88369296680753]
@@ -98,7 +94,6 @@
 			: [];
 		currentFloors = Math.min(4, Math.max(1, activeBuilding.floors || 1));
 		currentElevation = activeBuilding.elevation ?? 0;
-		currentColor = activeBuilding.color || "#3b82f6";
 
 		if (isMapReady) {
 			untrack(() => {
@@ -113,6 +108,13 @@
 		if (mapContainer && !isMapReady) {
 			initMap();
 		}
+	});
+
+	$effect(() => {
+		if (!leafMap || !L || !isMapReady) return;
+
+		restrictedAreaLayer?.remove();
+		restrictedAreaLayer = createRestrictedAreaLayer(L, leafMap, restrictedAreas);
 	});
 
 	function cleanupMap() {
@@ -178,8 +180,17 @@
 			interactive: false,
 			selectedBuildingId: null,
 		});
+		restrictedAreaDraftLayer = L.layerGroup().addTo(leafMap);
 
 		leafMap.on("click", (e: any) => {
+			if (isAddingRestrictedArea) {
+				currentRestrictedAreaPolygon = [
+					...currentRestrictedAreaPolygon,
+					[e.latlng.lat, e.latlng.lng] as [number, number],
+				];
+				renderRestrictedAreaDraft();
+				return;
+			}
 			if (!activeBuilding) return;
 			currentFootprint = [...currentFootprint, [e.latlng.lat, e.latlng.lng] as [number, number]];
 			updateMapDisplay();
@@ -189,6 +200,49 @@
 			if (leafMap) leafMap.invalidateSize();
 			isMapReady = true;
 		}, 150);
+	}
+
+	function renderRestrictedAreaDraft() {
+		if (!leafMap || !L || !restrictedAreaDraftLayer) return;
+		restrictedAreaDraftLayer.clearLayers();
+
+		if (currentRestrictedAreaPolygon.length >= 3) {
+			L.polygon(currentRestrictedAreaPolygon, {
+				color: "#dc2626",
+				weight: 2,
+				fillColor: "#ef4444",
+				fillOpacity: 0.3,
+				dashArray: "6 4",
+				interactive: false,
+			}).addTo(restrictedAreaDraftLayer);
+		} else if (currentRestrictedAreaPolygon.length >= 2) {
+			L.polyline(currentRestrictedAreaPolygon, {
+				color: "#dc2626",
+				weight: 2,
+				dashArray: "6 4",
+				interactive: false,
+			}).addTo(restrictedAreaDraftLayer);
+		}
+
+		currentRestrictedAreaPolygon.forEach((point) => {
+			L.circleMarker(point, {
+				radius: 4,
+				color: "#991b1b",
+				fillColor: "#ef4444",
+				fillOpacity: 1,
+				interactive: false,
+			}).addTo(restrictedAreaDraftLayer);
+		});
+	}
+
+	function removeRestrictedAreaPoint(index: number) {
+		currentRestrictedAreaPolygon = currentRestrictedAreaPolygon.filter((_, i) => i !== index);
+		renderRestrictedAreaDraft();
+	}
+
+	function clearRestrictedAreaDraft() {
+		currentRestrictedAreaPolygon = [];
+		renderRestrictedAreaDraft();
 	}
 
 	function switchBaseLayer(layer: "satellite" | "osm") {
@@ -228,7 +282,6 @@
 						footprint: currentFootprint.length >= 3 ? currentFootprint : undefined,
 						floors: Math.min(4, Math.max(1, currentFloors)),
 						elevation: Number(currentElevation) || 0,
-						color: currentColor,
 				  }
 				: b
 		);
@@ -262,7 +315,7 @@
 				extrusionManager?.renderBuildings(
 					buildings.map((b) =>
 						b.id === activeBuilding?.id
-							? { ...b, footprint: currentFootprint, floors: Math.min(4, Math.max(1, currentFloors)), elevation: Number(currentElevation) || 0, color: currentColor }
+							? { ...b, footprint: currentFootprint, floors: Math.min(4, Math.max(1, currentFloors)), elevation: Number(currentElevation) || 0 }
 							: b
 					)
 				);
@@ -354,13 +407,52 @@
 			}
 		};
 	};
+
+	const handleRestrictedAreaEnhance: SubmitFunction = () => {
+		return async ({ result, update }) => {
+			if (result.type === "success") {
+				currentRestrictedAreaName = "";
+				currentRestrictedAreaDescription = "";
+				currentRestrictedAreaPolygon = [];
+				isAddingRestrictedArea = false;
+				renderRestrictedAreaDraft();
+				await update();
+				toast.success("Restricted area added to the campus map.");
+			} else if (result.type === "failure") {
+				const message =
+					(result.data as { message?: string } | undefined)?.message ||
+					"Failed to add restricted area.";
+				toast.error(message);
+				await update({ reset: false });
+			} else {
+				await update();
+			}
+		};
+	};
+
+	const handleRestrictedAreaDeleteEnhance: SubmitFunction = () => {
+		return async ({ result, update }) => {
+			if (result.type === "success") {
+				await update();
+				toast.success("Restricted area removed.");
+			} else if (result.type === "failure") {
+				const message =
+					(result.data as { message?: string } | undefined)?.message ||
+					"Failed to remove restricted area.";
+				toast.error(message);
+				await update({ reset: false });
+			} else {
+				await update();
+			}
+		};
+	};
 </script>
 
 <svelte:head>
 	<title>Campus Map Studio – Calapexis</title>
 	<meta
 		name="description"
-		content="Draw 2.5D building outlines, adjust floor heights, and select building colors directly on the campus map."
+		content="Draw 2.5D building outlines and adjust floor heights directly on the campus map."
 	/>
 	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </svelte:head>
@@ -380,7 +472,7 @@
 					</Badge>
 				</div>
 				<p class="text-[11px] text-muted-foreground font-semibold hidden sm:block">
-					Draw building outlines, customize colors, and set floor heights directly on the campus map.
+					Draw building outlines and set floor heights directly on the campus map.
 				</p>
 			</div>
 		</div>
@@ -448,7 +540,9 @@
 			<div class="absolute bottom-8 left-4 z-[500] pointer-events-none max-w-sm">
 				<div class="px-3.5 py-2 rounded-xl bg-card/90 backdrop-blur-md border border-border/80 text-xs text-muted-foreground font-medium shadow-md flex items-center gap-2">
 					<span class="size-2 rounded-full bg-primary animate-pulse shrink-0"></span>
-					{#if currentFootprint.length === 0}
+					{#if isAddingRestrictedArea}
+						<span>Click the map to add restricted-area points; place at least 3 points to close the boundary.</span>
+					{:else if currentFootprint.length === 0}
 						<span>Click anywhere on the map to place your first outline point</span>
 					{:else if currentFootprint.length < 3}
 						<span>Add {3 - currentFootprint.length} more point{3 - currentFootprint.length === 1 ? "" : "s"} to form a shape</span>
@@ -463,7 +557,7 @@
 		<div class="w-[380px] shrink-0 border-l border-border/70 bg-card flex flex-col overflow-hidden">
 			<div class="shrink-0 px-5 pt-5 pb-3 border-b border-border/50">
 				<span class="text-[10px] font-extrabold uppercase tracking-wider text-muted-foreground">
-					Building Configuration
+					Map & Building Configuration
 				</span>
 			</div>
 
@@ -631,55 +725,155 @@
 					</div>
 				</div>
 
-				<!-- 4. Color Theme -->
-				<div class="p-4 rounded-2xl bg-muted/20 border border-border/70 flex flex-col gap-3">
-					<div class="flex items-center justify-between">
-						<span class="text-[10px] font-black uppercase tracking-wider text-foreground flex items-center gap-1.5">
-							<PaletteIcon class="size-3.5 text-primary" />
-							<span>Building Color</span>
-						</span>
-						<div class="flex items-center gap-1.5">
-							<span class="size-3 rounded-full border border-white/60 shadow-sm" style="background-color: {currentColor};"></span>
-							<span class="text-[10px] font-mono font-bold text-muted-foreground uppercase">{currentColor}</span>
-						</div>
-					</div>
+				<Accordion.Root
+					type="single"
+					class="w-full border-destructive/30 bg-destructive/5"
+				>
+					<Accordion.Item value="restricted-areas" class="border-b-0">
+						<Accordion.Trigger class="px-4 py-3 hover:no-underline">
+							<span class="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider text-foreground">
+								Restricted Areas ({restrictedAreas.length})
+								<Badge variant="outline" class="text-[9px] font-black text-destructive border-destructive/40">
+									No Entry
+								</Badge>
+							</span>
+						</Accordion.Trigger>
+						<Accordion.Content class="px-4 pb-4">
+							<div class="flex flex-col gap-3 text-xs">
+								<p class="text-[10px] text-muted-foreground">
+									Draw closures such as construction zones. Routes will avoid saved areas.
+								</p>
 
-					<div class="grid grid-cols-4 gap-2">
-						{#each COLOR_PRESETS as preset (preset.value)}
-							<button
-								type="button"
-								onclick={() => {
-									currentColor = preset.value;
-									updateMapDisplay();
-								}}
-								class="h-8 rounded-lg border flex items-center justify-center transition-all cursor-pointer {currentColor === preset.value
-									? 'ring-2 ring-primary border-primary scale-105'
-									: 'border-border/60 hover:opacity-90'}"
-								style="background-color: {preset.value};"
-								title={preset.label}
-							>
-								{#if currentColor === preset.value}
-									<CheckIcon class="size-3.5 text-white drop-shadow-sm pointer-events-none" />
+								<Field.FieldGroup class="flex flex-col gap-2">
+									<Field.Field>
+										<Field.FieldLabel for="restricted-area-name" class="sr-only">
+											Restricted area name
+										</Field.FieldLabel>
+										<Input
+											id="restricted-area-name"
+											bind:value={currentRestrictedAreaName}
+											maxlength={100}
+											placeholder="Area name (e.g. North construction)"
+											class="h-9 rounded-lg text-xs"
+										/>
+									</Field.Field>
+									<Field.Field>
+										<Field.FieldLabel for="restricted-area-description" class="sr-only">
+											Restricted area description
+										</Field.FieldLabel>
+										<Input
+											id="restricted-area-description"
+											bind:value={currentRestrictedAreaDescription}
+											maxlength={500}
+											placeholder="Reason or details (optional)"
+											class="h-9 rounded-lg text-xs"
+										/>
+									</Field.Field>
+								</Field.FieldGroup>
+
+								<div class="flex gap-2">
+									<Button
+										type="button"
+										variant={isAddingRestrictedArea ? "destructive" : "outline"}
+										size="sm"
+										onclick={() => (isAddingRestrictedArea = !isAddingRestrictedArea)}
+										class="flex-1 h-8 rounded-xl text-xs font-bold cursor-pointer"
+									>
+										{isAddingRestrictedArea ? "Stop Drawing" : "Draw Area"}
+									</Button>
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										onclick={clearRestrictedAreaDraft}
+										disabled={currentRestrictedAreaPolygon.length === 0}
+										class="h-8 rounded-xl text-xs font-bold cursor-pointer"
+									>
+										Clear
+									</Button>
+								</div>
+
+								{#if currentRestrictedAreaPolygon.length > 0}
+									<div class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1.5 bg-background/60 rounded-xl border border-border/50">
+										{#each currentRestrictedAreaPolygon as point, index (index)}
+											<div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-destructive/10 text-[10px] font-mono border border-destructive/20">
+												<span class="font-bold text-destructive">#{index + 1}</span>
+												<span>{point[0].toFixed(5)}, {point[1].toFixed(5)}</span>
+												<button
+													type="button"
+													onclick={() => removeRestrictedAreaPoint(index)}
+													class="hover:text-destructive cursor-pointer ml-1"
+													title="Remove point"
+												>
+													<XIcon class="size-3 pointer-events-none" />
+												</button>
+											</div>
+										{/each}
+									</div>
 								{/if}
-							</button>
-						{/each}
-					</div>
 
-					<div class="flex items-center gap-2 pt-1 border-t border-border/50">
-						<label for="custom-hex-input" class="text-[9px] font-extrabold text-muted-foreground uppercase tracking-wide shrink-0">
-							Custom Hex
-						</label>
-						<Input
-							id="custom-hex-input"
-							type="text"
-							bind:value={currentColor}
-							oninput={() => updateMapDisplay()}
-							class="h-8 rounded-lg text-xs font-mono uppercase"
-							maxlength={7}
-							placeholder="#3b82f6"
-						/>
-					</div>
-				</div>
+								<form
+									method="POST"
+									action="?/createRestrictedArea"
+									use:enhance={handleRestrictedAreaEnhance}
+									class="flex flex-col gap-2"
+								>
+									<input type="hidden" name="name" value={currentRestrictedAreaName} />
+									<input type="hidden" name="description" value={currentRestrictedAreaDescription} />
+									<input
+										type="hidden"
+										name="polygon"
+										value={JSON.stringify(currentRestrictedAreaPolygon)}
+									/>
+									<Button
+										type="submit"
+										variant="destructive"
+										disabled={!isMapReady || !currentRestrictedAreaName.trim() || currentRestrictedAreaPolygon.length < 3}
+										class="h-9 rounded-xl text-xs font-black cursor-pointer"
+									>
+										Save Restricted Area
+									</Button>
+								</form>
+
+								{#if restrictedAreas.length > 0}
+									<div class="flex flex-col gap-2 border-t border-destructive/20 pt-3">
+										{#each restrictedAreas as area (area.id)}
+											<div class="flex items-start justify-between gap-2 rounded-lg bg-background/60 border border-border/50 p-2">
+												<div class="min-w-0">
+													<p class="truncate text-[10px] font-bold text-foreground">{area.name}</p>
+													{#if area.description}
+														<p class="text-[9px] text-muted-foreground">{area.description}</p>
+													{/if}
+												</div>
+												<form
+													method="POST"
+													action="?/deleteRestrictedArea"
+													use:enhance={handleRestrictedAreaDeleteEnhance}
+													onsubmit={(event) => {
+														if (!window.confirm(`Remove "${area.name}" from the restricted areas?`)) {
+															event.preventDefault();
+														}
+													}}
+												>
+													<input type="hidden" name="id" value={area.id} />
+													<Button
+														type="submit"
+														variant="ghost"
+														size="icon"
+														class="size-7 shrink-0 text-muted-foreground hover:text-destructive cursor-pointer"
+														title="Remove restricted area"
+													>
+														<XIcon class="size-3.5 pointer-events-none" />
+													</Button>
+												</form>
+											</div>
+										{/each}
+									</div>
+								{/if}
+							</div>
+						</Accordion.Content>
+					</Accordion.Item>
+				</Accordion.Root>
 			</div>
 
 			<!-- Sticky Bottom Action Bar with use:enhance Form -->
@@ -697,7 +891,6 @@
 					<input type="hidden" name="footprint" value={currentFootprint.length >= 3 ? JSON.stringify(currentFootprint) : ""} />
 					<input type="hidden" name="floors" value={String(Math.min(4, Math.max(1, currentFloors)))} />
 					<input type="hidden" name="elevation" value={String(Number(currentElevation) || 0)} />
-					<input type="hidden" name="color" value={currentColor} />
 					<input type="hidden" name="xCoord" value={String(currentFootprint.length >= 3 ? calculatePolygonCentroid(currentFootprint)[0] : (activeBuilding?.xCoord ?? 9.894414))} />
 					<input type="hidden" name="yCoord" value={String(currentFootprint.length >= 3 ? calculatePolygonCentroid(currentFootprint)[1] : (activeBuilding?.yCoord ?? 123.88258))} />
 

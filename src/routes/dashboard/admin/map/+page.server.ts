@@ -1,6 +1,45 @@
 import { redirect, fail } from "@sveltejs/kit";
 import type { PageServerLoad, Actions } from "./$types";
-import { getLocalBuildings, updateLocalBuilding } from "$lib/supabase";
+import { isValidRestrictedPolygon } from "$lib/components/map/restricted-areas";
+import {
+	addLocalRestrictedArea,
+	deleteLocalRestrictedArea,
+	getLocalBuildings,
+	getLocalRestrictedAreas,
+	updateLocalBuilding,
+} from "$lib/supabase";
+
+function parseRestrictedPolygon(raw: FormDataEntryValue | null): [number, number][] | null {
+	if (typeof raw !== "string") return null;
+
+	try {
+		const parsed: unknown = JSON.parse(raw);
+		if (!Array.isArray(parsed) || parsed.length < 3 || parsed.length > 200) return null;
+
+		const polygon: [number, number][] = [];
+		for (const point of parsed) {
+			if (
+				!Array.isArray(point) ||
+				point.length !== 2 ||
+				typeof point[0] !== "number" ||
+				typeof point[1] !== "number" ||
+				!Number.isFinite(point[0]) ||
+				!Number.isFinite(point[1]) ||
+				point[0] < -90 ||
+				point[0] > 90 ||
+				point[1] < -180 ||
+				point[1] > 180
+			) {
+				return null;
+			}
+			polygon.push([point[0], point[1]]);
+		}
+
+		return isValidRestrictedPolygon(polygon) ? polygon : null;
+	} catch {
+		return null;
+	}
+}
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const session = locals.session;
@@ -10,12 +49,70 @@ export const load: PageServerLoad = async ({ locals }) => {
 		throw redirect(303, "/dashboard?error=unauthorized_role");
 	}
 
-	const buildings = await getLocalBuildings(locals.supabase);
+	const [buildings, restrictedAreas] = await Promise.all([
+		getLocalBuildings(locals.supabase),
+		getLocalRestrictedAreas(locals.supabase),
+	]);
 
-	return { buildings };
+	return { buildings, restrictedAreas };
 };
 
 export const actions: Actions = {
+	createRestrictedArea: async ({ request, locals }) => {
+		if (locals.session?.role !== "admin") {
+			return fail(403, { message: "Only administrators can add restricted areas." });
+		}
+
+		const formData = await request.formData();
+		const nameValue = formData.get("name");
+		const descriptionValue = formData.get("description");
+		const name = typeof nameValue === "string" ? nameValue.trim() : "";
+		const description =
+			typeof descriptionValue === "string" ? descriptionValue.trim() : "";
+		const polygon = parseRestrictedPolygon(formData.get("polygon"));
+
+		if (!name || name.length > 100) {
+			return fail(400, { message: "A restricted area name of 1–100 characters is required." });
+		}
+		if (description.length > 500) {
+			return fail(400, { message: "The restricted area description must be 500 characters or fewer." });
+		}
+		if (!polygon) {
+			return fail(400, { message: "Draw a valid area using at least 3 map points." });
+		}
+
+		try {
+			await addLocalRestrictedArea({ name, description, polygon }, locals.supabase);
+			return { success: true };
+		} catch (error: unknown) {
+			const message = error instanceof Error ? error.message : "Failed to create restricted area.";
+			return fail(500, { message });
+		}
+	},
+
+	deleteRestrictedArea: async ({ request, locals }) => {
+		if (locals.session?.role !== "admin") {
+			return fail(403, { message: "Only administrators can remove restricted areas." });
+		}
+
+		const formData = await request.formData();
+		const id = formData.get("id");
+		if (
+			typeof id !== "string" ||
+			!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+		) {
+			return fail(400, { message: "A valid restricted area ID is required." });
+		}
+
+		try {
+			await deleteLocalRestrictedArea(id, locals.supabase);
+			return { success: true };
+		} catch (error: unknown) {
+			const message = error instanceof Error ? error.message : "Failed to delete restricted area.";
+			return fail(500, { message });
+		}
+	},
+
 	saveBuildingFootprint: async ({ request, locals }) => {
 		const data = await request.formData();
 		const id = data.get("id") as string;
@@ -23,7 +120,6 @@ export const actions: Actions = {
 		const elevationVal = data.get("elevation");
 		const elevation =
 			elevationVal !== null && elevationVal !== undefined ? Number(elevationVal) : 0;
-		const color = (data.get("color") as string || "").trim();
 		const floorsVal = data.get("floors");
 		const floors = floorsVal ? Math.min(4, Math.max(1, Number(floorsVal))) : undefined;
 		const xCoordVal = data.get("xCoord");
@@ -48,7 +144,6 @@ export const actions: Actions = {
 			footprint: parsedFootprint || null,
 			elevation,
 		};
-		if (color) updates.color = color;
 		if (floors !== undefined && floors > 0) updates.floors = floors;
 		if (xCoord !== undefined) updates.xCoord = xCoord;
 		if (yCoord !== undefined) updates.yCoord = yCoord;
