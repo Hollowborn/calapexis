@@ -821,7 +821,7 @@
 
 		buildingExtrusionManager = new BuildingExtrusionManager(map, L, {
 			interactive: true,
-			showLabels: true,
+			showLabels: false,
 			onBuildingClick: (b) => {
 				selectedBuildingForModal = b;
 				isBuildingImageLoading = true;
@@ -978,6 +978,10 @@
 	});
 
 	function getBuildingLatLng(b: any): [number, number] {
+		if (Array.isArray(b.footprint) && b.footprint.length >= 3) {
+			return calculatePolygonCentroid(b.footprint);
+		}
+
 		// 1. Prioritize explicit latitude and longitude columns from database
 		if (
 			typeof b.lat === "number" &&
@@ -1030,17 +1034,18 @@
 		buildingMarkers = [];
 
 		buildingsList.forEach((b: any) => {
-			if (showVectorBuildings && b.footprint && b.footprint.length >= 3) {
-				return; // Rendered via 2.5D Vector Extrusion
-			}
+			if (b.isActive === false) return;
+
 			const coords = getBuildingLatLng(b);
 			const color = b.color || "#3b82f6";
+			const floors = Math.max(1, Number(b.floors) || 1);
 
 			const iconHtml = `
 				<div class="group relative flex items-center justify-center cursor-pointer">
 					<div class="px-2.5 py-1 rounded-xl bg-card/95 backdrop-blur-md border border-border shadow-xl flex items-center gap-1.5 hover:scale-105 transition-transform" style="border-left: 4px solid ${color};">
-						<div class="size-2 rounded-full animate-pulse" style="background-color: ${color};"></div>
+						<div class="size-2 rounded-full shrink-0" style="background-color: ${color};"></div>
 						<span class="text-[11px] font-black text-foreground whitespace-nowrap">${b.code}</span>
+						<span class="rounded-md bg-muted px-1 py-0.5 text-[9px] font-black text-muted-foreground">${floors}F</span>
 					</div>
 				</div>
 			`;
@@ -1049,8 +1054,8 @@
 				icon: L.divIcon({
 					className: "bg-transparent border-none",
 					html: iconHtml,
-					iconSize: [100, 32],
-					iconAnchor: [50, 16],
+					iconSize: [120, 32],
+					iconAnchor: [60, 16],
 				}),
 			}).addTo(leafMap);
 

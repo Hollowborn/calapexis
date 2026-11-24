@@ -89,6 +89,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 					lng: b.lng,
 					xCoord: b.x_coord,
 					yCoord: b.y_coord,
+					footprint: Array.isArray(b.footprint) ? b.footprint : undefined,
+					elevation:
+						b.elevation !== null && b.elevation !== undefined
+							? Number(b.elevation)
+							: 0,
 					isActive: b.is_active ?? true
 				}));
 			}
