@@ -3,13 +3,20 @@
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import type { Building, MapEdge, RestrictedArea } from '$lib/types';
-	import { BuildingExtrusionManager } from '$lib/components/map/building-extrusion';
-	import { createRestrictedAreaLayer } from '$lib/components/map/restricted-areas';
+	import {
+		BuildingExtrusionManager,
+		calculatePolygonCentroid,
+	} from '$lib/components/map/building-extrusion';
+	import {
+		createRestrictedAreaLayer,
+		pathIntersectsRestrictedArea,
+	} from '$lib/components/map/restricted-areas';
 	import * as Tabs from "$lib/components/ui/tabs/index.js";
 	import * as Popover from "$lib/components/ui/popover/index.js";
 	import * as Command from "$lib/components/ui/command/index.js";
 	import * as Card from "$lib/components/ui/card/index.js";
 	import * as Table from "$lib/components/ui/table/index.js";
+	import * as Alert from "$lib/components/ui/alert/index.js";
 	import { Badge } from "$lib/components/ui/badge/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
 	import { Input } from "$lib/components/ui/input/index.js";
@@ -30,6 +37,7 @@
 	import SearchIcon from "@lucide/svelte/icons/search";
 	import ChevronsUpDownIcon from "@lucide/svelte/icons/chevrons-up-down";
 	import CheckIcon from "@lucide/svelte/icons/check";
+	import AlertTriangleIcon from "@lucide/svelte/icons/alert-triangle";
 
 	let { data } = $props();
 
@@ -41,6 +49,7 @@
 	// Navigation & Tab state
 	let activeTab = $state<'map' | 'edges'>('map');
 	let searchQuery = $state('');
+	let showOnlyRestrictedEdges = $state(false);
 
 	// Active editing & combobox state
 	let activeEditingId = $state<string | null>(null);
@@ -56,6 +65,17 @@
 	let selectedToBuilding = $derived(
 		buildingsList.find(b => b.id === selectedToNode || b.code === selectedToNode)
 	);
+	let restrictedEdges = $derived(
+		edgesList.filter(
+			(edge) =>
+				Array.isArray(edge.path) &&
+				edge.path.length >= 2 &&
+				restrictedAreas.some((area) =>
+					pathIntersectsRestrictedArea(edge.path, area.polygon),
+				),
+		),
+	);
+	let restrictedEdgeIds = $derived(new Set(restrictedEdges.map((edge) => edge.id)));
 
 	// Map layers & tile state
 	let selectedBaseTile = $state<'osm' | 'satellite'>('osm');
@@ -84,6 +104,7 @@
 
 	let filteredEdgesList = $derived(
 		edgesList.filter(edge => {
+			if (showOnlyRestrictedEdges && !restrictedEdgeIds.has(edge.id)) return false;
 			const query = searchQuery.trim().toLowerCase();
 			if (!query) return true;
 			const fromName = getBuildingName(edge.fromNode).toLowerCase();
@@ -100,6 +121,9 @@
 	function getBuildingCoords(nodeId: string): [number, number] | null {
 		const found = buildingsList.find(b => b.id === nodeId || b.code === nodeId);
 		if (!found) return null;
+		if (found.footprint && found.footprint.length >= 3) {
+			return calculatePolygonCentroid(found.footprint);
+		}
 		const lat = found.lat || found.xCoord || 9.894414;
 		const lng = found.lng || found.yCoord || 123.88258;
 		return [lat, lng];
@@ -226,6 +250,14 @@
 		}, 100);
 	}
 
+	function handleBuildingNodeSelect(building: Building) {
+		if (!selectedFromNode) {
+			handleFromNodeChange(building.id);
+		} else if (!selectedToNode && selectedFromNode !== building.id) {
+			handleToNodeChange(building.id);
+		}
+	}
+
 	onMount(async () => {
 		if (typeof window === 'undefined') return;
 
@@ -254,6 +286,10 @@
 			const routePane = map.createPane('edgeRoutePane');
 			routePane.style.zIndex = '650';
 		}
+		if (!map.getPane('buildingHeaderPane')) {
+			const headerPane = map.createPane('buildingHeaderPane');
+			headerPane.style.zIndex = '680';
+		}
 
 		const osmTile = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 			attribution: '&copy; OpenStreetMap',
@@ -277,8 +313,9 @@
 		leafMap = map;
 
 		buildingExtrusionManager = new BuildingExtrusionManager(map, L, {
-			interactive: false,
-			showLabels: false
+			interactive: true,
+			showLabels: false,
+			onBuildingClick: handleBuildingNodeSelect
 		});
 		buildingExtrusionManager.renderBuildings(buildingsList);
 		createRestrictedAreaLayer(L, map, restrictedAreas);
@@ -333,33 +370,33 @@
 		buildingMarkers = [];
 
 		buildingsList.forEach(b => {
-			const lat = b.lat || b.xCoord || 9.894414;
-			const lng = b.lng || b.yCoord || 123.88258;
+			const [lat, lng] =
+				b.footprint && b.footprint.length >= 3
+					? calculatePolygonCentroid(b.footprint)
+					: [b.lat || b.xCoord || 9.894414, b.lng || b.yCoord || 123.88258];
 			const pinColor = b.color || '#3b82f6';
 
 			const iconHtml = `
 				<div class="flex items-center gap-1.5 bg-background/95 text-foreground border shadow-md px-2 py-1 rounded-xl text-[10px] font-extrabold whitespace-nowrap cursor-pointer transition-all hover:scale-105" style="border-color: ${pinColor}80;">
 					<span class="size-2.5 rounded-full inline-block shrink-0 shadow-xs" style="background-color: ${pinColor}; font-size: 0;"></span>
 					<span>${b.code || b.name}</span>
+					<span class="rounded-md bg-muted px-1 py-0.5 text-[9px] font-black text-muted-foreground">${Math.max(1, Number(b.floors) || 1)}F</span>
 				</div>
 			`;
 
 			const customIcon = L.divIcon({
 				html: iconHtml,
 				className: 'custom-building-pin',
-				iconSize: [85, 24],
-				iconAnchor: [42, 12]
+				iconSize: [120, 26],
+				iconAnchor: [60, 13]
 			});
 
-			const marker = L.marker([lat, lng], { icon: customIcon }).addTo(leafMap);
+			const marker = L.marker([lat, lng], {
+				icon: customIcon,
+				pane: 'buildingHeaderPane',
+			}).addTo(leafMap);
 			marker.bindTooltip(`<b>${b.name}</b><br/>${b.description || ''}`, { direction: 'top' });
-			marker.on('click', () => {
-				if (!selectedFromNode) {
-					handleFromNodeChange(b.id);
-				} else if (!selectedToNode && selectedFromNode !== b.id) {
-					handleToNodeChange(b.id);
-				}
-			});
+			marker.on('click', () => handleBuildingNodeSelect(b));
 			buildingMarkers.push(marker);
 		});
 	}
@@ -546,6 +583,36 @@
 			</Tabs.List>
 		</Tabs.Root>
 	</div>
+
+	{#if restrictedEdges.length > 0}
+		<Alert.Root
+			variant="destructive"
+			class="rounded-xl pr-28 sm:pr-32"
+		>
+			<AlertTriangleIcon />
+			<Alert.Title class="text-xs font-extrabold">
+				{restrictedEdges.length} pathway{restrictedEdges.length === 1 ? "" : "s"} intersect restricted areas
+			</Alert.Title>
+			<Alert.Description class="text-xs font-semibold">
+				Review and modify {restrictedEdges.length === 1 ? "this pathway" : "these pathways"} before relying on them for navigation.
+			</Alert.Description>
+			<Alert.Action>
+				<Button
+					type="button"
+					variant="outline"
+					size="xs"
+					class="h-7 rounded-lg text-[10px] font-bold"
+					onclick={() => {
+						activeTab = "edges";
+						showOnlyRestrictedEdges = true;
+						searchQuery = "";
+					}}
+				>
+					Review paths
+				</Button>
+			</Alert.Action>
+		</Alert.Root>
+	{/if}
 
 	<!-- TAB 1: FULL-WIDTH INTERACTIVE LEAFLET CANVAS -->
 	<div class={activeTab === 'map' ? 'flex flex-col md:block gap-4' : 'hidden'}>
@@ -801,14 +868,27 @@
 					</p>
 				</div>
 
-				<div class="relative w-full sm:w-64">
-					<SearchIcon class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-					<Input 
-						type="text" 
-						placeholder="Filter building name or code..." 
-						bind:value={searchQuery} 
-						class="pl-9 h-9 text-xs rounded-xl"
-					/>
+				<div class="flex w-full items-center gap-2 sm:w-auto">
+					<div class="relative w-full sm:w-64">
+						<SearchIcon class="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+						<Input
+							type="text"
+							placeholder="Filter building name or code..."
+							bind:value={searchQuery}
+							class="pl-9 h-9 text-xs rounded-xl"
+						/>
+					</div>
+					{#if showOnlyRestrictedEdges}
+						<Button
+							type="button"
+							variant="outline"
+							size="xs"
+							class="h-9 shrink-0 rounded-xl text-[10px] font-bold"
+							onclick={() => (showOnlyRestrictedEdges = false)}
+						>
+							Show all
+						</Button>
+					{/if}
 				</div>
 			</div>
 
@@ -826,6 +906,7 @@
 							<Table.Head class="text-xs font-extrabold text-muted-foreground">To Building</Table.Head>
 							<Table.Head class="text-xs font-extrabold text-muted-foreground">Waypoints</Table.Head>
 							<Table.Head class="text-xs font-extrabold text-muted-foreground">Est. Distance</Table.Head>
+							<Table.Head class="text-xs font-extrabold text-muted-foreground">Status</Table.Head>
 							<Table.Head class="text-xs font-extrabold text-muted-foreground text-right">Actions</Table.Head>
 						</Table.Row>
 					</Table.Header>
@@ -850,6 +931,17 @@
 								</Table.Cell>
 								<Table.Cell class="text-xs font-semibold text-muted-foreground">
 									{dist} m
+								</Table.Cell>
+								<Table.Cell>
+									{#if restrictedEdgeIds.has(edge.id)}
+										<Badge variant="destructive" class="whitespace-nowrap text-[9px] font-bold">
+											Restricted area
+										</Badge>
+									{:else}
+										<Badge variant="secondary" class="whitespace-nowrap text-[9px] font-bold">
+											Clear
+										</Badge>
+									{/if}
 								</Table.Cell>
 								<Table.Cell class="text-right">
 									<div class="flex items-center justify-end gap-1.5">

@@ -98,6 +98,7 @@
 	let leafletInstance: any = $state(null);
 	let visitorMarkers: Record<string, any> = {};
 	let officeMarkers: Record<string, any> = {};
+	let buildingMarkers: Record<string, any> = {};
 
 	// Campus Bounds
 	const campusBoundsCoords = [
@@ -260,11 +261,12 @@
 
 		buildingExtrusionManager = new BuildingExtrusionManager(map, L, {
 			interactive: false,
-			showLabels: true
+			showLabels: false
 		});
 		buildingExtrusionManager.renderBuildings(buildingsList);
 		createRestrictedAreaLayer(L, map, restrictedAreas);
 
+		plotBuildingNodesOnMap();
 		plotVisitorNodesOnMap();
 		plotOfficeNodesOnMap();
 
@@ -350,6 +352,48 @@
 		}
 	});
 
+	function plotBuildingNodesOnMap() {
+		if (!leafMap || !leafletInstance) return;
+		const L = leafletInstance;
+
+		Object.values(buildingMarkers).forEach((marker) => leafMap.removeLayer(marker));
+		buildingMarkers = {};
+
+		buildingsList.forEach((building: any) => {
+			if (building.isActive === false) return;
+
+			const [lat, lng] =
+				Array.isArray(building.footprint) && building.footprint.length >= 3
+					? calculatePolygonCentroid(building.footprint)
+					: [
+							building.lat || building.xCoord || 9.894414,
+							building.lng || building.yCoord || 123.88258,
+						];
+			const color = building.color || '#3b82f6';
+			const floors = Math.max(1, Number(building.floors) || 1);
+			const iconHtml = `
+				<div class="flex items-center gap-1.5 rounded-xl border bg-card/95 px-2 py-1 text-[10px] font-extrabold text-foreground shadow-md whitespace-nowrap" style="border-color: ${color}80;">
+					<span class="size-2.5 shrink-0 rounded-full shadow-xs" style="background-color: ${color};"></span>
+					<span>${building.code || building.name}</span>
+					<span class="rounded-md bg-muted px-1 py-0.5 text-[9px] font-black text-muted-foreground">${floors}F</span>
+				</div>
+			`;
+			const marker = L.marker([lat, lng], {
+				icon: L.divIcon({
+					className: "bg-transparent border-none",
+					html: iconHtml,
+					iconSize: [120, 26],
+					iconAnchor: [60, 13],
+				}),
+				zIndexOffset: 400,
+			})
+				.bindTooltip(`<b>${building.name}</b> · ${floors} floor${floors === 1 ? "" : "s"}`)
+				.addTo(leafMap);
+
+			buildingMarkers[building.id] = marker;
+		});
+	}
+
 	function plotOfficeNodesOnMap() {
 		if (!leafMap || !leafletInstance) return;
 		const L = leafletInstance;
@@ -390,7 +434,7 @@
 			let lat = baseLat;
 			let lng = baseLng;
 
-			if (totalInBuilding > 1) {
+			if (totalInBuilding > 0) {
 				const idx = buildingOfficeIndices[office.buildingId] || 0;
 				buildingOfficeIndices[office.buildingId] = idx + 1;
 				const angle = (idx / totalInBuilding) * 2 * Math.PI;
