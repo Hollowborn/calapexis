@@ -8,5 +8,5 @@ export const load: PageServerLoad = async ({ cookies }) => {
 		throw redirect(303, `/login?error=unauthorized_security&redirect=%2Fdashboard`);
 	}
 
-	throw redirect(303, '/dashboard');
+	throw redirect(303, '/dashboard/security');
 };
