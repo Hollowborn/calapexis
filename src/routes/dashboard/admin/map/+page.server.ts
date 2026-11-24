@@ -114,6 +114,10 @@ export const actions: Actions = {
 	},
 
 	saveBuildingFootprint: async ({ request, locals }) => {
+		if (locals.session?.role !== "admin") {
+			return fail(403, { message: "Only administrators can update building map vectors." });
+		}
+
 		const data = await request.formData();
 		const id = data.get("id") as string;
 		const footprintRaw = data.get("footprint") as string;
@@ -122,10 +126,8 @@ export const actions: Actions = {
 			elevationVal !== null && elevationVal !== undefined ? Number(elevationVal) : 0;
 		const floorsVal = data.get("floors");
 		const floors = floorsVal ? Math.min(4, Math.max(1, Number(floorsVal))) : undefined;
-		const xCoordVal = data.get("xCoord");
-		const yCoordVal = data.get("yCoord");
-		const xCoord = xCoordVal ? Number(xCoordVal) : undefined;
-		const yCoord = yCoordVal ? Number(yCoordVal) : undefined;
+		const updateCoordinatesFromFootprint =
+			data.get("updateCoordinatesFromFootprint") === "on";
 
 		if (!id) {
 			return fail(400, { message: "Building ID is required." });
@@ -133,11 +135,39 @@ export const actions: Actions = {
 
 		let parsedFootprint: [number, number][] | undefined = undefined;
 		if (footprintRaw) {
+			let parsed: unknown;
 			try {
-				parsedFootprint = JSON.parse(footprintRaw);
+				parsed = JSON.parse(footprintRaw);
 			} catch (e) {
 				return fail(400, { message: "Invalid footprint JSON data." });
 			}
+
+			if (!Array.isArray(parsed)) {
+				return fail(400, { message: "Footprint must contain valid latitude/longitude points." });
+			}
+
+			parsedFootprint = [];
+			for (const point of parsed) {
+				if (
+					!Array.isArray(point) ||
+					point.length !== 2 ||
+					typeof point[0] !== "number" ||
+					typeof point[1] !== "number" ||
+					!Number.isFinite(point[0]) ||
+					!Number.isFinite(point[1]) ||
+					point[0] < -90 ||
+					point[0] > 90 ||
+					point[1] < -180 ||
+					point[1] > 180
+				) {
+					return fail(400, { message: "Footprint must contain valid latitude/longitude points." });
+				}
+				parsedFootprint.push([point[0], point[1]]);
+			}
+		}
+
+		if (updateCoordinatesFromFootprint && (!parsedFootprint || parsedFootprint.length < 3)) {
+			return fail(400, { message: "At least 3 valid footprint points are required to update building coordinates." });
 		}
 
 		const updates: Record<string, unknown> = {
@@ -145,8 +175,14 @@ export const actions: Actions = {
 			elevation,
 		};
 		if (floors !== undefined && floors > 0) updates.floors = floors;
-		if (xCoord !== undefined) updates.xCoord = xCoord;
-		if (yCoord !== undefined) updates.yCoord = yCoord;
+		if (updateCoordinatesFromFootprint && parsedFootprint) {
+			const [latTotal, lngTotal] = parsedFootprint.reduce(
+				([latSum, lngSum], [lat, lng]) => [latSum + lat, lngSum + lng],
+				[0, 0],
+			);
+			updates.xCoord = latTotal / parsedFootprint.length;
+			updates.yCoord = lngTotal / parsedFootprint.length;
+		}
 
 		try {
 			await updateLocalBuilding(id, updates, locals.supabase);

@@ -6,6 +6,7 @@
 	import * as Select from "$lib/components/ui/select/index.js";
 	import * as Accordion from "$lib/components/ui/accordion/index.js";
 	import * as Field from "$lib/components/ui/field/index.js";
+	import { Checkbox } from "$lib/components/ui/checkbox/index.js";
 	import { Button } from "$lib/components/ui/button/index.js";
 	import { Input } from "$lib/components/ui/input/index.js";
 	import { Badge } from "$lib/components/ui/badge/index.js";
@@ -40,6 +41,7 @@
 	let currentFootprint = $state<[number, number][]>([]);
 	let currentFloors = $state(1);
 	let currentElevation = $state(0);
+	let updateBuildingCoordinates = $state(false);
 	let currentRestrictedAreaName = $state("");
 	let currentRestrictedAreaDescription = $state("");
 	let currentRestrictedAreaPolygon = $state<[number, number][]>([]);
@@ -877,36 +879,63 @@
 			</div>
 
 			<!-- Sticky Bottom Action Bar with use:enhance Form -->
-			<div class="shrink-0 p-4 border-t border-border/70 bg-card flex items-center justify-between gap-3">
-				<a
-					href="/dashboard/admin/buildings"
-					class="inline-flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground border border-border hover:border-border/80 hover:bg-muted/50 transition-all px-4 h-10 rounded-xl"
+			<div class="shrink-0 border-t border-border/70 bg-card p-4">
+				<form
+					method="POST"
+					action="?/saveBuildingFootprint"
+					use:enhance={handleSaveEnhance}
+					class="flex flex-col gap-3"
 				>
-					<ArrowLeftIcon class="size-3.5 pointer-events-none" />
-					<span>Back</span>
-				</a>
-
-				<form method="POST" action="?/saveBuildingFootprint" use:enhance={handleSaveEnhance} class="flex flex-1 contents">
 					<input type="hidden" name="id" value={activeBuilding?.id || ""} />
 					<input type="hidden" name="footprint" value={currentFootprint.length >= 3 ? JSON.stringify(currentFootprint) : ""} />
 					<input type="hidden" name="floors" value={String(Math.min(4, Math.max(1, currentFloors)))} />
 					<input type="hidden" name="elevation" value={String(Number(currentElevation) || 0)} />
-					<input type="hidden" name="xCoord" value={String(currentFootprint.length >= 3 ? calculatePolygonCentroid(currentFootprint)[0] : (activeBuilding?.xCoord ?? 9.894414))} />
-					<input type="hidden" name="yCoord" value={String(currentFootprint.length >= 3 ? calculatePolygonCentroid(currentFootprint)[1] : (activeBuilding?.yCoord ?? 123.88258))} />
+					<Field.FieldGroup>
+						<Field.Field orientation="horizontal" data-disabled={currentFootprint.length < 3}>
+							<Checkbox
+								id="update-building-coordinates"
+								name="updateCoordinatesFromFootprint"
+								bind:checked={updateBuildingCoordinates}
+								disabled={currentFootprint.length < 3}
+							/>
+							<Field.FieldContent>
+								<Field.FieldLabel for="update-building-coordinates" class="text-[10px] font-semibold">
+									Update building coordinates to the footprint center
+								</Field.FieldLabel>
+								<Field.FieldDescription class="text-[10px]">
+									{#if currentFootprint.length >= 3}
+										Center: {calculatePolygonCentroid(currentFootprint).map((value) => value.toFixed(6)).join(", ")}
+									{:else}
+										Add at least 3 outline points to enable this option.
+									{/if}
+								</Field.FieldDescription>
+							</Field.FieldContent>
+						</Field.Field>
+					</Field.FieldGroup>
 
-					<Button
-						type="submit"
-						disabled={isSaving || !activeBuilding}
-						class="text-xs font-black rounded-xl h-10 px-5 gap-2 cursor-pointer shadow-md shadow-primary/20 w-full"
-					>
-						{#if isSaving}
-							<span class="size-3.5 rounded-full border-2 border-white border-t-transparent animate-spin shrink-0"></span>
-							<span>Saving...</span>
-						{:else}
-							<SaveIcon class="size-4 pointer-events-none" />
-							<span>Save Changes</span>
-						{/if}
-					</Button>
+					<div class="flex items-center justify-between gap-3">
+						<a
+							href="/dashboard/admin/buildings"
+							class="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border px-4 text-xs font-bold text-muted-foreground transition-all hover:border-border/80 hover:bg-muted/50 hover:text-foreground"
+						>
+							<ArrowLeftIcon class="size-3.5 pointer-events-none" />
+							<span>Back</span>
+						</a>
+
+						<Button
+							type="submit"
+							disabled={isSaving || !activeBuilding}
+							class="h-10 flex-1 cursor-pointer gap-2 rounded-xl px-5 text-xs font-black shadow-md shadow-primary/20"
+						>
+							{#if isSaving}
+								<span class="size-3.5 shrink-0 rounded-full border-2 border-white border-t-transparent animate-spin"></span>
+								<span>Saving...</span>
+							{:else}
+								<SaveIcon class="size-4 pointer-events-none" />
+								<span>Save Changes</span>
+							{/if}
+						</Button>
+					</div>
 				</form>
 			</div>
 		</div>
